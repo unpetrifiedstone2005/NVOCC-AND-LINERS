@@ -97,12 +97,15 @@ background-image: repeating-linear-gradient(
   background-color: #0B1020; /* nearly black blue */
   background-image: repeating-linear-gradient(
     90deg,
-    /* highlight */  #1A2A4A 0px,
+    /* highlight */  #183878 0px,
                      #1A2A4A 8px,
-    /* mid */        #0B1020 8px,
+    /* mid */        #1a307a 8px,
                      #0B1020 24px,
     /* shadow */     #02040A 24px,
                      #02040A 32px,
+                      #904a4a
+                      #59be26
+                      #df992f
     /* gap */        transparent 32px,
                      transparent 64px
   );
