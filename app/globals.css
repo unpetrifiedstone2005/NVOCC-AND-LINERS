@@ -1,0 +1,118 @@
+@import "tailwindcss";
+@import '@fontsource/inter'; /* Or use @import url('https://fonts.googleapis.com/...') */
+
+body {
+  font-family: 'Inter', sans-serif;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+* {
+  font-family: 'Times New Roman', Times, serif;
+
+}
+
+/* Add your custom texture class here */
+.container-texture-bg {
+background-color: #1A2530;  /* deep slate base */
+
+background-image: repeating-linear-gradient(
+  90deg,
+  /* highlight ridge */  #324156 0px,
+  #324156 8px,
+
+  /* mid-tone face */    #1A2530 8px,
+  #1A2530 24px,
+
+  /* shadow ridge */     #0C121A 24px,
+  #0C121A 32px,
+
+  /* gap */              transparent 32px,
+  transparent           64px
+);
+}
+
+
+.second-container-texture-bg{
+background-color: #1A2F4E;  /* dark base */
+
+background-image: repeating-linear-gradient(
+  90deg,
+  /* highlight ridge */  #2D4D8B 0px,
+  #2D4D8B 8px,
+
+  /* mid-tone face */    #1A2F4E 8px,
+  #1A2F4E 24px,
+
+  /* shadow ridge */     #0C1724 24px,
+  #0C1724 32px,
+
+  /* gap */              transparent 32px,
+  transparent           64px
+);
+}
+
+
+
+.third-container-texture-bg {
+  background-color: #AAAAAA; /* base between medium and dark */
+
+  background-image: repeating-linear-gradient(
+    90deg,
+    /* highlight */  #C0C0C0 0px,
+                     #C0C0C0 8px,
+    /* mid-tone */   #AAAAAA 8px,
+                     #AAAAAA 24px,
+    /* shadow */     #888888 24px,
+                     #888888 32px,
+    /* gap */        transparent 32px,
+                     transparent 64px
+  );
+}
+
+
+.fourth-container-texture-bg {
+/* Darker Slate Navy Corrugation */
+background-color: #0F1B2A;  /* dark navy‐slate base */
+
+background-image: repeating-linear-gradient(
+  90deg,
+  /* highlight ridge */  #1A2D4B 0px,
+                         #1A2D4B 8px,
+
+  /* mid-tone face */    #0F1B2A 8px,
+                         #0F1B2A 24px,
+
+  /* shadow ridge */     #030812 24px,
+                         #030812 32px,
+
+  /* gap */              transparent 32px,
+                         transparent 64px
+);
+
+}
+
+
+.fifth-container-texture-bg {
+/* Darker Slate Navy Corrugation */
+  background-color: #0B1020; /* nearly black blue */
+  background-image: repeating-linear-gradient(
+    90deg,
+    /* highlight */  #1A2A4A 0px,
+                     #1A2A4A 8px,
+    /* mid */        #0B1020 8px,
+                     #0B1020 24px,
+    /* shadow */     #02040A 24px,
+                     #02040A 32px,
+    /* gap */        transparent 32px,
+                     transparent 64px
+  );
+
+}
+
+
+
+
+
+
+
+
