@@ -22,7 +22,9 @@ import {
   AlertTriangle,
   Calculator,
   X,
-  Anchor
+  Anchor,
+  Sailboat,
+  DoorClosed
 } from 'lucide-react';
 
 type DeliveryType = 'door' | 'terminal';
@@ -118,6 +120,7 @@ export const NewQuoteComponent: React.FC = () => {
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [routePoints, setRoutePoints] = useState<{name:string;date:string}[]>([]);
+  const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [showModal, setShowModal] = useState<'breakdown' | 'remarks' | null>(null);
   const [formData, setFormData] = useState<FormData>({
      startLocation: '',
@@ -458,7 +461,13 @@ export const NewQuoteComponent: React.FC = () => {
               </div>
               <br/>
               <div className="flex justify-center">
-                <button className={`${buttonStyle} px-12 py-3 text-lg`}>SEARCH</button>
+                <button
+                onClick={nextStep}
+                disabled={!canProceedToNext()}
+                className={`${buttonStyle} px-12 py-3 text-lg`}
+              >
+                SEARCH
+              </button>
               </div>
             </div>
           </div>
@@ -468,163 +477,256 @@ export const NewQuoteComponent: React.FC = () => {
 
         {/* Step 2: Offer Selection */}
           {currentStep === 2 && (
-  <div className={sectionStyle}>
-    {/* —— Inline Route Bar with Dynamic Locations —— */}
-    <div className="mb-6">
-      <div className="bg-white bg-opacity-10 backdrop-blur-md p-4 rounded-2xl shadow-lg flex items-center justify-between">
-        {/* Dynamic route points - only showing start and end locations */}
-        {[
-          {
-            name: formData.startLocation || "New York, NY",
-            date: "2025-06-15",
-            type: formData.pickupType || "door"
-          },
-          {
-            name: formData.endLocation || "Dublin, Ireland", 
-            date: "2025-07-27",
-            type: formData.deliveryType || "door"
-          }
-        ].map((pt, idx) => (
-          <React.Fragment key={idx}>
-            <div className="flex flex-col items-center text-center">
-              <div className="bg-[#FFB343] p-2 rounded-full">
-                {pt.type === 'door' ? (
-                  <MapPin size={20} className="text-white" />
-                ) : (
-                  <Anchor size={20} className="text-white" />
+            <div
+              className={sectionStyle}
+              style={{
+                backgroundImage: `
+                  linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                  linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                `,
+                backgroundBlendMode: 'overlay',
+              }}
+            >
+          {/* —— Inline Route Bar with Dynamic Locations —— */}
+          <div className="mb-6">
+            <div className="p-4 rounded-2xl flex items-center justify-between">
+              {[
+                { name: formData.startLocation,  type: formData.pickupType },
+                { name: formData.endLocation, type: formData.deliveryType }
+              ].map((pt, idx) => (
+                <React.Fragment key={idx}>
+                  <div className="flex flex-col items-center text-center">
+                    
+                    <div className="bg-[#2D4D8B] p-2 rounded-full">
+                      {pt.type === 'door'
+                        ? <DoorClosed size={30} className="text-white" />
+                        : <Anchor     size={30} className="text-white" />
+                      }
+                    </div>
+                    <div className="mt-2 text-sm  font-semibold text-[#22D3EE]">
+                      {pt.name}
+                    </div>
+                    
+                    <div className="text-sm text-white font-bold mt-1">
+                      {pt.type.toUpperCase()}
+                    </div>
+                    
+                  </div>
+
+                  {idx < 1 && (
+                  <div className="flex items-center flex-1 mx-2 relative">
+                    <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
+                    <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
+                    <Sailboat size={55} className="text-[#22D3EE] mb-7" />
+                    <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
+                    <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
+
+                    <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 ">
+                      <button
+                        onClick={() => setIsRouteModalOpen(true)}
+                        className="uppercase px-4 py-1 text-sm bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] text-white rounded-xl shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4  font-bold hover:font-bold text-black "
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          {isRouteModalOpen && (
+            <div
+              className="fixed inset-0 bg-transparent backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50"
+              onClick={() => setIsRouteModalOpen(false)}
+            >
+              <div
+                className="bg-[#faf9f6] w-4/5 max-w-md p-6 rounded-2xl border-2 border-black shadow-lg"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold">Routing Points</h3>
+                  <button onClick={() => setIsRouteModalOpen(false)}>
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Summary */}
+                <div className="mb-4 text-sm">
+                  {formData.startLocation} → {formData.endLocation}
+                </div>
+
+                {/* Pre-carriage Mode */}
+                <div className="mb-4">
+                  <label className="text-sm font-semibold">Pre-carriage Mode</label>
+                  <select
+                    value={formData.pickupType}
+                    onChange={e =>
+                      setFormData(f => ({ ...f, pickupType: e.target.value as DeliveryType }))
+                    }
+                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                  >
+                    <option value="door">Door</option>
+                    <option value="terminal">Terminal</option>
+                  </select>
+                </div>
+
+                {/* Port of Loading */}
+                <div className="mb-4">
+                  <label className="text-sm font-semibold">Port of Loading (PoL)</label>
+                  <input
+                    type="text"
+                    value={formData.startLocation}
+                    onChange={e => setFormData(f => ({ ...f, startLocation: e.target.value }))}
+                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                  />
+                </div>
+
+                {/* Port of Discharge */}
+                <div className="mb-4">
+                  <label className="text-sm font-semibold">Port of Discharge (PoD)</label>
+                  <input
+                    type="text"
+                    value={formData.endLocation}
+                    onChange={e => setFormData(f => ({ ...f, endLocation: e.target.value }))}
+                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                  />
+                </div>
+
+                {/* On-carriage Mode */}
+                <div className="mb-6">
+                  <label className="text-sm font-semibold">On-carriage Mode</label>
+                  <select
+                    value={formData.deliveryType}
+                    onChange={e =>
+                      setFormData(f => ({ ...f, deliveryType: e.target.value as DeliveryType }))
+                    }
+                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                  >
+                    <option value="door">Door</option>
+                    <option value="terminal">Terminal</option>
+                  </select>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setIsRouteModalOpen(false)}
+                    className="px-4 py-2 font-bold border-2 border-black rounded bg-[#2a2a2a] text-[#faf9f6] hover:bg-[#333] mr-2"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setIsRouteModalOpen(false)}
+                    className="px-4 py-2 font-bold border-2 border-black rounded bg-[#FFB343] text-black hover:bg-[#e6a139]"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        <br/>
+
+        {/* ——— Container Type Selector with Dynamic Selection ——— */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          {[
+            { display: '20STD', value: '20-general' },
+            { display: '40STD', value: '40-general' },
+            { display: '40HC', value: '40-hc' }
+          ].map(ct => (
+            <button
+              key={ct.value}
+              onClick={() => setFormData(prev => ({ ...prev, containerType: ct.value }))}
+              className={`p-2 text-md font-bold transition shadow border-2 border-black cursor-pointer ${
+                formData.containerType === ct.value
+                  ? 'bg-gray-300 text-black rounded-3xl shadow-[10px_8px_0px_rgba(0,0,0,1)]'
+                  : 'bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-[#faf9f6] rounded-lg shadow-[4px_4px_0px_rgba(0,0,0,1)]'
+              }`}
+            >
+              {ct.display}
+            </button>
+          ))}
+        </div>
+
+        {/* ——— Scrollable Offers Container (60vh tall) ——— */}
+        <div className="bg-[#2a2a2a] rounded-xl border-2 border-black shadow-lg h-[60vh] overflow-y-auto">
+          {/* Table Header (sticky) */}
+          <div className="grid grid-cols-12 gap-2 p-2 bg-[#0A5B61] rounded-tl-xl  border-b-2 border-black sticky top-0 z-10">
+            <div className="col-span-1 text-white font-bold text-md ml-2">SELECT</div>
+            <div className="col-span-3 text-white font-bold text-md ml-2">CARRIER &amp; SERVICE</div>
+            <div className="col-span-2 text-white font-bold text-md ml-2">PRICE</div>
+            <div className="col-span-2 text-white font-bold text-md ml-2">TRANSIT</div>
+            <div className="col-span-2 text-white font-bold text-md ml-2">DEPART</div>
+            <div className="col-span-2 text-white font-bold text-md ml-2">ARRIVE</div>
+          </div>
+
+          {/* Table Rows */}
+          {[...offers, ...offers, ...offers].map((o, i) => {
+            const key = `${o.id}-${i}`;
+            const isSel = selectedOffer?.selectionKey === key;
+            return (
+              <div key={key}>
+                <div
+                  onClick={() => setSelectedOffer({...o, selectionKey: key})}
+                  className={`
+                    grid grid-cols-12 gap-2 p-2 cursor-pointer transition-all
+                    ${isSel ? 'bg-[#1e3a8a] shadow-[inset_0_0_12px_6px_rgba(255,179,67,0.2)]' : 'bg-[#2a2a2a] hover:bg-[#333]'}
+                  `}
+                >
+                  <div className="col-span-1 flex items-center">
+                    <div className={`
+                      w-4 h-4 rounded-full border-2 border-[#FFB343] flex items-center justify-center
+                      ${isSel ? 'bg-[#FFB343]' : 'bg-transparent'}
+                    `}>
+                      {isSel && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                    </div>
+                  </div>
+                  <div className="col-span-3">
+                    <div className="text-[#FFB343] font-bold text-sm">{o.carrier}</div>
+                    <div className="bg-[#0A5B61] text-[#faf9f6] px-1 py-0.5 text-[10px] font-bold border-2 border-black inline-block my-1">
+                      {o.service}
+                    </div>
+                    <div className="text-[#faf9f6] text-xs">{o.vesselName}</div>
+                  </div>
+                  <div className="col-span-2 text-[#FFB343] font-bold text-sm">USD {o.price}</div>
+                  <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.transitTime}</div>
+                  <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.departure}</div>
+                  <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.arrival}</div>
+                </div>
+
+                {isSel && (
+                  <div className="bg-[#1e3a8a] p-2 border-b-2 border-black">
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={e => { e.stopPropagation(); setShowModal('breakdown'); }}
+                        className="flex items-center gap-1 bg-[#FFB343] text-black px-3 py-1 text-sm font-bold border-2 border-black shadow hover:bg-[#e6a139] transition"
+                      >
+                        <Calculator size={14} /> Price Breakdown
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setShowModal('remarks'); }}
+                        className="flex items-center gap-1 bg-[#0A5B61] text-[#faf9f6] px-3 py-1 text-sm font-bold border-2 border-black shadow hover:bg-[#085055] transition"
+                      >
+                        <Info size={14} /> Remarks
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      {o.features.map((f:string,j:number) => (
+                        <div key={j} className="flex items-center gap-1 text-[#faf9f6]">
+                          <CheckCircle size={12} className="text-[#FFB343]" />
+                          {f}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
-              <div className="mt-2 text-sm font-semibold text-white">{pt.name}</div>
-              <div className="text-xs text-gray-200">{pt.date}</div>
-              <div className="text-xs text-[#FFB343] font-bold mt-1">
-                {pt.type.toUpperCase()}
-              </div>
-            </div>
-            {idx < 1 && (
-              <div className="flex items-center flex-1 mx-2">
-                <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
-                <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
-                <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
-                <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
-                <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
-              </div>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-    </div>
-
-    {/* ——— Quick Quotes Header with Dynamic Validity ——— */}
-    <div className="bg-[#1e3a8a] p-4 mb-4 border-2 border-black">
-      <div className="flex items-center gap-2 mb-2">
-        <Clock size={20} className="text-[#FFB343]" />
-        <h3 className="text-lg font-bold text-[#faf9f6]">Quick Quotes</h3>
-      </div>
-      <div className="text-sm text-[#faf9f6] mb-2">
-        Valid {formData.validFrom || "2025-06-09"} to 2025-07-31 • Ocean Freight (all in one document)
-      </div>
-      <div className="text-xs text-[#faf9f6] opacity-80">
-        Route: {formData.startLocation || "New York, NY"} → {formData.endLocation || "Dublin, Ireland"} • Container: {formData.containerType || "40HC"} • Qty: {formData.containerQuantity || "1"}
-      </div>
-    </div>
-
-    {/* ——— Container Type Selector with Dynamic Selection ——— */}
-    <div className="grid grid-cols-3 gap-2 mb-6">
-      {[
-        { display: '20STD', value: '20-general' },
-        { display: '40STD', value: '40-general' },
-        { display: '40HC', value: '40-hc' }
-      ].map(ct => (
-        <button
-          key={ct.value}
-          onClick={() => setFormData(prev => ({ ...prev, containerType: ct.value }))}
-          className={`p-2 text-sm font-bold transition shadow border-2 border-black cursor-pointer ${
-            formData.containerType === ct.value
-              ? 'bg-[#FFB343] text-black'
-              : 'bg-[#2a2a2a] hover:bg-[#333] text-[#faf9f6]'
-          }`}
-        >
-          {ct.display}
-        </button>
-      ))}
-    </div>
-
-    {/* ——— Scrollable Offers Container (60vh tall) ——— */}
-    <div className="bg-[#2a2a2a] border-2 border-black shadow-lg h-[60vh] overflow-y-auto">
-      {/* Table Header (sticky) */}
-      <div className="grid grid-cols-12 gap-2 p-2 bg-[#1e3a8a] border-b-2 border-black sticky top-0 z-10">
-        <div className="col-span-1 text-[#faf9f6] font-bold text-xs">SELECT</div>
-        <div className="col-span-3 text-[#faf9f6] font-bold text-xs">CARRIER &amp; SERVICE</div>
-        <div className="col-span-2 text-[#faf9f6] font-bold text-xs">PRICE</div>
-        <div className="col-span-2 text-[#faf9f6] font-bold text-xs">TRANSIT</div>
-        <div className="col-span-2 text-[#faf9f6] font-bold text-xs">DEPART</div>
-        <div className="col-span-2 text-[#faf9f6] font-bold text-xs">ARRIVE</div>
-      </div>
-
-      {/* Table Rows */}
-      {[...offers, ...offers, ...offers].map((o, i) => {
-        const key = `${o.id}-${i}`;
-        const isSel = selectedOffer?.selectionKey === key;
-        return (
-          <div key={key}>
-            <div
-              onClick={() => setSelectedOffer({...o, selectionKey: key})}
-              className={`
-                grid grid-cols-12 gap-2 p-2 cursor-pointer transition-all
-                ${isSel ? 'bg-[#1e3a8a] shadow-[inset_0_0_12px_6px_rgba(255,179,67,0.2)]' : 'bg-[#2a2a2a] hover:bg-[#333]'}
-              `}
-            >
-              <div className="col-span-1 flex items-center">
-                <div className={`
-                  w-4 h-4 rounded-full border-2 border-[#FFB343] flex items-center justify-center
-                  ${isSel ? 'bg-[#FFB343]' : 'bg-transparent'}
-                `}>
-                  {isSel && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
-                </div>
-              </div>
-              <div className="col-span-3">
-                <div className="text-[#FFB343] font-bold text-sm">{o.carrier}</div>
-                <div className="bg-[#0A5B61] text-[#faf9f6] px-1 py-0.5 text-[10px] font-bold border-2 border-black inline-block my-1">
-                  {o.service}
-                </div>
-                <div className="text-[#faf9f6] text-xs">{o.vesselName}</div>
-              </div>
-              <div className="col-span-2 text-[#FFB343] font-bold text-sm">USD {o.price}</div>
-              <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.transitTime}</div>
-              <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.departure}</div>
-              <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.arrival}</div>
-            </div>
-
-            {isSel && (
-              <div className="bg-[#1e3a8a] p-2 border-b-2 border-black">
-                <div className="flex gap-2 mb-2">
-                  <button
-                    onClick={e => { e.stopPropagation(); setShowModal('breakdown'); }}
-                    className="flex items-center gap-1 bg-[#FFB343] text-black px-3 py-1 text-sm font-bold border-2 border-black shadow hover:bg-[#e6a139] transition"
-                  >
-                    <Calculator size={14} /> Price Breakdown
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); setShowModal('remarks'); }}
-                    className="flex items-center gap-1 bg-[#0A5B61] text-[#faf9f6] px-3 py-1 text-sm font-bold border-2 border-black shadow hover:bg-[#085055] transition"
-                  >
-                    <Info size={14} /> Remarks
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  {o.features.map((f:string,j:number) => (
-                    <div key={j} className="flex items-center gap-1 text-[#faf9f6]">
-                      <CheckCircle size={12} className="text-[#FFB343]" />
-                      {f}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+            );
+          })}
+        </div>
     
     {/* Modal Popup */}
     {showModal && (
@@ -1010,7 +1112,7 @@ export const NewQuoteComponent: React.FC = () => {
                       <span className="text-[#faf9f6] font-bold">TO:</span>
                       <span className="text-[#FFB343]">{formData.endLocation || "Dublin, Ireland"}</span>
                       {/* Dynamic Icon for End */}
-                      <div className="flex items-center gap-1 ml-2">
+                      <div className="flex items-center gap-1 ml-2 mr-4">
                         {formData.deliveryType === 'door' ? (
                           <MapPin size={16} className="text-[#FFB343]" />
                         ) : (
@@ -1189,29 +1291,43 @@ export const NewQuoteComponent: React.FC = () => {
           );
         })()}
 
-        {/* Navigation Controls */}
-        <div className="flex justify-between mt-8 ">
-          <button onClick={prevStep} disabled={currentStep === 1} className="bg-white font-bold rounded-xl px-4 py-2">
-            <ArrowLeft size={20} /> PREVIOUS
-          </button>
-          {currentStep < 4 ? (
-             <button
+       {/* Navigation Controls */}
+        {currentStep > 1 && (
+          <div className="flex justify-between mt-8">
+            {/* Prev always shows on steps 2–4 */}
+            <button
+              onClick={prevStep}
+              disabled={currentStep === 1}
+              className="bg-white font-bold rounded-xl px-4 py-2"
+            >
+              <ArrowLeft size={20} /> PREVIOUS
+            </button>
+
+            {/* Next for steps 2–3, Get Quote on step 4 */}
+            {currentStep < 4 ? (
+              <button
                 onClick={nextStep}
                 disabled={!canProceedToNext()}
-                className={`bg-white rounded-xl font-bold px-4 py-2 flex flex-col justify-between`}
-                style={{ height: '100%' }} // ensure full height so justify-between works
-                >
-                {/* Top: NEXT text */}
+                className="bg-white rounded-xl font-bold px-4 py-2 flex flex-col justify-between"
+                style={{ height: '100%' }}
+              >
                 <span className="self-center">NEXT</span>
-                {/* Bottom-right: arrow */}
                 <ArrowRight size={20} className="self-end" />
-            </button>
-          ) : (
-            <button onClick={() => alert('Quote request submitted successfully!')} className="bg-white font-bold rounded-xl px-4 py-2">
-              <CheckCircle size={20} /> SUBMIT QUOTE
-            </button>
-          )}
-        </div>
+              </button>
+            ) : (
+              <button
+                onClick={() => alert('Quote request submitted successfully!')}
+                className="bg-white font-bold rounded-xl px-4 py-2"
+              >
+                <div className="flex flex-col justify-center items-center">
+                  <CheckCircle size={20} />
+                  <div>GET QUOTE</div>
+                </div>
+                
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

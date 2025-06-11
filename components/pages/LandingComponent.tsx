@@ -134,7 +134,7 @@ export function LandingComponent() {
   return (
     <div className="w-full min-h-screen container-texture-bg text-md pt-8 overflow-x-hidden flex flex-col">
       <div
-        className="flex items-center gap-4 third-container-texture-bg x justify-between px-6 py-4 w-full shadow-[0px_16px_0px_0px_rgba(0,0,0,0.8)]"
+        className="flex items-center gap-4 third-container-texture-bg  justify-between px-6 py-4 w-full shadow-[0px_16px_0px_0px_rgba(0,0,0,0.8)]"
       >
         <div className="flex items-center">
           
