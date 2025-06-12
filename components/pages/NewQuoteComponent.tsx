@@ -1093,7 +1093,7 @@ export const NewQuoteComponent: React.FC = () => {
           const base = selectedOffer ? parseInt(selectedOffer.price.replace(/[^0-9]/g,''), 10) : 0;
           const totalPrice = base + servicesTotal;
           return (
-            <div className={`${sectionStyle} p-10`}
+            <div className={`${sectionStyle} p-10 shadow-[40px_40px_0px_rgba(0,0,0,1)] mb-13`}
               style={{
                         backgroundImage: `
                           linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
