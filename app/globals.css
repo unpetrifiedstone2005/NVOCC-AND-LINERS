@@ -97,15 +97,22 @@ background-image: repeating-linear-gradient(
   background-color: #0B1020; /* nearly black blue */
   background-image: repeating-linear-gradient(
     90deg,
-    /* highlight */  #183878 0px,
+    /* highlight */  #2a72dc 0px,
+                      #04317e
+                      #2f2237
+                     #1c437c 
                      #1A2A4A 8px,
-    /* mid */        #1a307a 8px,
-                     #0B1020 24px,
-    /* shadow */     #02040A 24px,
-                     #02040A 32px,
-                      #904a4a
-                      #59be26
-                      #df992f
+    /* mid */        #465ca3 8px,
+                     #22546d 24px,
+    /* shadow */     #243d52 24px,
+                     #125d8f 32px,
+                     #0f3c5b
+                     #071e3d
+                      #1f3258
+                      #06183c
+                      #080f28
+                      #330358
+                      #600f9e
     /* gap */        transparent 32px,
                      transparent 64px
   );

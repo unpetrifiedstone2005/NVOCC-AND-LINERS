@@ -206,7 +206,7 @@ export const NewQuoteComponent: React.FC = () => {
 
         {/* Step 1: Search */}
         {currentStep === 1 && (
-          <div className={sectionStyle}
+          <div className={`${sectionStyle} p-10 shadow-[40px_40px_0px_rgba(0,0,0,1)]` }
           style={{
                   backgroundImage: `
                   linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
@@ -280,7 +280,7 @@ export const NewQuoteComponent: React.FC = () => {
                 type="date"
                 value={formData.validFrom}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleInputChange('validFrom', e.target.value)}
-                className={`bg-[#1d4595] rounded-xl hover:bg-[#1A2A4A] hover:text-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)]  placeholder:font-light transition-shadow border-black border-4 px-3 py-2 font-bold  placeholder: opacity-90  w-full font-light`}
+                className={`bg-[#1d4595] hover:bg-[#1A2A4A] rounded-xl  hover:text-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)]  placeholder:font-light transition-shadow border-black border-4 px-3 py-2 font-bold  placeholder: opacity-90  w-full font-light`}
               />
             </div>
             <br/>
@@ -464,7 +464,7 @@ export const NewQuoteComponent: React.FC = () => {
                 <button
                 onClick={nextStep}
                 disabled={!canProceedToNext()}
-                className={`${buttonStyle} px-12 py-3 text-lg`}
+                className={`bg-[#0A1A2F] rounded-3xl hover:bg-[#2D4D8B] hover:text-[#00FFFF] text-[#faf9f6] px-12 py-3 text-lg shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[15px_5px_0px_rgba(0,0,0,1)] `}
               >
                 SEARCH
               </button>
@@ -478,7 +478,7 @@ export const NewQuoteComponent: React.FC = () => {
         {/* Step 2: Offer Selection */}
           {currentStep === 2 && (
             <div
-              className={sectionStyle}
+              className={`${sectionStyle} p-13 mb-13 shadow-[40px_40px_0px_rgba(0,0,0,1)]` }
               style={{
                 backgroundImage: `
                   linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
@@ -539,10 +539,17 @@ export const NewQuoteComponent: React.FC = () => {
           {isRouteModalOpen && (
             <div
               className="fixed inset-0 bg-transparent backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50"
-              onClick={() => setIsRouteModalOpen(false)}
+
             >
               <div
-                className="bg-[#faf9f6] w-4/5 max-w-md p-6 rounded-2xl border-2 border-black shadow-lg"
+                className="  text-white w-4/5 max-w-md p-6 rounded-2xl shadow-[30px_30px_0px_rgba(0,0,0,1)] border-2 border-white "
+                style={{
+                backgroundImage: `
+                  linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                  linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                `,
+                backgroundBlendMode: 'overlay',
+              }}
                 onClick={e => e.stopPropagation()}
               >
                 <div className="flex justify-between items-center mb-4">
@@ -565,10 +572,11 @@ export const NewQuoteComponent: React.FC = () => {
                     onChange={e =>
                       setFormData(f => ({ ...f, pickupType: e.target.value as DeliveryType }))
                     }
-                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                    className="mt-1 p-2 border-2 border-black rounded w-full bg-[#2D4D8B] text-white rounded-lg"
                   >
-                    <option value="door">Door</option>
-                    <option value="terminal">Terminal</option>
+                    <option value="Track">Track</option>
+                    <option value="Railway">Railway</option>
+                    <option value="Waterway">Waterway</option>
                   </select>
                 </div>
 
@@ -579,7 +587,7 @@ export const NewQuoteComponent: React.FC = () => {
                     type="text"
                     value={formData.startLocation}
                     onChange={e => setFormData(f => ({ ...f, startLocation: e.target.value }))}
-                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                    className="mt-1 p-2 border-2 border-black bg-[#0b2457] text-white rounded-lg  rounded w-full"
                   />
                 </div>
 
@@ -590,7 +598,7 @@ export const NewQuoteComponent: React.FC = () => {
                     type="text"
                     value={formData.endLocation}
                     onChange={e => setFormData(f => ({ ...f, endLocation: e.target.value }))}
-                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                    className="mt-1 p-2 border-2 border-black bg-[#051241] text-white rounded-lg rounded w-full"
                   />
                 </div>
 
@@ -602,10 +610,11 @@ export const NewQuoteComponent: React.FC = () => {
                     onChange={e =>
                       setFormData(f => ({ ...f, deliveryType: e.target.value as DeliveryType }))
                     }
-                    className="mt-1 p-2 border-2 border-black rounded w-full"
+                    className="mt-1 p-2 border-2 border-black bg-[#080f28] text-white rounded-lg rounded w-full"
                   >
-                    <option value="door">Door</option>
-                    <option value="terminal">Terminal</option>
+                    <option value="Track">Track</option>
+                    <option value="Railway">Railway</option>
+                    <option value="Waterway">Waterway</option>
                   </select>
                 </div>
 
@@ -613,13 +622,13 @@ export const NewQuoteComponent: React.FC = () => {
                 <div className="flex justify-end">
                   <button
                     onClick={() => setIsRouteModalOpen(false)}
-                    className="px-4 py-2 font-bold border-2 border-black rounded bg-[#2a2a2a] text-[#faf9f6] hover:bg-[#333] mr-2"
+                    className="px-4 py-2 font-bold border-2 border-black rounded bg-gray-300 text-black hover:bg-gray-400 mr-2"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => setIsRouteModalOpen(false)}
-                    className="px-4 py-2 font-bold border-2 border-black rounded bg-[#FFB343] text-black hover:bg-[#e6a139]"
+                    className="px-4 py-2 font-bold border-2 border-black rounded bg-[#0d767d] text-white hover:bg-[#0A5B61]"
                   >
                     Save
                   </button>
@@ -642,8 +651,8 @@ export const NewQuoteComponent: React.FC = () => {
               onClick={() => setFormData(prev => ({ ...prev, containerType: ct.value }))}
               className={`p-2 text-md font-bold transition shadow border-2 border-black cursor-pointer ${
                 formData.containerType === ct.value
-                  ? 'bg-gray-300 text-black rounded-3xl shadow-[10px_8px_0px_rgba(0,0,0,1)]'
-                  : 'bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-[#faf9f6] rounded-lg shadow-[4px_4px_0px_rgba(0,0,0,1)]'
+                  ? 'bg-gray-300 text-black rounded-3xl shadow-[13px_13px_0px_rgba(0,0,0,1)]'
+                  : 'bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white rounded-lg shadow-[4px_4px_0px_rgba(0,0,0,1)]'
               }`}
             >
               {ct.display}
@@ -652,7 +661,7 @@ export const NewQuoteComponent: React.FC = () => {
         </div>
 
         {/* ——— Scrollable Offers Container (60vh tall) ——— */}
-        <div className="bg-[#2a2a2a] rounded-xl border-2 border-black shadow-lg h-[60vh] overflow-y-auto">
+        <div className="bg-[#2a2a2a]  rounded-xl border-2 border-white mb-4 h-[60vh] overflow-y-auto shadow-[30px_30px_0px_rgba(0,0,0,1)]">
           {/* Table Header (sticky) */}
           <div className="grid grid-cols-12 gap-2 p-2 bg-[#0A5B61] rounded-tl-xl  border-b-2 border-black sticky top-0 z-10">
             <div className="col-span-1 text-white font-bold text-md ml-2">SELECT</div>
@@ -673,50 +682,50 @@ export const NewQuoteComponent: React.FC = () => {
                   onClick={() => setSelectedOffer({...o, selectionKey: key})}
                   className={`
                     grid grid-cols-12 gap-2 p-2 cursor-pointer transition-all
-                    ${isSel ? 'bg-[#1e3a8a] shadow-[inset_0_0_12px_6px_rgba(255,179,67,0.2)]' : 'bg-[#2a2a2a] hover:bg-[#333]'}
+                    ${isSel ? 'bg-[#00186d] border-white border-1 ' : 'bg-[#0A1A2F] hover:bg-[#2D4D8B] '}
                   `}
                 >
-                  <div className="col-span-1 flex items-center">
+                  <div className="col-span-1 flex items-center ">
                     <div className={`
-                      w-4 h-4 rounded-full border-2 border-[#FFB343] flex items-center justify-center
-                      ${isSel ? 'bg-[#FFB343]' : 'bg-transparent'}
+                      w-4 h-4 rounded-full border-2 border-[#00FFFF] ml-7 flex items-center justify-center
+                      ${isSel ? 'bg-[#00FFFF]' : 'bg-transparent'}
                     `}>
                       {isSel && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
                     </div>
                   </div>
                   <div className="col-span-3">
-                    <div className="text-[#FFB343] font-bold text-sm">{o.carrier}</div>
-                    <div className="bg-[#0A5B61] text-[#faf9f6] px-1 py-0.5 text-[10px] font-bold border-2 border-black inline-block my-1">
+                    <div className="text-[#00FFFF] font-bold text-sm mb-1">{o.carrier}</div>
+                    <div className="uppercase bg-[#0A5B61] text-white rounded-md px-1 py-0.5 text-[10px] font-bold border-2 border-black inline-block my-1">
                       {o.service}
                     </div>
-                    <div className="text-[#faf9f6] text-xs">{o.vesselName}</div>
+                    <div className="text-[#faf9f6] text-sm ">{o.vesselName}</div>
                   </div>
-                  <div className="col-span-2 text-[#FFB343] font-bold text-sm">USD {o.price}</div>
+                  <div className="col-span-2 text-[#00FFFF] font-bold text-sm mt-7">USD {o.price}</div>
                   <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.transitTime}</div>
                   <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.departure}</div>
                   <div className="col-span-2 flex items-center text-[#faf9f6] text-sm">{o.arrival}</div>
                 </div>
 
                 {isSel && (
-                  <div className="bg-[#1e3a8a] p-2 border-b-2 border-black">
+                  <div className="bg-[#00186d] p-2 border-b-2 border-black">
                     <div className="flex gap-2 mb-2">
                       <button
                         onClick={e => { e.stopPropagation(); setShowModal('breakdown'); }}
-                        className="flex items-center gap-1 bg-[#FFB343] text-black px-3 py-1 text-sm font-bold border-2 border-black shadow hover:bg-[#e6a139] transition"
+                        className="flex items-center gap-1 rounded-md bg-[#2a72dc] text-white px-3 py-1 text-md mr-2 font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:bg-[#1c437c] transition-shadow"
                       >
                         <Calculator size={14} /> Price Breakdown
                       </button>
                       <button
                         onClick={e => { e.stopPropagation(); setShowModal('remarks'); }}
-                        className="flex items-center gap-1 bg-[#0A5B61] text-[#faf9f6] px-3 py-1 text-sm font-bold border-2 border-black shadow hover:bg-[#085055] transition"
+                        className="flex items-center gap-1 bg-[#7b22bf] rounded-md text-white px-3 py-1 text-md font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:bg-[#4b0084] transition-shadow"
                       >
                         <Info size={14} /> Remarks
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="grid grid-cols-2 gap-2 text-[14px]">
                       {o.features.map((f:string,j:number) => (
-                        <div key={j} className="flex items-center gap-1 text-[#faf9f6]">
-                          <CheckCircle size={12} className="text-[#FFB343]" />
+                        <div key={j} className="flex items-center gap-1 ml-1 text-[#faf9f6]">
+                          <CheckCircle size={12} className="text-[#00FFFF]" />
                           {f}
                         </div>
                       ))}
@@ -730,16 +739,25 @@ export const NewQuoteComponent: React.FC = () => {
     
     {/* Modal Popup */}
     {showModal && (
-      <div className="fixed inset-0 bg-transparent bg-backdrop-blur bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowModal(null)}>
-        <div className="bg-[#faf9f6] w-4/5 max-w-4xl max-h-[80vh] overflow-hidden border-4 border-black shadow-[-8px_4px_16px_rgba(0,0,0,0.6)]" onClick={e => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowModal(null)}>
+        <div 
+          className="rounded-xl w-4/5 max-w-4xl max-h-[80vh] overflow-hidden border-4 border-black shadow-[-8px_4px_16px_rgba(0,0,0,0.6)]" onClick={e => e.stopPropagation()}
+          style={{
+                backgroundImage: `
+                  linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                  linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                `,
+                backgroundBlendMode: 'overlay',
+              }}
+        >
           {/* Modal Header */}
-          <div className="flex border-b-4 border-black">
+          <div className="flex border-b-4 rounded-xl border-black">
             <button
               onClick={() => setShowModal('breakdown')}
-              className={`flex-1 px-6 py-4 font-bold border-r-4 border-black transition-all ${
+              className={`flex-1 px-6 py-4 font-bold border-r-4  border-black transition-all ${
                 showModal === 'breakdown' 
-                  ? 'bg-[#FFB343] text-black' 
-                  : 'bg-[#2a2a2a] text-[#faf9f6] hover:bg-[#333]'
+                  ? 'bg-[#0057d9] text-white' 
+                  : 'bg-[#2a72dc] text-white hover:bg-[#1c437c]'
               }`}
             >
               Price Breakdown
@@ -748,15 +766,15 @@ export const NewQuoteComponent: React.FC = () => {
               onClick={() => setShowModal('remarks')}
               className={`flex-1 px-6 py-4 font-bold transition-all ${
                 showModal === 'remarks' 
-                  ? 'bg-[#FFB343] text-black' 
-                  : 'bg-[#2a2a2a] text-[#faf9f6] hover:bg-[#333]'
+                  ? 'bg-[#7000c6] text-white' 
+                  : 'bg-[#7b22bf] text-[#faf9f6] hover:bg-[#330358]'
               }`}
             >
               Remarks and Info
             </button>
             <button
               onClick={() => setShowModal(null)}
-              className="px-4 py-4 bg-[#2a2a2a] text-[#faf9f6] hover:bg-[#333] transition-all"
+              className="px-4 py-4 bg-gray-300 text-black hover:bg-gray-400 transition-all"
             >
               <X size={20} />
             </button>
@@ -766,25 +784,25 @@ export const NewQuoteComponent: React.FC = () => {
           <div className="p-6 overflow-y-auto max-h-[60vh]">
             {showModal === 'breakdown' && (
               <div>
-                <h3 className="text-2xl font-bold text-black mb-6">Total Price Estimate</h3>
+                <h3 className="text-2xl font-bold text-white mb-6">Total Price Estimate</h3>
                 
                 {/* Estimated Total */}
-                <div className="bg-[#2a2a2a] border-4 border-black p-4 mb-6">
+                <div className="bg-[#2D4D8B] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
                   <div className="grid grid-cols-4 gap-4 text-center">
                     <div className="text-[#faf9f6] font-bold">Container Type</div>
-                    <div className="text-[#FFB343] font-bold">20STD</div>
-                    <div className="text-[#FFB343] font-bold">40STD</div>
-                    <div className="text-[#FFB343] font-bold">40HC</div>
+                    <div className="text-[#faf9f6] font-bold">20STD</div>
+                    <div className="text-[#faf9f6] font-bold">40STD</div>
+                    <div className="text-[#faf9f6] font-bold">40HC</div>
                     <div className="text-[#faf9f6]">Estimated Total per Container</div>
-                    <div className="text-[#FFB343] font-bold text-lg">USD 6213</div>
-                    <div className="text-[#FFB343] font-bold text-lg">USD 9554</div>
-                    <div className="text-[#FFB343] font-bold text-lg">USD 9554</div>
+                    <div className="text-[#faf9f6] font-bold text-lg">USD 6213</div>
+                    <div className="text-[#faf9f6] font-bold text-lg">USD 9554</div>
+                    <div className="text-[#faf9f6] font-bold text-lg">USD 9554</div>
                   </div>
                 </div>
 
                 {/* Freight Charges */}
-                <h4 className="text-xl font-bold text-black mb-4">Freight Charges</h4>
-                <div className="bg-[#1e3a8a] border-4 border-black p-4 mb-6">
+                <h4 className="text-xl font-bold text-white mb-4">Freight Charges</h4>
+                <div className="bg-[#1e3a8a] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
                   <div className="grid grid-cols-4 gap-4 text-center text-[#faf9f6]">
                     <div className="font-bold">Ocean Freight</div>
                     <div>USD 2832</div>
@@ -794,8 +812,8 @@ export const NewQuoteComponent: React.FC = () => {
                 </div>
 
                 {/* Surcharges */}
-                <h4 className="text-xl font-bold text-black mb-4">Export Surcharges</h4>
-                <div className="bg-[#0A5B61] border-4 border-black p-4 mb-4">
+                <h4 className="text-xl font-bold text-white mb-4">Export Surcharges</h4>
+                <div className="bg-[#051241] border-4 border-black p-4 mb-4 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
                   <div className="grid grid-cols-4 gap-4 text-center text-[#faf9f6] text-sm">
                     <div className="font-bold">Fuel Surcharge Origin Land</div>
                     <div>AUD 225</div>
@@ -812,8 +830,8 @@ export const NewQuoteComponent: React.FC = () => {
                   </div>
                 </div>
 
-                <h4 className="text-xl font-bold text-black mb-4">Import Surcharges</h4>
-                <div className="bg-[#373737] border-4 border-black p-4">
+                <h4 className="text-xl font-bold text-white mb-4">Import Surcharges</h4>
+                <div className="bg-[#080f28] border-4 border-black p-4 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
                   <div className="grid grid-cols-4 gap-4 text-center text-[#faf9f6] text-sm">
                     <div className="font-bold">Fuel Destination Inland</div>
                     <div>USD 138</div>
@@ -826,7 +844,7 @@ export const NewQuoteComponent: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="mt-4 text-sm text-black opacity-80">
+                <div className="mt-4 text-md text-white font-bold opacity-100">
                   Exchange rate as of 6 Jun 2025. Actual exchange rates may vary at time of purchase.
                 </div>
               </div>
@@ -834,22 +852,22 @@ export const NewQuoteComponent: React.FC = () => {
 
             {showModal === 'remarks' && (
               <div>
-                <h3 className="text-2xl font-bold text-black mb-6">Remarks</h3>
+                <h3 className="text-2xl font-bold text-white mb-6">Remarks</h3>
                 
-                <div className="bg-[#2a2a2a] border-4 border-black p-6 mb-6">
+                <div className="bg-[#1A2A4A] rounded-xl border-4 border-black p-6 mb-6">
                   <p className="text-[#faf9f6] mb-4">
                     Future Marine Fuel Recovery (MFR) surcharge adjustments may not be considered in above offer. 
-                    You can find all global MFR values and validity at <span className="text-[#FFB343] underline cursor-pointer">Marine Fuel Recovery Surcharge (MFR)</span>.
+                    You can find all global MFR values and validity at <span className="text-[#00FFFF] underline cursor-pointer">Marine Fuel Recovery Surcharge (MFR)</span>.
                   </p>
                   <p className="text-[#faf9f6]">
-                    To get more information check <span className="text-[#FFB343] underline cursor-pointer">Quick Quotes Terms and Conditions</span>.
+                    To get more information check <span className="text-[#00FFFF] underline cursor-pointer">Quick Quotes Terms and Conditions</span>.
                   </p>
                 </div>
 
-                <h4 className="text-xl font-bold text-black mb-4">Relevant Links</h4>
+                <h4 className="text-xl font-bold text-white mb-4">Relevant Links</h4>
                 <div className="grid grid-cols-2 gap-4">
                   {['FAK Definition', 'Local Charges', 'Detention & Demurrage', 'Country Specific Remarks'].map(link => (
-                    <div key={link} className="bg-[#FFB343] border-4 border-black p-3 text-black font-bold hover:bg-[#e6a139] cursor-pointer transition-all">
+                    <div key={link} className="bg-[#0A1A2F] rounded-xl shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] border-4 border-black p-3 text-white font-bold hover:bg-[#2D4D8B] cursor-pointer transition-all">
                       {link}
                     </div>
                   ))}
@@ -859,10 +877,10 @@ export const NewQuoteComponent: React.FC = () => {
           </div>
 
           {/* Modal Footer */}
-          <div className="border-t-4 border-black p-4 bg-[#f0f0f0] flex justify-end">
+          <div className="border-t-4 border-black p-4 bg-[#22546d] flex justify-end">
             <button 
               onClick={() => setShowModal(null)}
-              className="bg-[#2a2a2a] text-[#faf9f6] px-6 py-2 font-bold border-4 border-black shadow-[-4px_2px_8px_rgba(0,0,0,0.4)] hover:bg-[#333] transition-all"
+              className="bg-gray-300 text-black rounded-xl px-6 py-2 font-bold border-4 border-black shadow-[-4px_2px_8px_rgba(0,0,0,0.4)] hover:bg-gray-400 transition-all"
             >
               Close
             </button>
@@ -875,30 +893,38 @@ export const NewQuoteComponent: React.FC = () => {
 
         {/* Step 3: Additional Services */}
           {currentStep === 3 && (
-  <div className={sectionStyle}>
-    <h2 className="text-xl font-bold text-[#faf9f6] mb-6 flex items-center gap-2">
-      <Shield size={24} /> ADDITIONAL SERVICES
+          <div className= {`${sectionStyle} p-10 mb-15 shadow-[40px_40px_0px_rgba(0,0,0,1)]`} 
+          style={{
+                        backgroundImage: `
+                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                      }}
+  >
+    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+      <Shield size={24} className='text-white' /> ADDITIONAL SERVICES
     </h2>
     
     {/* Route Summary & Price Breakdown - Horizontal Bars */}
     <div className="space-y-4 mb-8">
       {/* Route Information Bar */}
-      <div className="bg-[#2a2a2a] border-4 border-[#444] p-4 shadow-[-4px_2px_8px_rgba(0,0,0,0.4)]">
+      <div className="bg-[#1d4595]  border-4 border-white rounded-xl p-4 shadow-[20px_20px_0px_rgba(0,0,0,1)]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#FFB343] font-bold text-lg">
+          <div className="flex items-center gap-2 text-[#00FFFF] font-bold text-lg">
             <MapPin size={20} /> ROUTE SUMMARY
           </div>
           <div className="flex items-center gap-8">
             {/* FROM */}
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-[#FFB343] rounded-full"></div>
+              <div className="w-3 h-3 bg-[#00FFFF] rounded-full"></div>
               <span className="text-[#faf9f6] font-bold">FROM:</span>
-              <span className="text-[#FFB343]">{formData.startLocation}</span>
+              <span className="uppercase text-[#00FFFF]">{formData.startLocation}</span>
               <div className="flex items-center gap-1 ml-2">
                 {formData.pickupType === 'door'
-                  ? <MapPin size={16} className="text-[#FFB343]" />
-                  : <Anchor size={16} className="text-[#FFB343]" />}
-                <span className="text-[#faf9f6] text-xs">
+                  ? <MapPin size={16} className="text-[#00FFFF]" />
+                  : <Anchor size={16} className="text-[#00FFFF]" />}
+                <span className="text-[#faf9f6] text-sm">
                   {formData.pickupType.toUpperCase()}
                 </span>
               </div>
@@ -906,25 +932,25 @@ export const NewQuoteComponent: React.FC = () => {
             
             {/* Dotted Line */}
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
-              <div className="w-3 h-0.5 border-t-2 border-dotted border-[#FFB343]"></div>
-              <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
-              <div className="w-3 h-0.5 border-t-2 border-dotted border-[#FFB343]"></div>
-              <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
-              <div className="w-3 h-0.5 border-t-2 border-dotted border-[#FFB343]"></div>
-              <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
+              <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
+              <div className="w-3 h-0.5 border-t-2 border-dotted border-[#00FFFF]"></div>
+              <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
+              <div className="w-3 h-0.5 border-t-2 border-dotted border-[#00FFFF]"></div>
+              <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
+              <div className="w-3 h-0.5 border-t-2 border-dotted border-[#00FFFF]"></div>
+              <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
             </div>
             
             {/* TO */}
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-[#FFB343] rounded-full"></div>
+              <div className="w-3 h-3 bg-[#00FFFF] rounded-full"></div>
               <span className="text-[#faf9f6] font-bold">TO:</span>
-              <span className="text-[#FFB343]">{formData.endLocation}</span>
+              <span className="uppercase text-[#00FFFF]">{formData.endLocation}</span>
               <div className="flex items-center gap-1 ml-2">
                 {formData.deliveryType === 'door'
-                  ? <MapPin size={16} className="text-[#FFB343]" />
-                  : <Anchor size={16} className="text-[#FFB343]" />}
-                <span className="text-[#faf9f6] text-xs">
+                  ? <MapPin size={16} className="text-[#00FFFF]" />
+                  : <Anchor size={16} className="text-[#00FFFF]" />}
+                <span className="text-[#faf9f6] text-sm">
                   {formData.deliveryType.toUpperCase()}
                 </span>
               </div>
@@ -934,19 +960,19 @@ export const NewQuoteComponent: React.FC = () => {
             <div className="border-l border-[#444] pl-6 flex items-center gap-6">
               <div className="text-center">
                 <div className="text-[#faf9f6] text-xs">TRANSIT TIME</div>
-                <div className="text-[#FFB343] font-bold">
+                <div className="text-[#00FFFF] font-bold">
                   {selectedOffer?.transitTime ?? "41 days"}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-[#faf9f6] text-xs">CONTAINER</div>
-                <div className="text-[#FFB343] font-bold">
+                <div className="text-[#00FFFF] font-bold">
                   {formData.containerType}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-[#faf9f6] text-xs">VALID UNTIL</div>
-                <div className="text-[#FFB343] font-bold">
+                <div className="text-[#00FFFF] font-bold">
                   {formData.validFrom}
                 </div>
               </div>
@@ -954,40 +980,41 @@ export const NewQuoteComponent: React.FC = () => {
           </div>
         </div>
       </div>
+      <br/>
       
       {/* Price Breakdown Bar */}
-      <div className="bg-[#2a2a2a] border-4 border-[#444] p-4 shadow-[-4px_2px_8px_rgba(0,0,0,0.4)]">
+      <div className="bg-[#051241] rounded-xl border-4 border-white p-4 shadow-[20px_20px_0px_rgba(0,0,0,1)]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#FFB343] font-bold text-lg">
+          <div className="flex items-center gap-2 text-[#00FFFF] font-bold text-lg">
             <DollarSign size={20} /> PRICE BREAKDOWN
           </div>
           <div className="flex items-center gap-8">
             <div className="text-center">
               <div className="text-[#faf9f6] text-xs">OCEAN FREIGHT</div>
-              <div className="text-[#FFB343] font-bold">$1,365</div>
+              <div className="text-[#00FFFF] font-bold">$1,365</div>
             </div>
             <div className="text-center">
               <div className="text-[#faf9f6] text-xs">SURCHARGES</div>
-              <div className="text-[#FFB343] font-bold">$901</div>
+              <div className="text-[#00FFFF] font-bold">$901</div>
             </div>
             <div className="border-l border-[#444] pl-6 text-center">
               <div className="text-[#faf9f6] text-xs">BASE TOTAL</div>
-              <div className="text-[#FFB343] font-bold text-xl">$2,266</div>
+              <div className="text-[#00FFFF] font-bold text-xl">$2,266</div>
             </div>
             {selectedServices.length > 0 && (
               <>
                 <div className="text-center">
                   <div className="text-[#faf9f6] text-xs">SERVICES</div>
-                  <div className="text-[#FFB343] font-bold">
+                  <div className="text-[#00FFFF] font-bold">
                     +${selectedServices.reduce((sum, id) => {
                       const svc = additionalServices.find(s => s.id === id);
                       return svc ? sum + parseInt(svc.price.replace("$",""), 10) : sum;
                     }, 0)}
                   </div>
                 </div>
-                <div className="border-l border-[#FFB343] pl-6 text-center">
+                <div className="border-l border-[#00FFFF] pl-6 text-center">
                   <div className="text-[#faf9f6] text-xs font-bold">FINAL TOTAL</div>
-                  <div className="text-[#FFB343] font-bold text-2xl">
+                  <div className="text-[#00FFFF] font-bold text-2xl">
                     ${(2266 + selectedServices.reduce((sum, id) => {
                       const svc = additionalServices.find(s => s.id === id);
                       return svc ? sum + parseInt(svc.price.replace("$",""), 10) : sum;
@@ -1002,7 +1029,7 @@ export const NewQuoteComponent: React.FC = () => {
     </div>
 
     {/* Additional Services Grid */}
-    <div className="grid md:grid-cols-2 gap-6 mb-6">
+    <div className="grid md:grid-cols-2 gap-10 mb-10">
       {additionalServices.map(service => (
         <div
           key={service.id}
@@ -1015,16 +1042,16 @@ export const NewQuoteComponent: React.FC = () => {
           }}
           className={
             selectedServices.includes(service.id)
-              ? "border-4 p-6 cursor-pointer transition-all bg-[#1e3a8a] border-[#FFB343] shadow-[inset_0_0_20px_8px_rgba(255,179,67,0.1)]"
-              : "border-4 p-6 cursor-pointer transition-all bg-[#2a2a2a] border-[#444] hover:border-[#666] shadow-[-4px_2px_8px_rgba(0,0,0,0.4)]"
+              ? "border-4 p-6 cursor-pointer rounded-xl transition-all bg-[#0A5B61]/30 text-white border-[#00FFFF] shadow-[30px_30px_0px_rgba(0,0,0,1)]  "
+              : " p-6 cursor-pointer shadow-[20px_20px_0px_rgba(0,0,0,1)] transition-all rounded-2xl bg-[#080f28]  hover:shadow-[30px_30px_0px_rgba(0,0,0,1)] "
           }
         >
           <div className="flex justify-between items-start mb-4">
-            <h3 className="text-[#FFB343] font-bold text-lg">{service.name}</h3>
+            <h3 className="text-[#00FFFF] font-bold text-lg">{service.name}</h3>
             <div className="text-right">
-              <div className="text-[#FFB343] font-bold text-xl">{service.price}</div>
+              <div className="text-[#00FFFF] font-bold text-xl">{service.price}</div>
               {selectedServices.includes(service.id) && (
-                <CheckCircle className="text-[#FFB343] mt-1" size={24}/>
+                <CheckCircle className="text-[#00FFFF] mt-1" size={24}/>
               )}
             </div>
           </div>
@@ -1035,8 +1062,8 @@ export const NewQuoteComponent: React.FC = () => {
 
     {/* Selected Services Summary */}
     {selectedServices.length > 0 && (
-      <div className="bg-[#1e3a8a] border-4 border-[#FFB343] p-6 shadow-[inset_0_0_15px_8px_rgba(0,0,0,0.3)]">
-        <h3 className="text-[#FFB343] font-bold text-lg mb-4 flex items-center gap-2">
+      <div className="bg-[#080f28] border-4 border-[#00FFFF] mb-3 rounded-xl p-6 shadow-[20px_20px_0px_rgba(0,0,0,1)]">
+        <h3 className="text-[#00FFFF] font-bold text-lg mb-4 flex items-center gap-2">
           <CheckCircle size={20} /> SELECTED SERVICES
         </h3>
         <div className="flex flex-wrap gap-3">
@@ -1045,7 +1072,7 @@ export const NewQuoteComponent: React.FC = () => {
             return svc ? (
               <div 
                 key={id} 
-                className="bg-[#FFB343] text-[#1c1c1c] px-4 py-2 font-bold border-2 border-black shadow-[2px_2px_4px_rgba(0,0,0,0.3)]"
+                className="bg-[#0d767d] rounded-xl text-white px-4 py-2 font-bold border-2 border-black shadow-[2px_2px_4px_rgba(0,0,0,0.3)]"
               >
                 {svc.name} – {svc.price}
               </div>
@@ -1066,29 +1093,37 @@ export const NewQuoteComponent: React.FC = () => {
           const base = selectedOffer ? parseInt(selectedOffer.price.replace(/[^0-9]/g,''), 10) : 0;
           const totalPrice = base + servicesTotal;
           return (
-            <div className={sectionStyle}>
+            <div className={`${sectionStyle} p-10`}
+              style={{
+                        backgroundImage: `
+                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                      }}
+            >
               <h2 className="text-xl font-bold text-[#faf9f6] mb-6 flex items-center gap-2">
                 <FileText size={24} /> REVIEW & NEXT STEPS
               </h2>
               
               {/* Combined Route & Shipment Details Strip */}
-              <div className="bg-[#2a2a2a] border-4 border-black p-6 mb-6 shadow-[-4px_2px_8px_rgba(0,0,0,0.4)]">
+              <div className="bg-[#0A5B61] rounded-xl border-4 border-white p-6 mb-8 shadow-[20px_20px_0px_rgba(0,0,0,1)] ">
                 <div className="flex items-center justify-between">
                   {/* Route Section */}
-                  <div className="flex items-center gap-8">
-                    <div className="flex items-center gap-2 text-[#FFB343] font-bold text-lg">
-                      <Ship size={20} /> ROUTE & SHIPMENT
+                  <div className="flex items-center gap-8 ">
+                    <div className="flex items-center gap-2 text-[#00FFFF] font-bold text-md">
+                      <Ship size={50} />  ROUTE & SHIPMENT
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-[#FFB343] rounded-full"></div>
+                      <div className="w-3 h-3 bg-[#00FFFF] rounded-full"></div>
                       <span className="text-[#faf9f6] font-bold">FROM:</span>
-                      <span className="text-[#FFB343]">{formData.startLocation || "New York, NY"}</span>
+                      <span className="text-[#00FFFF] uppercase">{formData.startLocation || "New York, NY"}</span>
                       {/* Dynamic Icon for Start */}
                       <div className="flex items-center gap-1 ml-2">
                         {formData.pickupType === 'door' ? (
-                          <MapPin size={16} className="text-[#FFB343]" />
+                          <MapPin size={16} className="text-[#00FFFF]" />
                         ) : (
-                          <Anchor size={16} className="text-[#FFB343]" />
+                          <Anchor size={16} className="text-[#00FFFF]" />
                         )}
                         <span className="text-[#faf9f6] text-xs">
                           {formData.pickupType === 'door' ? 'DOOR' : 'TERMINAL'}
@@ -1098,25 +1133,25 @@ export const NewQuoteComponent: React.FC = () => {
                     
                     {/* Dotted Line Connection */}
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
-                      <div className="w-3 h-0.5 border-t-2 border-dotted border-[#FFB343]"></div>
-                      <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
-                      <div className="w-3 h-0.5 border-t-2 border-dotted border-[#FFB343]"></div>
-                      <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
-                      <div className="w-3 h-0.5 border-t-2 border-dotted border-[#FFB343]"></div>
-                      <div className="w-2 h-2 bg-[#FFB343] rounded-full"></div>
+                      <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
+                      <div className="w-3 h-0.5 border-t-2 border-dotted border-[#00FFFF]"></div>
+                      <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
+                      <div className="w-3 h-0.5 border-t-2 border-dotted border-[#00FFFF]"></div>
+                      <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
+                      <div className="w-3 h-0.5 border-t-2 border-dotted border-[#00FFFF]"></div>
+                      <div className="w-2 h-2 bg-[#00FFFF] rounded-full"></div>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-[#FFB343] rounded-full"></div>
+                      <div className="w-3 h-3 bg-[#00FFFF] rounded-full"></div>
                       <span className="text-[#faf9f6] font-bold">TO:</span>
-                      <span className="text-[#FFB343]">{formData.endLocation || "Dublin, Ireland"}</span>
+                      <span className="uppercase text-[#00FFFF]">{formData.endLocation || "Dublin, Ireland"}</span>
                       {/* Dynamic Icon for End */}
                       <div className="flex items-center gap-1 ml-2 mr-4">
                         {formData.deliveryType === 'door' ? (
-                          <MapPin size={16} className="text-[#FFB343]" />
+                          <MapPin size={16} className="text-[#00FFFF]" />
                         ) : (
-                          <Anchor size={16} className="text-[#FFB343]" />
+                          <Anchor size={16} className="text-[#00FFFF]" />
                         )}
                         <span className="text-[#faf9f6] text-xs">
                           {formData.deliveryType === 'door' ? 'DOOR' : 'TERMINAL'}
@@ -1126,31 +1161,31 @@ export const NewQuoteComponent: React.FC = () => {
                   </div>
 
                   {/* Shipment Details Section */}
-                  <div className="border-l border-[#444] pl-6 flex items-center gap-6">
+                  <div className="border-l border-[#00FFFF] pl-6 flex items-center gap-6">
                     <div className="text-center">
                       <div className="text-[#faf9f6] text-xs">CONTAINER</div>
-                      <div className="text-[#FFB343] font-bold">{formData.containerQuantity}× {formData.containerType}</div>
+                      <div className="uppercase text-[#00FFFF] text-sm font-bold">{formData.containerQuantity}× {formData.containerType}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-[#faf9f6] text-xs">WEIGHT</div>
-                      <div className="text-[#FFB343] font-bold">{formData.weightPerContainer} {formData.weightUnit}</div>
+                      <div className="uppercase text-[#00FFFF] text-sm font-bold">{formData.weightPerContainer} {formData.weightUnit}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-[#faf9f6] text-xs">COMMODITY</div>
-                      <div className="text-[#FFB343] font-bold">{formData.commodity}</div>
+                      <div className="uppercase text-[#00FFFF] text-sm font-bold">{formData.commodity}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-[#faf9f6] text-xs">TRANSIT TIME</div>
-                      <div className="text-[#FFB343] font-bold">{selectedOffer ? selectedOffer.transitTime : "41 days"}</div>
+                      <div className="uppercase text-[#00FFFF] text-sm font-bold">{selectedOffer ? selectedOffer.transitTime : "41 days"}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-[#faf9f6] text-xs">VALID FROM</div>
-                      <div className="text-[#FFB343] font-bold">{formData.validFrom}</div>
+                      <div className="uppercase text-[#00FFFF] text-sm font-bold">{formData.validFrom}</div>
                     </div>
                     {selectedOffer && (
                       <div className="text-center">
                         <div className="text-[#faf9f6] text-xs">CARRIER</div>
-                        <div className="text-[#FFB343] font-bold">{selectedOffer.carrier}</div>
+                        <div className="uppercase text-[#00FFFF] text-sm font-bold">{selectedOffer.carrier}</div>
                       </div>
                     )}
                   </div>
@@ -1158,45 +1193,59 @@ export const NewQuoteComponent: React.FC = () => {
               </div>
 
               {/* Detailed Price Breakdown */}
-              <div className="bg-[#1e3a8a] border-4 p-6 mb-6 shadow-[inset_0_0_10px_6px_rgba(0,0,0,0.4)]">
-                <h3 className="text-xl font-bold text-[#FFB343] mb-4 flex items-center gap-2">
+              <div className="bg-[#22546d] border-4 border-white rounded-2xl p-10 mb-10 shadow-[30px_30px_0px_rgba(0,0,0,1)]  "
+              style={{
+                        backgroundImage: `
+                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                      }}
+              >
+                <h3 className="text-xl font-bold text-[#00FFFF] mb-4 flex items-center gap-2">
                   <DollarSign size={24} /> DETAILED PRICE BREAKDOWN
                 </h3>
 
                 {/* Ocean Freight Section */}
                 {selectedOffer && (
-                  <div className="bg-[#2a2a2a] border-2 border-black p-4 mb-4 rounded">
-                    <h4 className="text-lg font-bold text-[#FFB343] mb-3">Ocean Freight</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm text-[#faf9f6]">
-                      <div className="flex justify-between">
-                        <span>Base Ocean Freight ({selectedOffer.service})</span>
-                        <span className="font-bold">{selectedOffer.price}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Vessel: {selectedOffer.vesselName}</span>
-                        <span className="text-[#FFB343]">{selectedOffer.departure} → {selectedOffer.arrival}</span>
-                      </div>
+                  <div className="bg-[#22546d] rounded-3xl border-2 border-white p-4 mb-10 rounded shadow-[30px_30px_0px_rgba(0,0,0,1)]">
+                  <h4 className="text-lg font-bold text-[#faf9f6] mb-3">Ocean Freight</h4>
+                  <div className="flex flex-col gap-2 text-sm text-[#faf9f6]">
+                    {/* Row 1 */}
+                    <div className="flex justify-between w-full">
+                      <span>Vessel: {selectedOffer.vesselName}</span>
+                      <span className="text-[#faf9f6]">
+                        {selectedOffer.departure} → {selectedOffer.arrival}
+                      </span>
+                    </div>
+                    {/* Row 2 */}
+                    <div className="flex justify-between w-full">
+                      <span>Base Ocean Freight ({selectedOffer.service})</span>
+                      <span className="font-bold text-[#00FFFF]">{selectedOffer.price}</span>
                     </div>
                   </div>
+                </div>
                 )}
 
                 {/* Export Surcharges Section */}
-                <div className="bg-[#0A5B61] border-2 border-black p-4 mb-4 rounded">
-                  <h4 className="text-lg font-bold text-[#FFB343] mb-3">Export Surcharges (Origin)</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm text-[#faf9f6]">
-                    <div className="flex justify-between">
+                <div className="bg-[#1c437c] border-2 rounded-3xl border-white p-4 mb-10 rounded shadow-[30px_30px_0px_rgba(0,0,0,1)]">
+                  <h4 className="text-lg font-bold text-[#faf9f6] mb-3">
+                    Export Surcharges (Origin)
+                  </h4>
+                  <div className="flex flex-col gap-2 text-sm text-[#faf9f6]">
+                    <div className="flex justify-between w-full">
                       <span>Fuel Surcharge Origin Land</span>
                       <span>AUD 225</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between w-full">
                       <span>Origin Landfreight Rail</span>
                       <span>AUD 805</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between w-full">
                       <span>Terminal Handling Charge</span>
                       <span>AUD 584</span>
                     </div>
-                    <div className="flex justify-between font-bold text-[#FFB343]">
+                    <div className="flex justify-between w-full font-bold text-[#00FFFF]">
                       <span>Export Subtotal</span>
                       <span>AUD 1,614</span>
                     </div>
@@ -1204,28 +1253,30 @@ export const NewQuoteComponent: React.FC = () => {
                 </div>
 
                 {/* Import Surcharges Section */}
-                <div className="bg-[#373737] border-2 border-black p-4 mb-4 rounded">
-                  <h4 className="text-lg font-bold text-[#FFB343] mb-3">Import Surcharges (Destination)</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm text-[#faf9f6]">
-                    <div className="flex justify-between">
-                      <span>Fuel Destination Inland</span>
-                      <span>USD 138</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Terminal Handling Charge Dest.</span>
-                      <span>USD 500</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-[#FFB343]">
-                      <span>Import Subtotal</span>
-                      <span>USD 638</span>
-                    </div>
+                <div className="bg-[#051241] border-2 rounded-3xl border-white p-4 mb-10 rounded shadow-[30px_30px_0px_rgba(0,0,0,1)]">
+                <h4 className="text-lg font-bold text-[#faf9f6] mb-3">
+                  Import Surcharges (Destination)
+                </h4>
+                <div className="flex flex-col gap-2 text-sm text-[#faf9f6]">
+                  <div className="flex justify-between w-full">
+                    <span>Fuel Destination Inland</span>
+                    <span>USD 138</span>
+                  </div>
+                  <div className="flex justify-between w-full">
+                    <span>Terminal Handling Charge Dest.</span>
+                    <span>USD 500</span>
+                  </div>
+                  <div className="flex justify-between w-full font-bold text-[#00FFFF]">
+                    <span>Import Subtotal</span>
+                    <span>USD 638</span>
                   </div>
                 </div>
+              </div>
 
                 {/* Additional Services */}
                 {selectedServices.length > 0 && (
-                  <div className="bg-[#2a2a2a] border-2 border-black p-4 mb-4 rounded">
-                    <h4 className="text-lg font-bold text-[#FFB343] mb-3">Additional Services</h4>
+                  <div className="bg-[#080f28] border-2 rounded-3xl border-white p-4 mb-10 rounded shadow-[30px_30px_0px_rgba(0,0,0,1)]">
+                    <h4 className="text-lg font-bold text-[#faf9f6] mb-3">Additional Services</h4>
                     <div className="space-y-2 text-sm text-[#faf9f6]">
                       {selectedServices.map(id => {
                         const svc = additionalServices.find(s => s.id === id);
@@ -1236,7 +1287,7 @@ export const NewQuoteComponent: React.FC = () => {
                           </div>
                         ) : null;
                       })}
-                      <div className="flex justify-between font-bold text-[#FFB343] pt-2 border-t border-[#FFB343]">
+                      <div className="flex justify-between font-bold text-[#00FFFF] pt-2 border-t border-[#00FFFF]">
                         <span>Services Subtotal</span>
                         <span>${servicesTotal.toLocaleString()}</span>
                       </div>
@@ -1245,25 +1296,25 @@ export const NewQuoteComponent: React.FC = () => {
                 )}
 
                 {/* Total Price */}
-                <div className="bg-[#FFB343] border-4 border-black p-4 rounded">
-                  <div className="flex justify-between text-xl font-bold text-black">
-                    <span>TOTAL ESTIMATED PRICE:</span>
-                    <span>${totalPrice.toLocaleString()}</span>
+                <div className="bg-[#0A1A2F] border-4 border-white p-4 rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)]">
+                  <div className="flex justify-between text-xl font-bold text-white">
+                    <span className='text-[#00FFFF]'>TOTAL ESTIMATED PRICE:</span>
+                    <span className='text-[#00FFFF]'>${totalPrice.toLocaleString()}</span>
                   </div>
-                  <div className="text-xs text-black opacity-80 mt-1">
+                  <div className="text-xs text-white opacity-90 mt-1">
                     *Exchange rates as of current date. Final rates may vary.
                   </div>
                 </div>
               </div>
 
               {/* Next Steps */}
-              <div className="bg-[#2a2a2a] border-4 p-6 shadow-[-4px_2px_8px_rgba(0,0,0,0.4)]">
-                <h3 className="text-lg font-bold text-[#FFB343] mb-4 flex items-center gap-2">
+              <div className="bg-[#071e3d] rounded-2xl mb-10 border-4 border-white p-6 shadow-[30px_30px_0px_rgba(0,0,0,1)]">
+                <h3 className="text-lg font-bold text-[#00FFFF] mb-4 flex items-center gap-2">
                   <ArrowRight size={20} /> NEXT STEPS
                 </h3>
                 <div className="space-y-4 text-[#faf9f6]">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-[#FFB343] text-[#1c1c1c] rounded-full flex items-center justify-center font-bold border-2 border-black">1</div>
+                    <div className="w-8 h-8 bg-[#00FFFF] text-white rounded-full flex items-center justify-center font-bold border-2 border-black">1</div>
                     <span>Send quote request to carrier</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1276,13 +1327,13 @@ export const NewQuoteComponent: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-4 mt-6">
-                  <button className={`${buttonStyle} flex items-center gap-2`}>
+                  <button className={`border-2 rounded-3xl text-white px-4 mr-2 py-3 bg-[#2a72dc] hover:bg-[#071e3d] hover:text-[#00FFFF] flex items-center gap-2 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow`}>
                     <Send size={20} /> SEND QUOTE REQUEST
                   </button>
-                  <button className={`${buttonStyle} flex items-center gap-2`}>
+                  <button className={`border-2 rounded-3xl text-white px-3 mr-2 py-2 bg-[#2a72dc] hover:bg-[#071e3d] hover:text-[#00FFFF] flex items-center gap-2 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow`}>
                     <Download size={20} /> DOWNLOAD QUOTE
                   </button>
-                  <button className={`${buttonStyle} flex items-center gap-2`}>
+                  <button className={`border-2 rounded-3xl text-white px-3 mr-2 py-2 bg-[#2a72dc] hover:bg-[#071e3d] hover:text-[#00FFFF] flex items-center gap-2 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow`}>
                     <Mail size={20} /> EMAIL QUOTE
                   </button>
                 </div>
@@ -1298,7 +1349,7 @@ export const NewQuoteComponent: React.FC = () => {
             <button
               onClick={prevStep}
               disabled={currentStep === 1}
-              className="bg-white font-bold rounded-xl px-4 py-2"
+              className="bg-white font-bold rounded-xl px-4 py-2 hover:bg-gray-400 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[17px_17px_0px_rgba(0,0,0,1)] transition-shadow"
             >
               <ArrowLeft size={20} /> PREVIOUS
             </button>
@@ -1308,7 +1359,7 @@ export const NewQuoteComponent: React.FC = () => {
               <button
                 onClick={nextStep}
                 disabled={!canProceedToNext()}
-                className="bg-white rounded-xl font-bold px-4 py-2 flex flex-col justify-between"
+                className="bg-white rounded-xl font-bold px-4 py-2 flex flex-col justify-between hover:bg-gray-400 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[17px_17px_0px_rgba(0,0,0,1)] transition-shadow"
                 style={{ height: '100%' }}
               >
                 <span className="self-center">NEXT</span>
@@ -1317,9 +1368,9 @@ export const NewQuoteComponent: React.FC = () => {
             ) : (
               <button
                 onClick={() => alert('Quote request submitted successfully!')}
-                className="bg-white font-bold rounded-xl px-4 py-2"
+                className="bg-white font-bold rounded-xl px-4 py-2 hover:bg-gray-400 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[17px_17px_0px_rgba(0,0,0,1)] transition-shadow"
               >
-                <div className="flex flex-col justify-center items-center">
+                <div className="flex flex-col justify-center items-center ">
                   <CheckCircle size={20} />
                   <div>GET QUOTE</div>
                 </div>

@@ -42,8 +42,7 @@ const menuData: MenuItem[] = [
     label: "SCHEDULE",
     icon: <Calendar size={24} />,
     sub: [
-      { label: "VIEW SCHEDULES", key: "view_schedules", pathPattern: "/main/schedule/view" },
-      { label: "SEARCH SCHEDULES", key: "search_schedules", pathPattern: "/main/schedule/search" },
+
     ],
   },
   {
@@ -382,7 +381,7 @@ export default function MainLayout({
                 : "shadow-[15px_8px_0px_rgba(0,0,0,1)]"
             }`}
           style={{
-            left: isOpen ? "301px" : "81px",
+            left: isOpen ? "305px" : "85px",
             top: "198px",
             transition: "left 300ms cubic-bezier(0.4, 0, 0.2, 1)",
           }}
