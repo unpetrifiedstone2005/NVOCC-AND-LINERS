@@ -140,7 +140,14 @@ export function LandingComponent() {
         className="flex items-center gap-4 third-container-texture-bg  justify-between px-6 py-4 w-full shadow-[0px_16px_0px_0px_rgba(0,0,0,0.8)]"
       >
         <div className="flex items-center">
-          
+          <Image
+                          src="/logo.png"
+                          width={70}
+                          height={70}
+                          alt="SCMT Logo"
+                          className="inline-block align-middle mb-2"
+                          style={{ objectFit: 'contain' }}
+                        />
 
           <div className="font-bold text-4xl text-[#1e3a8a] ml-2">SCMT</div>
         </div>
@@ -221,7 +228,11 @@ export function LandingComponent() {
           className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             about us
           </button>
-          <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
+          <button
+          onClick={()=>[
+          router.push('/main/dashboard')
+         ]}
+          className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             dashboard
           </button>
         </div>
@@ -355,33 +366,36 @@ export function LandingComponent() {
     </div>
     
 
-            <footer className=" w-full third-container-texture-bg mb-8 justify-center border-t-7 border-black shadow-[0px_20px_0px_rgba(0,0,0,1)]">
-                          <div className="flex items-center py-[26px] p-6 justify-center relative">
-                            {/* Centered group */}
-                            <div className="flex space-x-10 items-center">
-                              <div className="flex space-x-3 font-bold text-4xl text-[#1e3a8a] ml-2">
-                                SCMT
-                              </div>
-                              <div className="text-black-900 hover:underline font-bold text-lg uppercase">
-                                terms and conditions
-                              </div>
-                              <div className="text-black-900 hover:underline font-bold text-lg uppercase">
-                                privacy policy
-                              </div>
-                              <div className="text-black-900 hover:underline font-bold text-lg uppercase">
-                                cookie policy
-                              </div>
-                            </div>
-                            {/* Right-aligned item (if needed) */}
-                            {/* <div className="text-[#faf9f6] font-bold text-md uppercase absolute right-6">
-                              Contact Info:
-                            </div> */}
-                          </div>
-                
-                          <div className="text-white py-1  border-t-2 border-b-2 font-bold text-md uppercase flex justify-center items-center bg-[#1e3a8a]">
-                            Copyright &copy; 2025 Afcont
-                          </div>
-            </footer>
+            <footer className="w-full third-container-texture-bg mb-8 border-t-7 border-black shadow-[0px_20px_0px_rgba(0,0,0,1)]">
+                    <div className="flex justify-center py-6 px-6 relative">
+                      {/* Centered group */}
+                      <div className="flex items-center space-x-10">
+                        <div className="flex items-center space-x-3 font-bold text-4xl text-[#162f5c]">
+                          <Image
+                            src="/logo.png"
+                            width={70}
+                            height={70}
+                            alt="SCMT Logo"
+                            className="inline-block align-middle mb-2"
+                            style={{ objectFit: 'contain' }}
+                          />
+                          <span className="align-middle">SCMT</span>
+                        </div>
+                        <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">
+                          terms and conditions
+                        </div>
+                        <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">
+                          privacy policy
+                        </div>
+                        <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">
+                          cookie policy
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-white py-2 border-t-2 border-b-2 font-bold text-md uppercase flex justify-center items-center bg-[#1e3a8a]">
+                      Copyright &copy; 2025 SCMT
+                    </div>
+                  </footer>
             <br/>
             <br/>
 
