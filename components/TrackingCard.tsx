@@ -7,7 +7,7 @@ export const TrackingCard: React.FC = () => {
 
   return (
     <div
-        className="p-6 rounded-xl shadow-[15px_15px_0px_rgba(0,0,0,1)]"
+        className="p-6 rounded-xl shadow-[15px_15px_0px_rgba(0,0,0,1)] border-2 border-white"
         style={{
           backgroundImage: `
             linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),

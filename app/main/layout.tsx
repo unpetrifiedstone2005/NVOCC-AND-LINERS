@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Search,
@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Map,
   DollarSign,
+  Link,
 } from "lucide-react";
 
 type MenuItem = {
@@ -21,6 +22,7 @@ type MenuItem = {
   label: string;
   icon: React.ReactNode;
   sub: Array<{ key: string; label: string; pathPattern: string }>;
+  pathPattern?: string; // Add optional pathPattern for menu items without subs
 };
 
 const menuData: MenuItem[] = [
@@ -41,9 +43,8 @@ const menuData: MenuItem[] = [
     key: "schedule",
     label: "SCHEDULE",
     icon: <Calendar size={24} />,
-    sub: [
-
-    ],
+    pathPattern: "/main/schedules", // Changed back to plural
+    sub: [],
   },
   {
     key: "book",
@@ -102,9 +103,14 @@ function isPathActive(currentPath: string, targetPath: string): boolean {
   return currentPath === targetPath || currentPath.startsWith(targetPath);
 }
 
-// Simple function to find which menu should be open based on current path
+// Updated function to find which menu should be open based on current path
 function getActiveMenuKey(pathname: string): string | null {
   for (const menu of menuData) {
+    // Check if the menu itself has a pathPattern and matches
+    if (menu.pathPattern && isPathActive(pathname, menu.pathPattern)) {
+      return menu.key;
+    }
+    // Check submenu items
     for (const sub of menu.sub) {
       if (isPathActive(pathname, sub.pathPattern)) {
         return menu.key;
@@ -114,11 +120,22 @@ function getActiveMenuKey(pathname: string): string | null {
   return null;
 }
 
+// Function to check if a menu item should be highlighted
+function isMenuItemActive(pathname: string, menuItem: MenuItem): boolean {
+  // If menu has its own pathPattern, check that
+  if (menuItem.pathPattern && isPathActive(pathname, menuItem.pathPattern)) {
+    return true;
+  }
+  // Otherwise check if any submenu item is active
+  return menuItem.sub.some(sub => isPathActive(pathname, sub.pathPattern));
+}
+
 export default function MainLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const router = useRouter()
   const pathname = usePathname();
-  
+
   const [isOpen, setIsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -192,6 +209,8 @@ export default function MainLayout({
     "flex rounded-lg hover:shadow-[-12px_5px_0px_rgba(0,0,0,1)] items-center mt-1 mb-1 w-[95%] m text-left px-2 py-2  text-sm font-medium text-white hover:bg-[#2D4D8B]/70 hover:text-[#00FFFF] hover:font-bold";
   const collapsedButtonStyle =
     "flex rounded-lg items-center justify-center w-full h-[60px] bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] transition-shadow border-black border-4 font-bold shadow-md shadow-black/100 px-0";
+
+
 
   return (
     <div className="flex flex-col min-h-screen container-texture-bg  overflow-x-hidden">
@@ -267,7 +286,11 @@ export default function MainLayout({
             </button>
           )}
 
-         <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
+         <button
+         onClick={()=>[
+          router.push('/')
+         ]}
+         className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             home
           </button>
           <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
@@ -307,7 +330,16 @@ export default function MainLayout({
                 <div key={item.key}>
                   <button
                     onClick={() => handleMenuClick(item.key)}
-                    className="bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] transition-shadow border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 hover:font-bold w-full flex items-center justify-between"
+                    className={`
+                      border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 
+                      hover:font-bold w-full flex items-center justify-between
+                      shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] 
+                      transition-shadow
+                      ${isMenuItemActive(pathname, item) 
+                        ? 'bg-[#1A2F4E] text-[#00FFFF]' 
+                        : 'bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]'
+                      }
+                    `}
                   >
                     <div className="flex items-center gap-2">
                       <span className="mt-1">{item.icon}</span>
@@ -363,7 +395,15 @@ export default function MainLayout({
                     setIsOpen(true);
                     setTimeout(() => setDelayedOpenMenu(item.key), 400);
                   }}
-                  className={collapsedButtonStyle}
+                  className={`
+                    flex rounded-lg items-center justify-center w-full h-[60px] 
+                    shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] 
+                    transition-shadow border-black border-4 font-bold shadow-md shadow-black/100 px-0
+                    ${isMenuItemActive(pathname, item) 
+                      ? 'bg-[#1A2F4E] text-[#00FFFF]' 
+                      : 'bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]'
+                    }
+                  `}
                   title={item.label}
                 >
                   {item.icon}

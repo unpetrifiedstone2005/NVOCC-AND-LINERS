@@ -259,7 +259,7 @@ export const NewQuoteComponent: React.FC = () => {
                             name={field}
                             checked={(formData as any)[field] === opt}
                             onChange={() => handleInputChange(field as any, opt)}
-                            className={` ${radioButtonStyle} bg-[#]`}
+                            className={` ${radioButtonStyle} `}
                           />
                           {opt.toUpperCase()}
                         </label>

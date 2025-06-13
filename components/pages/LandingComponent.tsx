@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Search,
@@ -99,6 +100,8 @@ const menuData: MenuItem[] = [
 ];
 
 export function LandingComponent() {
+  const router = useRouter()
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -201,13 +204,21 @@ export function LandingComponent() {
             </button>
           )}
 
-          <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
+          <button 
+          onClick={()=>[
+            router.push('/')
+          ]}
+          className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             home
           </button>
           <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             services and information
           </button>
-          <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
+          <button 
+          onClick={()=>[
+            router.push('/aboutus')
+          ]}
+          className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             about us
           </button>
           <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
@@ -335,23 +346,7 @@ export function LandingComponent() {
             <br/>
             <br/>
             
-              <div className="max-w-[1600.24px] mx-auto w-full px-4">
-              <div
-                className="
-                  flex flex-col
-                  font-bold gap-4
-                "
-              >
-                <div className="flex justify-center gap-8">
-                  <TrackingCard />
-                  <BookingCard />
-                </div>
-                <div className="flex justify-center gap-8 mt-4">
-                  <SchedulesCard />
-                  <QuotationCard />
-                </div>
-              </div>
-            </div>
+              
    
           <br/>
           <br/>

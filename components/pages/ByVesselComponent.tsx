@@ -77,12 +77,10 @@ export function ByVesselComponent(){
                                 className="
                                 bg-[#0A1A2F] hover:bg-[#2D4D8B] hover:text-[#00FFFF] placeholder-[#faf9f6] rounded-xl
                                 text-white 
-                                shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] 
-                                hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] 
+                               shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] 
                                 transition-shadow 
                                 border-black border-4 
                                 px-4 py-1  
-                                shadow-md shadow-black/100
                                 placeholder: opacity-90
                                 placeholder:  font-light
                                 "
@@ -94,10 +92,9 @@ export function ByVesselComponent(){
                             className=" uppercase
                             text-[#faf9f6] hover:bg-[#2D4D8B] hover:text-[#00FFFF] rounded-xl
                             flex items-center bg-[#0A1A2F] 
-                            shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] 
-                            hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] 
+                            shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)]
                             transition-shadow border-black border-4 
-                            px-6 py-2 font-bold shadow-md shadow-black/100 
+                            px-6 py-2 font-bold 
                             hover:font-bold ml-5
                             opacity-90
                             "
