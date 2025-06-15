@@ -98,21 +98,25 @@ background-image: repeating-linear-gradient(
   background-image: repeating-linear-gradient(
     90deg,
     /* highlight */  #2a72dc 0px,
-                      #04317e
+                      #0d408b
+                      #062c6c
                       #2f2237
-                     #1c437c 
+                     #2b5da8 
                      #1A2A4A 8px,
     /* mid */        #465ca3 8px,
                      #22546d 24px,
     /* shadow */     #243d52 24px,
-                     #125d8f 32px,
+                     #0e4163 32px,
                      #0f3c5b
                      #071e3d
-                      #1f3258
+                      #30549c
                       #06183c
                       #080f28
-                      #330358
+                      #491174
                       #600f9e
+                      #2e4972
+                      #1c637b
+                      #1c3565
     /* gap */        transparent 32px,
                      transparent 64px
   );
