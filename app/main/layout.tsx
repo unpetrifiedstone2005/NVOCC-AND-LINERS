@@ -323,7 +323,7 @@ export default function MainLayout({
           </button>
         </div>
 
-        <button className="uppercase bg-[#0A5B61] text-lg hover:bg-[#FFB343] rounded-2xl hover:text-[#1c1c1c] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold ">
+        <button className="uppercase bg-[#105cb8] text-lg hover:bg-[#022e63] hover:text-cyan-300 rounded-2xl  text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold ">
           log in
         </button>
       </div>

@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import SCMT from "@/videos/SCMT.mp4"
 import Image from "next/image";
+import Video from "next-video"
 import {
   Search,
   ArrowBigLeft,
@@ -252,7 +254,7 @@ export function LandingComponent() {
           </button>
         </div>
 
-        <button className="uppercase bg-[#1c1c1c] text-lg hover:bg-[#FFB343] rounded-2xl hover:text-[#1c1c1c] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold ">
+        <button className="uppercase bg-[#105cb8] text-lg hover:bg-[#022e63] hover:text-cyan-300 rounded-2xl text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold ">
           log in
         </button>
       </div>
@@ -358,7 +360,7 @@ export function LandingComponent() {
             `}
           >
             <br/>
-            <div className="max-w-[1600.24px] mx-auto w-full px-4">
+            <div className="max-w-[1600.24px] mx-auto w-full px-4 items-center">
               <div
                 className="
                   flex flex-col
@@ -374,14 +376,167 @@ export function LandingComponent() {
                   <QuotationCard />
                 </div>
               </div>
+              <br/>
+              <br/>
+
+
+
+                {/* Quick Stats Section */}
+               <div className="max-w-[1600.24px] mx-auto w-full px-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div 
+                 style={{
+                    backgroundImage: `
+                      linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                      linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                    `,
+                    backgroundBlendMode: 'overlay',
+                }}
+                className="bg-[#2D4D8B] rounded-xl ] border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)] ">
+                  <div className="text-3xl font-bold text-[#00FFFF] mb-2">150+</div>
+                  <div className="text-white font-bold uppercase text-sm">Global Ports</div>
+                </div>
+                <div className="bg-[#2D4D8B] rounded-xl ] border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)] "
+                 style={{
+                    backgroundImage: `
+                      linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                      linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                    `,
+                    backgroundBlendMode: 'overlay',
+                }}>
+                  <div className="text-3xl font-bold text-[#00FFFF] mb-2">24/7</div>
+                  <div className="text-white font-bold uppercase text-sm">Customer Support</div>
+                </div>
+                <div className="bg-[#2D4D8B] rounded-xl ] border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)] "
+                 style={{
+                    backgroundImage: `
+                      linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                      linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                    `,
+                    backgroundBlendMode: 'overlay',
+                }}>
+                  <div className="text-3xl font-bold text-[#00FFFF] mb-2">50K+</div>
+                  <div className="text-white font-bold uppercase text-sm">Containers Monthly</div>
+                </div>
+                <div className="bg-[#2D4D8B] rounded-xl ] border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)] "
+                 style={{
+                    backgroundImage: `
+                      linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                      linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                    `,
+                    backgroundBlendMode: 'overlay',
+                }}>
+                  <div className="text-3xl font-bold text-[#00FFFF] mb-2">98%</div>
+                  <div className="text-white font-bold uppercase text-sm">On-Time Delivery</div>
+                </div>
+              </div>
             </div>
+
+            {/* Featured Services Section */}
+            <div className="max-w-[1600.24px] mx-auto w-full px-4 mb-8">
+              <div className="bg-[#888888] rounded-xl shadow-[15px_15px_0px_rgba(0,0,0,1)] border-4 border-black p-8"
+                style={{
+                      backgroundImage: `
+                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                      `,
+                      backgroundBlendMode: 'overlay',
+                  }}>
+                <h2 className="text-3xl font-bold text-white mb-6 text-center">FEATURED SERVICES</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-[#0A1A2F] rounded-xl p-6 border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                      style={{
+                        backgroundImage: `
+                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                    }}>
+                    <div className="text-[#00FFFF] mb-4">
+                      <Map size={48} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-3">CONTAINER TRACKING</h3>
+                    <p className="text-white/80 mb-4">Real-time tracking of your containers with GPS precision and automated notifications.</p>
+                    <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+                      LEARN MORE
+                    </button>
+                  </div>
+                  
+                  <div className="bg-[#0A1A2F] rounded-xl p-6 border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                      style={{
+                        backgroundImage: `
+                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                    }}>
+                    <div className="text-[#00FFFF] mb-4">
+                      <Book size={48} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-3">INSTANT BOOKING</h3>
+                    <p className="text-white/80 mb-4">Book your cargo space instantly with our automated booking system and get confirmation in seconds.</p>
+                    <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+                      LEARN MORE
+                    </button>
+                  </div>
+
+                  <div className="bg-[#0A1A2F] rounded-xl p-6 border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                      style={{
+                        backgroundImage: `
+                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                    }}>
+                    <div className="text-[#00FFFF] mb-4">
+                      <DollarSign size={48} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-3">COMPETITIVE RATES</h3>
+                    <p className="text-white/80 mb-4">Get the best shipping rates with our dynamic pricing engine and volume discounts.</p>
+                    <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+                      LEARN MORE
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>  
+
+            {/* About Us Section */}
+            <div className="max-w-[1600.24px] mx-auto w-full px-4 mb-8">
+              <div className="bg-[#0A1A2F] rounded-xl shadow-[15px_15px_0px_rgba(0,0,0,1)] border-4 border-black p-10 flex flex-col items-center text-center relative overflow-hidden"
+                        style={{
+                        backgroundImage: `
+                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                    }}>
+
+                     
+                      {/* Main logo or icon */}
+                      <div className="bg-white rounded-full border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] p-2 mb-4">
+                        <img
+                          src="/logo.png"
+                          alt="SCMT Logo"
+                          className="w-20 h-20 object-contain"
+                        />
+                      </div>
+                      <h2 className="text-3xl md:text-4xl font-bold text-[#00FFFF] mb-4 tracking-wide drop-shadow-lg">
+                        About State Company for Maritime Transport
+                      </h2>
+                      <p className="text-white/90 text-lg md:text-xl mb-6 max-w-3xl mx-auto font-semibold">
+                        Since 1952, SCMT has stood as Iraq’s national shipping lifeline, connecting local trade to global markets with a modern fleet, advanced logistics, and a legacy of reliability.  
+                        Backed by the Ministry of Transportation, our mission is to deliver secure, efficient, and world-class maritime services—empowering Iraq’s growth at sea.
+                      </p>
+                      <button className="bg-[#2D4D8B] hover:bg-[#00FFFF] text-white hover:text-[#0A1A2F] px-8 py-3 rounded-xl font-bold border-2 border-black shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-all text-lg uppercase tracking-wide">
+                        Learn More
+                      </button>
+                    </div>
+                  </div>
+                         
+            </div> 
             <br/>
-            <br/>
-            
-              
-   
-          <br/>
-          <br/>
+                         
         </div>
       </div>
     </div>
@@ -416,10 +571,7 @@ export function LandingComponent() {
                     <div className="text-white py-2 border-t-2 border-b-2 font-bold text-md uppercase flex justify-center items-center bg-[#1e3a8a]">
                       Copyright &copy; 2025 SCMT
                     </div>
-                  </footer>
-            <br/>
-            <br/>
-
-    </div>
+                  </footer> 
+   </div>
   );
 }
