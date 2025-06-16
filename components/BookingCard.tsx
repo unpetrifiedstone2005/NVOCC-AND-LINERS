@@ -13,13 +13,13 @@ export const BookingCard: React.FC = () => {
           backgroundBlendMode: 'overlay',
       }}>
       {/* Icon + Title (on top line) */}
-      <div className="flex items-center mb-4 ">
+      <div className="flex items-center mb-12 ">
         <Book size={24} className="text-[#faf9f6] mr-2" />
         <span className="text-[#faf9f6] font-semibold text-xl">
           BOOKING
         </span>
       </div>
-
+  
       {/* Text + Button (below) */}
       <div className="flex items-center justify-between space-x-56">
         <div className="text-[#faf9f6] text-sm">

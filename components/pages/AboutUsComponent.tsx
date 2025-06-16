@@ -4,7 +4,10 @@ import Video from "next-video"
 import SCMT from "@/videos/SCMT.mp4"
 import React, { useState, useEffect } from "react";
 import type { JSX } from "react";
-import { Ship, Globe, TrendingUp, Award, Users, Calendar, Building, Target, Eye, Anchor, MapPin, CheckCircle, ArrowRight, Play, Star, Zap, Shield, Heart} from "lucide-react";
+import {
+  Ship, Globe, TrendingUp, Award, Users, Calendar, Building, Target, Eye, Anchor,
+  MapPin, CheckCircle, ArrowRight, Play, Star, Zap, Shield, Heart
+} from "lucide-react";
 
 interface Stat {
   number: string;
@@ -100,7 +103,7 @@ export function AboutUsComponent(): JSX.Element {
       position: "Chief Executive Officer",
       experience: "25+ years in maritime operations",
       image: (
-        <Image 
+        <Image
           src="/white-logo.png"
           alt="Captain Ahmed Al-Rashid"
           width={96}
@@ -114,7 +117,7 @@ export function AboutUsComponent(): JSX.Element {
       position: "Chief Operations Officer",
       experience: "20+ years in logistics management",
       image: (
-        <Image 
+        <Image
           src="/white-logo.png"
           alt="Dr. Sarah Al-Maktoum"
           width={96}
@@ -128,7 +131,7 @@ export function AboutUsComponent(): JSX.Element {
       position: "Chief Technology Officer",
       experience: "18+ years in maritime technology",
       image: (
-        <Image 
+        <Image
           src="/white-logo.png"
           alt="Eng. Omar Hassan"
           width={96}
@@ -191,8 +194,8 @@ export function AboutUsComponent(): JSX.Element {
           {stats.map((stat, index) => {
             const IconComponent = stat.icon;
             return (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className={`group ${isVisible.stats ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} transition-all duration-1000`}
                 style={{ transitionDelay: `${index * 30}ms` }}
               >
@@ -287,7 +290,7 @@ export function AboutUsComponent(): JSX.Element {
             {milestones.map((milestone, index) => {
               const IconComponent = milestone.icon;
               return (
-                <div 
+                <div
                   key={index}
                   className={`relative flex items-start space-x-8 ${isVisible.timeline ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} transition-all duration-1000`}
                   style={{ transitionDelay: `${index * 60}ms` }}
@@ -327,12 +330,12 @@ export function AboutUsComponent(): JSX.Element {
           {values.map((value, index) => {
             const IconComponent = value.icon;
             return (
-              <div 
+              <div
                 key={index}
                 className={`group border border-slate-700/50 bg-[#1A2A4A] shadow-[20px_20px_0px_rgba(0,0,0,1)]  rounded-3xl p-8 hover:border-slate-600/50 transition-all duration-1000 ${isVisible.values ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-                style={{ 
+                style={{
                   ...cardGradientStyle,
-                  transitionDelay: `${index * 50}ms` 
+                  transitionDelay: `${index * 50}ms`
                 }}
               >
                 <div className="w-16 h-16 bg-[#2a72dc]  rounded-lg flex items-center justify-center mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)]">
@@ -366,12 +369,12 @@ export function AboutUsComponent(): JSX.Element {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
           {leadership.map((leader, index) => (
-            <div 
+            <div
               key={index}
               className={`border bg-[#1A2A4A] shadow-[17px_17px_0px_rgba(0,0,0,1)] border-slate-700/50 rounded-lg p-8 text-center hover:border-slate-600/50 transition-all duration-1000 ${isVisible.leadership ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-              style={{ 
+              style={{
                 ...cardGradientStyle,
-                transitionDelay: `${index * 50}ms` 
+                transitionDelay: `${index * 50}ms`
               }}
             >
               <div className="w-24 h-24 mx-auto mb-6 rounded-full overflow-hidden border-2 border-slate-600">
@@ -386,7 +389,10 @@ export function AboutUsComponent(): JSX.Element {
       </section>
 
       {/* Vision Section */}
-      <section id="vision" className="py-20 px-8">
+      <section
+        id="vision"
+        className={`py-20 px-8 transition-all duration-1000 ${isVisible.vision ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+      >
         <div className="border border-slate-700/50 rounded-3xl p-16 text-center max-w-6xl mx-auto bg-[#1A2A4A] shadow-[40px_40px_0px_rgba(0,0,0,1)]" style={cardGradientStyle}>
           <div className="inline-flex items-center space-x-2  border border-slate-600 rounded-full px-4 py-2 mb-12 shadow-[10px_10px_0px_rgba(0,0,0,1)]" style={cardGradientStyle} >
             <Eye className="w-4 h-4 text-white" />
@@ -418,7 +424,10 @@ export function AboutUsComponent(): JSX.Element {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-8">
+      <section
+        id="cta"
+        className={`py-20 px-8 transition-all duration-1000 ${isVisible.cta ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+      >
         <div className="border border-slate-700/50 rounded-3xl p-16 text-center max-w-4xl mx-auto bg-[#1A2A4A] shadow-[30px_30px_0px_rgba(0,0,0,1)] " style={cardGradientStyle}>
           <h2 className="text-4xl md:text-5xl font-bold mb-8 text-white">
             Ready to Sail with SCMT?

@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Star,
   BookOpenText,
-
 } from "lucide-react";
 
 // Types
@@ -144,7 +143,11 @@ export function ServicesInfoComponent() {
       </header>
 
       {/* Services - horizontal scroll section */}
-      <section id="services" className="py-14 px-6 md:px-16 bg-[#121c2d] rounded-3xl shadow-[0px_30px_0px_rgba(0,0,0,1)] mt-10 mb-16" style={cardGradientStyle}>
+      <section
+        id="services"
+        className={`py-14 px-6 md:px-16 bg-[#121c2d] rounded-3xl shadow-[0px_30px_0px_rgba(0,0,0,1)] mt-10 mb-16 transition-all duration-1000 ${isVisible.services ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+        style={cardGradientStyle}
+      >
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-10">
           Our Core Maritime Services
         </h2>
@@ -176,7 +179,10 @@ export function ServicesInfoComponent() {
       </section>
 
       {/* Fleet - block cards with image accent */}
-      <section id="fleet" className="py-14 px-6 md:px-16">
+      <section
+        id="fleet"
+        className={`py-14 px-6 md:px-16 transition-all duration-1000 ${isVisible.fleet ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+      >
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-10">
           Our Flagship Vessels
         </h2>
@@ -207,33 +213,38 @@ export function ServicesInfoComponent() {
       </section>
 
       {/* Advantages - horizontal pill scroll */}
-     <section id="advantages" className="py-16 px-6 md:px-16 bg-[#121c2d] rounded-3xl mt-16 shadow-[0px_30px_0px_rgba(0,0,0,1)]" style={cardGradientStyle}>
-  <h2 className="text-3xl md:text-4xl font-bold text-center mb-10">
-    Why Choose SCMT?
-  </h2>
-  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-9 mb-8">
-    {advantages.map((adv, idx) => {
-      const IconComponent = adv.icon;
-      return (
-        <div
-          className=" border border-slate-600/50 rounded-2xl p-7 text-center flex flex-col items-center shadow-[20px_20px_0px_rgba(0,0,0,1)]"
-          style={cardGradientStyle}
-        >
-          <IconComponent className="w-10 h-10 text-white mb-2" />
-          <div className="font-bold text-base mb-1">{adv.title}</div>
-          <div className="text-xs text-slate-100">{adv.value}</div>
+      <section
+        id="advantages"
+        className={`py-16 px-6 md:px-16 bg-[#121c2d] rounded-3xl mt-16 shadow-[0px_30px_0px_rgba(0,0,0,1)] transition-all duration-1000 ${isVisible.advantages ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+        style={cardGradientStyle}
+      >
+        <h2 className="text-3xl md:text-4xl font-bold text-center mb-10">
+          Why Choose SCMT?
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-9 mb-8">
+          {advantages.map((adv, idx) => {
+            const IconComponent = adv.icon;
+            return (
+              <div
+                key={idx}
+                className=" border border-slate-600/50 rounded-2xl p-7 text-center flex flex-col items-center shadow-[20px_20px_0px_rgba(0,0,0,1)]"
+                style={cardGradientStyle}
+              >
+                <IconComponent className="w-10 h-10 text-white mb-2" />
+                <div className="font-bold text-base mb-1">{adv.title}</div>
+                <div className="text-xs text-slate-100">{adv.value}</div>
+              </div>
+            );
+          })}
         </div>
-      );
-    })}
-  </div>
-  {/* CTA */}
-  <div className="text-center mt-12">
-    <button className="uppercase bg-[#600f9e] hover:bg-[#491174] text-white px-10 py-4 rounded-lg font-bold shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow flex items-center mx-auto space-x-2 group" >
-      <span>Sign Up</span>
-      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-    </button>
-  </div>
-</section>
-      </div>
+        {/* CTA */}
+        <div className="text-center mt-12">
+          <button className="uppercase bg-[#600f9e] hover:bg-[#491174] text-white px-10 py-4 rounded-lg font-bold shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow flex items-center mx-auto space-x-2 group" >
+            <span>Sign Up</span>
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

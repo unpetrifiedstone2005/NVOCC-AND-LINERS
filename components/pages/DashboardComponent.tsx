@@ -639,8 +639,11 @@ export function DashboardComponent() {
         />
       </div>
 
+      <br/>
+      <br/>
+
       {/* Main Dashboard Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-14">
         {/* World Map Section */}
         <div className="lg:col-span-2 mb-12 ">
           <div className=" border-white border-2 rounded-xl p-10 shadow-[inset_0px_20px_18px_20px_rgba(0,0,0,0.5),30px_30px_0px_rgba(0,0,0,1)]"
@@ -782,8 +785,11 @@ export function DashboardComponent() {
         </div>
       </div>
 
+      <br/>
+      <br/>
+
       {/* Dual Section: My Containers (left) & Invoices (right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-12 uppercase">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 mb-12 uppercase">
         {/* My Containers: Live Events */}
         <div className="bg-[#1A2A4A] border-white border-2 rounded-xl p-6 shadow-[inset_0px_20px_18px_20px_rgba(0,0,0,0.5),30px_30px_0px_rgba(0,0,0,1)] flex flex-col"
         style={{
@@ -958,6 +964,8 @@ export function DashboardComponent() {
           </div>
         </div>
       </div>
+      <br/>
+      <br/>
 
       {/* Vessel Schedule */}
       <div className="mb-12 uppercase">
@@ -1008,6 +1016,9 @@ export function DashboardComponent() {
           </div>
         </div>
       </div>
+
+      <br/>
+      <br/>
 
       {/* Charts and Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-12 uppercase">
@@ -1102,6 +1113,7 @@ export function DashboardComponent() {
           </div>
         </div>
       </div>
+      <br/> 
       {/* Settings & Account Controls */}
       <div className="bg-[#1A2A4A] border-white border-2 rounded-xl p-6 shadow-[inset_0px_20px_18px_20px_rgba(0,0,0,0.5),30px_30px_0px_rgba(0,0,0,1)] mb-8"
       style={{

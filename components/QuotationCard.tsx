@@ -13,7 +13,7 @@ export const QuotationCard: React.FC = () => {
           backgroundBlendMode: 'overlay',
       }}>
       {/* Icon + Title (on top line) */}
-      <div className="flex items-center mb-6">
+      <div className="flex items-center mb-12">
         <Tag size={24} className="text-[#faf9f6] mr-2" />
         <span className="text-[#faf9f6] font-semibold text-xl">
           QUOTATION
