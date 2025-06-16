@@ -21,11 +21,19 @@ import { QuotationCard } from "../QuotationCard";
 import { SchedulesCard } from "../SchedulesCard";
 import { TrackingCard } from "../TrackingCard";
 
+
+type SubMenuItem = {
+  key: string;
+  label: string;
+  pathPattern: string;
+};
+
 type MenuItem = {
   key: string;
   label: string;
   icon: React.ReactNode;
-  sub: Array<{ key: string; label: string }>;
+  sub: SubMenuItem[];
+  pathPattern?: string; // For main menu items that have their own direct link (like "SCHEDULE")
 };
 
 const menuData: MenuItem[] = [
@@ -34,12 +42,12 @@ const menuData: MenuItem[] = [
     label: "QUOTES",
     icon: <FileText size={24} />,
     sub: [
-      { label: "NEW QUOTE", key: "new_quote" },
-      { label: "MY QUOTATIONS", key: "my_quotations" },
-      { label: "SPECIAL CARGO QUOTES", key: "special_cargo" },
-      { label: "TARIFFS", key: "tariffs" },
-      { label: "DETENTION AND DEMURRAGE TARIFFS", key: "demurrage" },
-      { label: "RATE OF EXCHANGE TARIFFS", key: "exchange_tariffs" },
+      { label: "NEW QUOTE", key: "new_quote", pathPattern: "/main/quotes/newquote" },
+      { label: "MY QUOTATIONS", key: "my_quotations", pathPattern: "/main/quotes/myquotes" },
+      { label: "SPECIAL CARGO QUOTES", key: "special_cargo", pathPattern: "/main/quotes/special" },
+      { label: "TARIFFS", key: "tariffs", pathPattern: "/main/quotes/tariffs" },
+      { label: "DETENTION AND DEMURRAGE TARIFFS", key: "demurrage", pathPattern: "/main/quotes/demurrage" },
+      { label: "RATE OF EXCHANGE TARIFFS", key: "exchange_tariffs", pathPattern: "/main/quotes/exchange" },
     ],
   },
   {
@@ -47,18 +55,19 @@ const menuData: MenuItem[] = [
     label: "SCHEDULE",
     icon: <Calendar size={24} />,
     sub: [],
+    pathPattern: "/main/schedules",
   },
-  {
+ {
     key: "book",
     label: "BOOK",
     icon: <Book size={24} />,
     sub: [
-      { label: "NEW QUOTE", key: "book_new_quote" },
-      { label: "MY QUOTATIONS", key: "book_my_quotations" },
-      { label: "SPECIAL CARGO QUOTES", key: "book_special_cargo" },
-      { label: "TARIFFS", key: "book_tariffs" },
-      { label: "DETENTION AND DEMURRAGE", key: "book_demurrage" },
-      { label: "RATE OF EXCHANGE TARIFFS", key: "book_exchange_tariffs" },
+      { label: "CREATE BOOKING", key: "book_new", pathPattern: "/main/book/new" },
+      { label: "BOOKING TEMPLATES", key: "book_templates", pathPattern: "/main/book/templates" },
+      { label: "MY BOOKINGS", key: "book_my", pathPattern: "/main/book/mybookings" },
+      { label: "BOOKING AMENDMENTS", key: "book_amendments", pathPattern: "/main/book/amendments" },
+      { label: "ADDITIONAL SERVICES", key: "book_additional_services", pathPattern: "/main/book/additionalservices" },
+      { label: "US MILITARY BOOKING", key: "book_us_military", pathPattern: "/main/book/usmilitary" },
     ],
   },
   {
@@ -66,14 +75,14 @@ const menuData: MenuItem[] = [
     label: "DOCUMENTATION",
     icon: <ClipboardList size={24} />,
     sub: [
-      { label: "MY SHIPMENT", key: "my_shipment" },
-      { label: "VERIFIED GROSS MASS", key: "gross_mass" },
-      { label: "SHIPPING INSTRUCTIONS", key: "shipping_instructions" },
-      { label: "BL DRAFT APPROVAL", key: "bl_approval" },
-      { label: "CUSTOMS STATUS", key: "customs_status" },
-      { label: "CUSTOMS REFERENCE", key: "customs_reference" },
-      { label: "CARGO CLAIMS", key: "cargo_claims" },
-      { label: "ELECTRONIC BILL OF LADING", key: "e_bl" },
+      { label: "MY SHIPMENT", key: "my_shipment", pathPattern: "/main/documentation/shipment" },
+      { label: "VERIFIED GROSS MASS", key: "gross_mass", pathPattern: "/main/documentation/mass" },
+      { label: "SHIPPING INSTRUCTIONS", key: "shipping_instructions", pathPattern: "/main/documentation/instructions" },
+      { label: "BL DRAFT APPROVAL", key: "bl_approval", pathPattern: "/main/documentation/approval" },
+      { label: "CUSTOMS STATUS", key: "customs_status", pathPattern: "/main/documentation/customs-status" },
+      { label: "CUSTOMS REFERENCE", key: "customs_reference", pathPattern: "/main/documentation/customs-ref" },
+      { label: "CARGO CLAIMS", key: "cargo_claims", pathPattern: "/main/documentation/claims" },
+      { label: "ELECTRONIC BILL OF LADING", key: "e_bl", pathPattern: "/main/documentation/ebl" },
     ],
   },
   {
@@ -81,8 +90,8 @@ const menuData: MenuItem[] = [
     label: "FINANCE",
     icon: <DollarSign size={24} />,
     sub: [
-      { label: "MY INVOICE", key: "my_invoice" },
-      { label: "MY DISPUTES", key: "my_disputes" },
+      { label: "MY INVOICE", key: "my_invoice", pathPattern: "/main/finance/invoice" },
+      { label: "MY DISPUTES", key: "my_disputes", pathPattern: "/main/finance/disputes" },
     ],
   },
   {
@@ -90,14 +99,16 @@ const menuData: MenuItem[] = [
     label: "TRACK",
     icon: <Map size={24} />,
     sub: [
-      { label: "BY BOOKING", key: "by_booking" },
-      { label: "BY CONTAINER", key: "by_container" },
-      { label: "SUBSCRIPTION", key: "subscription" },
-      { label: "VESSEL TRACKER", key: "vessel_tracker" },
-      { label: "LIVE POSITION", key: "live_position" },
+      { label: "BY BOOKING", key: "by_booking", pathPattern: "/main/tracking/byBooking" },
+      { label: "BY CONTAINER", key: "by_container", pathPattern: "/main/tracking/byContainer" },
+      { label: "BY VESSEL", key: "by_vessel", pathPattern: "/main/tracking/byVessel" },
+      { label: "SUBSCRIPTION", key: "subscription", pathPattern: "/main/tracking/subscription" },
+      { label: "VESSEL TRACKER", key: "vessel_tracker", pathPattern: "/main/tracking/vesselTracker" },
+      { label: "LIVE POSITION", key: "live_position", pathPattern: "/main/tracking/livePosition" },
     ],
   },
 ];
+
 
 export function LandingComponent() {
   const router = useRouter()
@@ -220,7 +231,7 @@ export function LandingComponent() {
           </button>
           <button 
           onClick={()=>[
-            router.push('/services&info')
+            router.push('/main/services&info')
           ]}
           className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             services and information
@@ -265,7 +276,13 @@ export function LandingComponent() {
                   isOpen ? (
                     <div key={item.key}>
                       <button
-                        onClick={() => handleMenuClick(item.key)}
+                        onClick={() => {
+                          if (item.sub.length === 0 && item.pathPattern) {
+                            router.push(item.pathPattern); // For SCHEDULE or other single-link menu items
+                          } else {
+                            handleMenuClick(item.key); // For menu items with submenus
+                          }
+                        }}
                         className="rounded-lg bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] text-white shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[[10px_8px_0px_rgba(0,0,0,1)]] transition-shadow border-black border-4 px-4 py-2 font-bold hover:font-bold w-full flex items-center justify-between"
                       >
                         <div className="flex items-center gap-2">
@@ -290,7 +307,7 @@ export function LandingComponent() {
                         }}
                       >
                         {item.sub.map((sub) => (
-                          <button key={sub.key} className={`${subButtonStyle} text-md font-bold`}>
+                          <button key={sub.key} className={`${subButtonStyle} text-md font-bold`} onClick={() => router.push(sub.pathPattern)}>
                             {sub.label}
                           </button>
                         ))}

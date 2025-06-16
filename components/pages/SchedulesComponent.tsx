@@ -79,7 +79,7 @@ export const SchedulesComponent: React.FC = () => {
     <div className="grid md:grid-cols-2 gap-8 mb-6">
       {/* ——— Left column ——— */}
       <div className="space-y-6">
-        {/* End Location */}
+        {/*Start Location */}
         <div className="space-y-4">
           <label className="block text-md text-[#faf9f6] font-light mb-2">
             START LOCATION
@@ -87,8 +87,8 @@ export const SchedulesComponent: React.FC = () => {
           <div className="relative group">
             <input
               type="text"
-              value={formData.endLocation}
-              onChange={(e) => handleInputChange('endLocation', e.target.value)}
+              value={formData.startLocation}
+              onChange={(e) => handleInputChange('startLocation', e.target.value)}
               className={`w-full uppercase text-sm bg-[#2D4D8B] rounded-xl hover:bg-[#0A1A2F] hover:text-[#00FFFF] hover:placeholder-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-3 py-2 font-bold pl-12`}
               placeholder="Location name or code"
             />

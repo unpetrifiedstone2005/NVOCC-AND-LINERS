@@ -31,8 +31,8 @@ const menuData: MenuItem[] = [
     label: "QUOTES",
     icon: <FileText size={24} />,
     sub: [
-      { label: "NEW QUOTE", key: "new_quote", pathPattern: "/main/quotes/new" },
-      { label: "MY QUOTATIONS", key: "my_quotations", pathPattern: "/main/quotes/my" },
+      { label: "NEW QUOTE", key: "new_quote", pathPattern: "/main/quotes/newquote" },
+      { label: "MY QUOTATIONS", key: "my_quotations", pathPattern: "/main/quotes/myquotes" },
       { label: "SPECIAL CARGO QUOTES", key: "special_cargo", pathPattern: "/main/quotes/special" },
       { label: "TARIFFS", key: "tariffs", pathPattern: "/main/quotes/tariffs" },
       { label: "DETENTION AND DEMURRAGE TARIFFS", key: "demurrage", pathPattern: "/main/quotes/demurrage" },
@@ -51,12 +51,12 @@ const menuData: MenuItem[] = [
     label: "BOOK",
     icon: <Book size={24} />,
     sub: [
-      { label: "NEW BOOKING", key: "book_new", pathPattern: "/main/book/new" },
-      { label: "MY BOOKINGS", key: "book_my", pathPattern: "/main/book/my" },
-      { label: "SPECIAL CARGO BOOKING", key: "book_special_cargo", pathPattern: "/main/book/special" },
-      { label: "BOOKING TARIFFS", key: "book_tariffs", pathPattern: "/main/book/tariffs" },
-      { label: "DETENTION AND DEMURRAGE", key: "book_demurrage", pathPattern: "/main/book/demurrage" },
-      { label: "RATE OF EXCHANGE TARIFFS", key: "book_exchange_tariffs", pathPattern: "/main/book/exchange" },
+      { label: "CREATE BOOKING", key: "book_new", pathPattern: "/main/book/new" },
+      { label: "BOOKING TEMPLATES", key: "book_templates", pathPattern: "/main/book/templates" },
+      { label: "MY BOOKINGS", key: "book_my", pathPattern: "/main/book/mybookings" },
+      { label: "BOOKING AMENDMENTS", key: "book_amendments", pathPattern: "/main/book/amendments" },
+      { label: "ADDITIONAL SERVICES", key: "book_additional_services", pathPattern: "/main/book/additionalservices" },
+      { label: "US MILITARY BOOKING", key: "book_us_military", pathPattern: "/main/book/usmilitary" },
     ],
   },
   {
@@ -300,7 +300,11 @@ export default function MainLayout({
          className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
             home
           </button>
-          <button className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
+          <button 
+          onClick={()=>[
+          router.push('/main/services&info')
+         ]}
+          className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold">
               services and information
           </button>
           <button 
@@ -344,7 +348,13 @@ export default function MainLayout({
               isOpen ? (
                 <div key={item.key}>
                   <button
-                    onClick={() => handleMenuClick(item.key)}
+                    onClick={() => {
+                      if (item.sub.length === 0 && item.pathPattern) {
+                        router.push(item.pathPattern); // For SCHEDULE or other single-link menu items
+                      } else {
+                        handleMenuClick(item.key); // For menu items with submenus
+                      }
+                    }}
                     className={`
                       border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 
                       hover:font-bold w-full flex items-center justify-between
@@ -396,6 +406,7 @@ export default function MainLayout({
                               : "border-l border-white/20 pl-4"
                             }
                           `}
+                          onClick={() => router.push(sub.pathPattern)} 
                         >
                           {sub.label}
                         </button>
