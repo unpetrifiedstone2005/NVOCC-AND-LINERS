@@ -1,5 +1,6 @@
 import { NewQuoteComponent } from "@/components/pages/NewQuoteComponent"
-export default function newquote(){
+
+export default function (){
     return(
         <NewQuoteComponent />
     )

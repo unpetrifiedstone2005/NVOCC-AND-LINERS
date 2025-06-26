@@ -1,6 +1,6 @@
 import { ByVesselComponent } from "@/components/pages/ByVesselComponent"
 
-export default function byVessel(){
+export default function (){
     return(
         <ByVesselComponent />
     )

@@ -1,5 +1,5 @@
 import { SchedulesComponent } from "@/components/pages/SchedulesComponent"
-export default function schedules(){
+export default function (){
     return(
         <SchedulesComponent />
     )

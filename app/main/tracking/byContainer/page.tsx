@@ -1,6 +1,6 @@
 import { ByContainerComponent } from "@/components/pages/ByContainerComponent"
 
-export default function byContainer(){
+export default function (){
     return(
         <ByContainerComponent />
     )

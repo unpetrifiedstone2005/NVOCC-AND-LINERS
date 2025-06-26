@@ -1,6 +1,6 @@
 import { ByBooking } from "@/components/pages/ByBookingComponent";
 
-export default function byBooking(){
+export default function (){
     return(
         <ByBooking />
     )

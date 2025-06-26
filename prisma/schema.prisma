@@ -65,18 +65,30 @@ enum SnapshotType {
   VESSEL
 }
 
+enum DraftType {
+  BL    // Bill of Lading
+  SWB   // Sea Waybill
+}
+
+enum DraftStatus {
+  OPEN              // Open for review
+  CORRECTION_SENT   // Corrections requested by user
+  APPROVED          // Approved by user
+  RELEASED          // Released to carrier
+}
+
 /// ─────────────────────────────────────────────────────────────────────────────
 /// MODELS
 /// ─────────────────────────────────────────────────────────────────────────────
 
 model User {
-  id             String        @id @default(uuid())
-  email          String        @unique
+  id             String               @id @default(uuid())
+  email          String               @unique
   hashedPassword String
-  role           Role          @default(CLIENT)
+  role           Role                 @default(CLIENT)
   firstName      String
   lastName       String
-  countryCode    String        @db.Char(2)
+  countryCode    String               @db.Char(2)
   phoneNumber    String
   companyName    String?
   vatNumber      String?
@@ -84,16 +96,21 @@ model User {
   city           String
   postalCode     String
   country        String
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime             @default(now())
+
   quotations     Quotation[]
   bookings       Booking[]
   invoices       Invoice[]
   activityLogs   ActivityLog[]
   notifications  Notification[]
   accountBalance AccountBalance?
+
+  // back-relations for BL drafts
+  createdBLDraftVersions BLDraftVersion[] @relation("DraftCreatedBy")
+  commentsMade           BLDraftComment[] @relation("DraftCommenter")
+
   @@map("user")
 }
-
 
 model Quotation {
   id                  String           @id @default(uuid())
@@ -120,73 +137,71 @@ model Quotation {
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
-  /// link once converted
-  booking             Booking?         
+  booking             Booking?         // optional: not all quotations become bookings
   documents           Document[]
   declarations        Declaration[]
 }
 
-
 model Booking {
-  id                String          @id @default(uuid())
+  id                String             @id @default(uuid())
   userId            String
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotationId       String             @unique
+  quotation         Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
-  /// link back to the original quotation
-  quotationId       String          @unique
-  quotation         Quotation       @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-
-  /// ─── 1. Contact & Reference ─────────────────────────────────────────────
+  // 1. Contact & Reference
   contactReference  String?
   contactName       String?
   contactPhone      String?
   contactEmail      String?
 
-  /// ─── 2. Routing & Schedule ─────────────────────────────────────────────
-  originDepot       String          // your “Start Location”
+  // 2. Routing & Schedule
+  originDepot       String
   pickupType        DeliveryType
-  scheduleDate      DateTime?       // “Start Date”
-  scheduleWeeks     Int?            // “Plus X week(s)”
+  scheduleDate      DateTime?
+  scheduleWeeks     Int?
   via1              String?
   via2              String?
-  destinationDepot  String          // your “End Location”
+  destinationDepot  String
   deliveryType      DeliveryType
   exportMoT         String?
   importMoT         String?
-  optimizeReefer    Boolean         @default(false)
+  optimizeReefer    Boolean            @default(false)
 
-  /// ─── 3. Cargo & Equipment ─────────────────────────────────────────────
+  // 3. Cargo & Equipment
   containers        BookingContainer[]
 
-  /// ─── 4. Customs & Remarks ─────────────────────────────────────────────
+  // 4. Customs & Remarks
   customsReferences CustomsReference[]
   bolCount          Int?
-  exportFiling      Boolean         @default(false)
+  exportFiling      Boolean            @default(false)
   filingBy          String?
   remarks           String?
 
-  status            BookingStatus   @default(PENDING)
-  createdAt         DateTime        @default(now())
+  status            BookingStatus      @default(PENDING)
+  createdAt         DateTime           @default(now())
 
   allocations       Allocation[]
   invoice           Invoice?
   documents         Document[]
   declarations      Declaration[]
   workflowTasks     WorkflowTask[]
+
+  // back-relation for BL drafts
+  bldrafts          BLDraft[]
 }
 
-
 model BookingContainer {
-  id                String       @id @default(uuid())
+  id                String      @id @default(uuid())
   bookingId         String
-  booking           Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking           Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   qty               Int
-  type              String       // e.g. "40HC"
+  type              String
   shipperOwned      Boolean
   cargoDescription  String
   hsCode            String
-  weight            Decimal      @db.Decimal(10,2)
+  weight            Decimal     @db.Decimal(10,2)
   weightUnit        WeightUnit
   dangerousGoods    Boolean
   imoClass          String?
@@ -196,13 +211,12 @@ model BookingContainer {
   releaseTime       DateTime?
 }
 
-
 model CustomsReference {
-  id                String    @id @default(uuid())
+  id                String      @id @default(uuid())
   bookingId         String
-  booking           Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking           Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  type              String    // e.g. "EORI", "MRN", "VAT"
+  type              String
   reference         String
 }
 
@@ -214,6 +228,7 @@ model Container {
   currentDepot     String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+
   allocations      Allocation[]
   events           ContainerEvent[]
   demurrageAlerts  DemurrageAlert[]
@@ -241,9 +256,9 @@ model ContainerEvent {
   description   String?
   sourceSystem  String
   fetchedAt     DateTime   @default(now())
+
   @@map("container_event")
 }
-
 
 model Vessel {
   id         String            @id @default(uuid())
@@ -272,12 +287,13 @@ model Invoice {
   id          String        @id @default(uuid())
   userId      String
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookingId   String @unique  // <-- enforces one invoice per booking
+  bookingId   String        @unique
   booking     Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   amount      Decimal       @db.Decimal(12, 2)
   issuedDate  DateTime      @default(now()) @map("issued_date")
   dueDate     DateTime      @map("due_date")
   status      InvoiceStatus @default(PENDING)
+
   documents   Document[]
   payments    Payment[]
 }
@@ -309,16 +325,15 @@ model APISnapshot {
 }
 
 model Port {
-  id         String   @id @default(uuid())
-  unlocode   String   @unique
+  id         String         @id @default(uuid())
+  unlocode   String         @unique
   name       String
   city       String
   country    String
   latitude   Float?
   longitude  Float?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime       @default(now())
 
-  // back-relations
   rateSheetsOrigin      RateSheet[]       @relation("originRates")
   rateSheetsDestination RateSheet[]       @relation("destRates")
   vesselSchedules       VesselSchedule[]
@@ -326,7 +341,7 @@ model Port {
 }
 
 model ContainerTypeSpec {
-  type             String   @id                          // e.g. "40HC", "20GP"
+  type             String   @id
   lengthMm         Int
   widthMm          Int
   heightMm         Int
@@ -341,7 +356,6 @@ model Carrier {
   apiCredentials Json?
   createdAt     DateTime  @default(now())
 
-  // back-relations
   services      Service[]
   vessels       Vessel[]
 }
@@ -349,7 +363,7 @@ model Carrier {
 model Service {
   id          String   @id @default(uuid())
   carrierId   String
-  carrier     Carrier  @relation(fields:[carrierId], references:[id], onDelete: Cascade)
+  carrier     Carrier  @relation(fields: [carrierId], references: [id], onDelete: Cascade)
   name        String
   description String?
   createdAt   DateTime @default(now())
@@ -366,40 +380,42 @@ model RateSheet {
   surchargePct       Decimal   @db.Decimal(5,2)
   createdAt          DateTime  @default(now())
 
-  // back-relations
-  originPort         Port      @relation("originRates",      fields:[originPortId],      references:[id])
-  destinationPort    Port      @relation("destRates",        fields:[destinationPortId], references:[id])
+  originPort         Port      @relation("originRates", fields: [originPortId], references: [id])
+  destinationPort    Port      @relation("destRates",   fields: [destinationPortId], references: [id])
 }
 
 model Surcharge {
   id             String    @id @default(uuid())
   containerType  String
   date           DateTime
-  surchargeType  String    // e.g. "MFR", "THC", "DETENTION"
+  surchargeType  String
   amount         Decimal   @db.Decimal(12,2)
 }
 
 model Document {
-  id             String    @id @default(uuid())
-  type           String    // "BOL", "SOC_DECLARATION", "CUSTOMS_CLEARANCE", etc.
+  id             String      @id @default(uuid())
+  type           String
   url            String
-  uploadedAt     DateTime  @default(now())
+  uploadedAt     DateTime    @default(now())
   bookingId      String?
   quotationId    String?
   invoiceId      String?
 
-  // back-relations
-  booking        Booking?     @relation(fields:[bookingId],   references:[id])
-  quotation      Quotation?   @relation(fields:[quotationId], references:[id])
-  invoice        Invoice?     @relation(fields:[invoiceId],   references:[id])
+  booking        Booking?     @relation(fields: [bookingId],   references: [id])
+  quotation      Quotation?   @relation(fields: [quotationId], references: [id])
+  invoice        Invoice?     @relation(fields: [invoiceId],   references: [id])
+
+  // back-relations for BL drafts
+  bldraft        BLDraft?           @relation("BLDraftToDocument")
+  bldraftVersions BLDraftVersion[]  @relation("BLDraftVersionToDocument")
 }
 
 model EdiMessage {
   id            String    @id @default(uuid())
-  direction     String    // "INBOUND" | "OUTBOUND"
-  messageType   String    // e.g. "BOOKING", "DO", "CODECO"
-  payload       Json      // raw EDI or converted JSON
-  ackStatus     String?   // e.g. "ACK", "NACK"
+  direction     String
+  messageType   String
+  payload       Json
+  ackStatus     String?
   sentAt        DateTime  @default(now())
   receivedAt    DateTime?
 }
@@ -407,16 +423,16 @@ model EdiMessage {
 model Payment {
   id          String    @id @default(uuid())
   invoiceId   String
-  invoice     Invoice   @relation(fields:[invoiceId], references:[id], onDelete: Cascade)
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   amount      Decimal   @db.Decimal(12,2)
-  method      String    // "WIRE", "CARD", "CREDIT_NOTE", etc.
+  method      String
   reference   String?
   paidAt      DateTime  @default(now())
 }
 
 model AccountBalance {
   userId      String    @id
-  user        User      @relation(fields:[userId], references:[id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   creditLimit Decimal   @db.Decimal(12,2)
   balance     Decimal   @db.Decimal(12,2)
 }
@@ -424,8 +440,8 @@ model AccountBalance {
 model Notification {
   id           String    @id @default(uuid())
   userId       String
-  user         User      @relation(fields:[userId], references:[id], onDelete: Cascade)
-  type         String    // "DEMURRAGE_ALERT", "BOOKING_CONFIRMED", etc.
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String
   payload      Json?
   sentAt       DateTime  @default(now())
   readAt       DateTime?
@@ -433,12 +449,12 @@ model Notification {
 
 model WorkflowTask {
   id           String    @id @default(uuid())
-  type         String    // "FOLLOW_UP", "RELEASE_REMINDER", etc.
+  type         String
   payload      Json?
   triggerAt    DateTime
   completedAt  DateTime?
   bookingId    String?
-  booking      Booking?  @relation(fields:[bookingId], references:[id])
+  booking      Booking?  @relation(fields: [bookingId], references: [id])
 }
 
 model Declaration {
@@ -449,9 +465,53 @@ model Declaration {
   dutiesAmount  Decimal   @db.Decimal(12,2)
   filingDate    DateTime  @default(now())
 
-  // back-relations
-  booking       Booking?   @relation(fields:[bookingId],   references:[id])
-  quotation     Quotation? @relation(fields:[quotationId], references:[id])
+  booking       Booking?   @relation(fields: [bookingId],   references: [id])
+  quotation     Quotation? @relation(fields: [quotationId], references: [id])
+}
+
+/// ─────────────────────────────────────────────────────────────────────────────
+/// BL DRAFT APPROVAL MODELS
+/// ─────────────────────────────────────────────────────────────────────────────
+
+model BLDraft {
+  documentNo   String       @id
+  bookingId    String
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  type         DraftType    @default(BL)
+  status       DraftStatus  @default(OPEN)
+  updatedAt    DateTime     @updatedAt
+
+  documentId   String       @unique
+  document     Document     @relation("BLDraftToDocument", fields: [documentId], references: [id])
+
+  versions     BLDraftVersion[]
+  comments     BLDraftComment[]
+}
+
+model BLDraftVersion {
+  id           String     @id @default(uuid())
+  draftNo      String
+  draft        BLDraft    @relation(fields: [draftNo], references: [documentNo], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  createdById  String?
+  createdBy    User?      @relation("DraftCreatedBy", fields: [createdById], references: [id])
+
+  documentId   String     @unique
+  document     Document   @relation("BLDraftVersionToDocument", fields: [documentId], references: [id])
+}
+
+model BLDraftComment {
+  id           String     @id @default(uuid())
+  draftNo      String
+  draft        BLDraft    @relation(fields: [draftNo], references: [documentNo], onDelete: Cascade)
+
+  commenterId  String
+  commenter    User       @relation("DraftCommenter", fields: [commenterId], references: [id], onDelete: Cascade)
+
+  text         String
+  createdAt    DateTime   @default(now())
 }
 
 /// ─────────────────────────────────────────────────────────────────────────────
@@ -482,11 +542,11 @@ model DimPort {
   createdAt     DateTime  @default(now())
 
   factTradeLaneRevenues  FactTradeLaneRevenue[] @relation("OriginLane")
-  factDestLaneRevenues  FactTradeLaneRevenue[] @relation("DestLane")
+  factDestLaneRevenues   FactTradeLaneRevenue[] @relation("DestLane")
 }
 
 model DimContainerType {
-  type           String   @id      // e.g. "40HC"
+  type           String   @id
   createdAt      DateTime @default(now())
 
   factContainerStatuses   FactContainerStatus[]
@@ -503,39 +563,36 @@ model DimCarrier {
   factOnTimePerformances  FactOnTimePerformance[]
 }
 
-/// ### Fact: Container Status Distribution (for pie charts)
 model FactContainerStatus {
   id             String             @id @default(uuid())
   dateId         Int
-  date           DimDate            @relation(fields:[dateId], references:[id])
+  date           DimDate            @relation(fields: [dateId], references: [id])
   containerType  String
-  type           DimContainerType   @relation(fields:[containerType], references:[type])
+  type           DimContainerType   @relation(fields: [containerType], references: [type])
   status         ContainerStatus
   count          Int
 }
 
-/// ### Fact: Revenue by Trade Lane (for bar charts)
 model FactTradeLaneRevenue {
   id              String             @id @default(uuid())
   dateId          Int
-  date            DimDate            @relation(fields:[dateId], references:[id])
+  date            DimDate            @relation(fields: [dateId], references: [id])
   originPortId    String
-  originPort      DimPort            @relation("OriginLane", fields:[originPortId],   references:[id])
+  originPort      DimPort            @relation("OriginLane", fields: [originPortId], references: [id])
   destPortId      String
-  destPort        DimPort            @relation("DestLane",   fields:[destPortId],     references:[id])
+  destPort        DimPort            @relation("DestLane", fields: [destPortId], references: [id])
   containerType   String
-  containerTypeRel DimContainerType  @relation(fields:[containerType], references:[type])
+  containerTypeRel DimContainerType  @relation(fields: [containerType], references: [type])
   carrierId       String
-  carrier         DimCarrier         @relation(fields:[carrierId],   references:[id])
+  carrier         DimCarrier         @relation(fields: [carrierId], references: [id])
   revenue         Decimal            @db.Decimal(14,2)
 }
 
-/// ### Fact: On-Time Performance (for line charts)
 model FactOnTimePerformance {
   id             String            @id @default(uuid())
   dateId         Int
-  date           DimDate           @relation(fields:[dateId], references:[id])
+  date           DimDate           @relation(fields: [dateId], references: [id])
   carrierId      String
-  carrier        DimCarrier        @relation(fields:[carrierId], references:[id])
-  onTimePct      Decimal           @db.Decimal(5,2)   // e.g. 97.5
+  carrier        DimCarrier        @relation(fields: [carrierId], references: [id])
+  onTimePct      Decimal           @db.Decimal(5,2)
 }
