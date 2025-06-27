@@ -1,3 +1,4 @@
+import { prismaClient } from "@/app/lib/db";
 import NextAuth from "next-auth";
 import  CredentialsProvider  from "next-auth/providers/credentials";
 
@@ -15,7 +16,8 @@ const handler = NextAuth({
             }
         })
     ],
-    secret: process.env.NEXTAUTH_SECRET
+    secret: process.env.NEXTAUTH_SECRET,
+
 })
 
 export {handler as GET, handler as POST}

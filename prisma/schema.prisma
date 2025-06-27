@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../app/generated/prisma"
+
 }
 
 datasource db {
@@ -112,34 +112,44 @@ model User {
   @@map("user")
 }
 
-model Quotation {
-  id                  String           @id @default(uuid())
-  userId              String
-  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  startLocation       String
-  endLocation         String
-  pickupType          DeliveryType
-  deliveryType        DeliveryType
-  validFrom           DateTime
-  containerType       String
-  containerQuantity   Int
-  weightPerContainer  Decimal          @db.Decimal(10,2)
-  weightUnit          WeightUnit
-  commodity           String
-  dangerousGoods      Boolean
-  imoClass            String?
-  unNumber            String?
-  shipperOwned        Boolean
-  multipleTypes       Boolean
-  offer               Json?
-  services            Json?
-  status              QuotationStatus @default(draft)
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+model QuotationContainer {
+  id                 String     @id @default(uuid())
+  quotationId        String
+  quotation          Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  type               String
+  qty                Int
+  weightPerContainer Decimal    @db.Decimal(10,2)
+  weightUnit         WeightUnit
+  hsCode             String
+  dangerousGoods     Boolean
+  imoClass           String?
+  unNumber           String?
+}
 
-  booking             Booking?         // optional: not all quotations become bookings
-  documents           Document[]
-  declarations        Declaration[]
+model Quotation {
+  id           String                @id @default(uuid())
+  userId       String
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startLocation String
+  endLocation   String
+  pickupType    DeliveryType
+  deliveryType  DeliveryType
+  validFrom     DateTime
+  commodity     String
+  dangerousGoods Boolean
+  imoClass      String?
+  unNumber      String?
+  shipperOwned  Boolean
+  multipleTypes Boolean
+  offer         Json?
+  services      Json?
+  status        QuotationStatus      @default(draft)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  documents     Document[]
+  containers    QuotationContainer[]   // <-- for multi-container
+  declarations  Declaration[]
+  booking Booking?
 }
 
 model Booking {
@@ -169,7 +179,7 @@ model Booking {
   optimizeReefer    Boolean            @default(false)
 
   // 3. Cargo & Equipment
-  containers        BookingContainer[]
+  containers        BookingContainer[]  // <-- One-to-many, from Booking to BookingContainer
 
   // 4. Customs & Remarks
   customsReferences CustomsReference[]
@@ -190,6 +200,7 @@ model Booking {
   // back-relation for BL drafts
   bldrafts          BLDraft[]
 }
+
 
 model BookingContainer {
   id                String      @id @default(uuid())
@@ -222,9 +233,15 @@ model CustomsReference {
 
 model Container {
   id               String            @id @default(uuid())
-  containerNo      String            @unique
-  type             String
-  status           ContainerStatus   @default(AVAILABLE)
+  containerNo      String            @unique           // e.g. SUUU7922538 or AFUU9887001
+  type             String                                 // e.g. "40HC DRY" or "40' RFR"
+  description      String?                                // "Blue colour new units - 24"
+  bicCode          String?                                // e.g. "SU - 2525"
+  ownership        String?                                // e.g. "S A M A MARBAD MARINE" or "AFCONT - 2530083.01"
+  companyOrigin    String?                                // e.g. "UAE - 2530914.01"
+  manufacturer     String?                                // Only for reefers, e.g. "CIMC", "Maersk"
+  customsApproval  String?                                // Only for reefers
+  status           ContainerStatus   @default(AVAILABLE)  // AVAILABLE, ALLOCATED, etc.
   currentDepot     String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
