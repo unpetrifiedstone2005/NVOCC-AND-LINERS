@@ -1,7 +1,9 @@
 import { prismaClient } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
+import { Prisma, QuotationStatus } from "@prisma/client";
 
+// --- Schemas ---
 const QuotationContainerSchema = z.object({
   type: z.string(),
   qty: z.number().int().min(1),
@@ -33,10 +35,83 @@ const CreateQuotationSchema = z.object({
 
 type CreateQuotationInput = z.infer<typeof CreateQuotationSchema>;
 
+// --- Offer Calculation Helper ---
+async function calculateOffer(input: CreateQuotationInput) {
+  const rates = await prismaClient.rateSheet.findMany({
+    where: {
+      originPortId: input.startLocation,
+      destinationPortId: input.endLocation,
+      containerType: { in: input.containers.map(c => c.type) },
+      validFrom: { lte: new Date(input.validFrom) },
+      validTo: { gte: new Date(input.validFrom) },
+    },
+    include: {
+      weightBrackets: true,
+      surcharges: true,
+    },
+  });
+
+  let total = new Prisma.Decimal(0);
+  let details: any[] = [];
+
+  for (const container of input.containers) {
+    const rateSheet = rates.find(r => r.containerType === container.type);
+    if (!rateSheet) {
+      details.push({ type: container.type, error: "No rate found" });
+      continue;
+    }
+
+    const weightKg = parseFloat(container.weightPerContainer);
+    const bracket = rateSheet.weightBrackets.find(
+      wb => weightKg >= wb.minWeightKg && weightKg <= wb.maxWeightKg
+    );
+
+    let rate = new Prisma.Decimal(rateSheet.baseRate);
+    if (bracket) {
+      rate = new Prisma.Decimal(bracket.ratePerKg).mul(weightKg);
+    }
+
+    let surchargeTotal = rateSheet.surcharges.reduce(
+      (sum, s) => sum.add(new Prisma.Decimal(s.amount)),
+      new Prisma.Decimal(0)
+    );
+
+    const containerTotal = rate.add(surchargeTotal).mul(container.qty);
+
+    total = total.add(containerTotal);
+
+    details.push({
+      type: container.type,
+      qty: container.qty,
+      base: rate.toFixed(2),
+      surcharges: surchargeTotal.toFixed(2),
+      total: containerTotal.toFixed(2),
+    });
+  }
+
+  return {
+    total: total.toFixed(2),
+    currency: rates[0]?.currency || "USD",
+    details,
+  };
+}
+
+// --- Main Endpoint ---
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const data: CreateQuotationInput = CreateQuotationSchema.parse(await req.json());
 
+    // 1. Calculate offer
+    const offer = await calculateOffer(data);
+
+    // 2. Determine status
+    let status: QuotationStatus = QuotationStatus.accepted;
+    if (data.dangerousGoods) {
+      status = QuotationStatus.pending_response;
+    }
+    // (Add more rules for other exceptions as needed)
+
+    // 3. Create the quotation (including containers)
     const quotation = await prismaClient.quotation.create({
       data: {
         userId: data.userId,
@@ -51,8 +126,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         unNumber: data.unNumber,
         shipperOwned: data.shipperOwned,
         multipleTypes: data.multipleTypes,
-        offer: data.offer,
+        offer,
         services: data.services,
+        status, // <-- Set status based on business logic
         containers: {
           create: data.containers.map((container) => ({
             type: container.type,
