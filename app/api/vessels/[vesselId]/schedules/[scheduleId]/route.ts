@@ -2,27 +2,30 @@ import { prismaClient } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-const UpdateVesselSchema = z.object({
-  name: z.string().optional(),
-  imo: z.string().optional(),
-  mmsi: z.string().optional()
+const UpdateScheduleSchema = z.object({
+  portOfCallId: z.string().optional(),
+  voyageNumber: z.string().optional(),
+  etd: z.string().datetime().optional(),
+  eta: z.string().datetime().optional(),
+  status: z.string().optional(),
+  operationType: z.string().optional()
 });
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { vesselId: string } }
+  { params }: { params: { vesselId: string; scheduleId: string } }
 ) {
   try {
     const body = await req.json();
-    const data = UpdateVesselSchema.parse(body);
+    const data = UpdateScheduleSchema.parse(body);
 
-    const vessel = await prismaClient.vessel.update({
-      where: { id: params.vesselId },
+    const schedule = await prismaClient.vesselSchedule.update({
+      where: { id: params.scheduleId },
       data,
     });
 
-    return NextResponse.json(vessel, { status: 200 });
-  }  catch (error) {
+    return NextResponse.json(schedule, { status: 200 });
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.errors },

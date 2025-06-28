@@ -308,7 +308,6 @@ model Vessel {
   name       String
   schedules  VesselSchedule[]
   carrierId  String?
-  carrier    Carrier?          @relation(fields: [carrierId], references: [id])
 }
 
 model VesselSchedule {
@@ -321,8 +320,11 @@ model VesselSchedule {
   etd           DateTime?
   eta           DateTime?
   status        String?
+  operationType String
   fetchedAt     DateTime @default(now())
+  @@unique([vesselId, portOfCallId, voyageNumber, operationType, etd])
 }
+
 
 model BankAccount {
   id             String    @id @default(uuid())
@@ -411,25 +413,7 @@ model ContainerTypeSpec {
   tareWeightKg     Int
 }
 
-model Carrier {
-  id            String    @id @default(uuid())
-  name          String
-  scacCode      String    @unique
-  apiCredentials Json?
-  createdAt     DateTime  @default(now())
 
-  services      Service[]
-  vessels       Vessel[]
-}
-
-model Service {
-  id          String   @id @default(uuid())
-  carrierId   String
-  carrier     Carrier  @relation(fields: [carrierId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-}
 
 model WeightBracket {
   id           String      @id @default(uuid())
