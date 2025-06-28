@@ -155,6 +155,7 @@ model Quotation {
   imoClass      String?
   unNumber      String?
   shipperOwned  Boolean
+  socDetails    Json?
   multipleTypes Boolean
   offer         Json?
   services      Json?
@@ -247,24 +248,31 @@ model CustomsReference {
 }
 
 model Container {
-  id               String            @id @default(uuid())
-  containerNo      String            @unique
-  type             String
-  description      String?
-  bicCode          String?
-  ownership        String?
-  companyOrigin    String?
-  manufacturer     String?
-  customsApproval  String?
-  status           ContainerStatus   @default(AVAILABLE)
-  currentDepot     String?
-  lastUsedAt       DateTime?         // ← NEW: track when it was last allocated
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                  String            @id @default(uuid())
+  containerNo         String            @unique
+  type                String
+  description         String?
+  bicCode             String?
+  ownership           String?
+  companyOrigin       String?
+  manufacturer        String?
+  customsApproval     String?
+  status              ContainerStatus   @default(AVAILABLE)
+  currentDepot        String?
+  lastUsedAt          DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
-  allocations      Allocation[]
-  events           ContainerEvent[]
-  demurrageAlerts  DemurrageAlert[]
+  // Certification fields
+  cscPlateUrl         String?           // Proof of CSC compliance
+  imoClass            String?           // E.g., "IMDG 3", "IMDG 8", etc.
+  certificationExpiry DateTime?         // When does the cert expire?
+  foodGrade           Boolean?          // If applicable
+  reefer              Boolean?          // If applicable
+
+  allocations         Allocation[]
+  events              ContainerEvent[]
+  demurrageAlerts     DemurrageAlert[]
 }
 
 model Allocation {
