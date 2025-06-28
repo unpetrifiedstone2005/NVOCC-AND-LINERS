@@ -316,19 +316,40 @@ model VesselSchedule {
   fetchedAt     DateTime @default(now())
 }
 
-model Invoice {
-  id          String        @id @default(uuid())
-  userId      String
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookingId   String        @unique
-  booking     Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  amount      Decimal       @db.Decimal(12, 2)
-  issuedDate  DateTime      @default(now()) @map("issued_date")
-  dueDate     DateTime      @map("due_date")
-  status      InvoiceStatus @default(PENDING)
+model BankAccount {
+  id             String    @id @default(uuid())
+  accountName    String
+  bankName       String
+  accountNumber  String
+  branchName     String
+  ifsc           String?   // <-- Added IFSC code for Indian payments
+  iban           String?
+  swift          String?
+  bankAddress    String?
+  currency       String
+  isActive       Boolean   @default(true)
+  invoices       Invoice[] // Opposite relation
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
 
-  documents   Document[]
-  payments    Payment[]
+model Invoice {
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingId      String        @unique
+  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount         Decimal       @db.Decimal(12, 2)
+  issuedDate     DateTime      @default(now()) @map("issued_date")
+  dueDate        DateTime      @map("due_date")
+  status         InvoiceStatus @default(PENDING)
+
+  // New fields for bank reference
+  bankAccountId  String
+  bankAccount    BankAccount   @relation(fields: [bankAccountId], references: [id])
+
+  documents      Document[]
+  payments       Payment[]
 }
 
 model DemurrageAlert {
@@ -540,6 +561,76 @@ model BLDraft {
 
   versions     BLDraftVersion[]
   comments     BLDraftComment[]
+
+  // --- Mapped fields (renamed to match Booking/BookingContainer) ---
+  // Routing & Schedule
+  originDepot       String?   // was: placeOfReceipt or similar
+  destinationDepot  String?   // was: placeOfDelivery
+  pickupType        DeliveryType?
+  deliveryType      DeliveryType?
+  scheduleDate      DateTime?
+  scheduleWeeks     Int?
+  via1              String?
+  via2              String?
+
+  // Cargo & Equipment (from BookingContainer)
+  // If you want to support multiple containers, use a relation as in Booking
+  containers        BLDraftContainer[]  // new relation for containers
+
+  // Customs & Remarks
+  remarks           String?   // was: additionalInformation
+
+  // Other mapped fields
+  bolCount          Int?      // was: noOfOriginalBLs
+
+  // --- B/L-specific or legal fields (unchanged) ---
+  shipper                 String?
+  shippersReference       String?
+  carriersReference       String?
+  uniqueConsignmentRef    String?
+  consignee               String?
+  carrierName             String?
+  notifyParty             String?
+  additionalNotifyParty   String?
+  preCarriageBy           String?
+  vesselOrAircraft        String?
+  voyageNo                String?
+  placeOfReceipt          String?
+  portOfLoading           String?
+  portOfDischarge         String?
+  finalDestination        String?
+  shippedOnBoardDate      DateTime?
+  marksAndNumbers         String?
+  kindAndNoOfPackages     String?
+  descriptionOfGoods      String?
+  netWeightKg             Float?
+  grossWeightKg           Float?
+  measurementsM3          Float?
+  totalThisPage           String?
+  consignmentTotal        String?
+  incoterms2020           String?
+  payableAt               String?
+  freightCharges          String?
+  termsAndConditions      String?
+  placeAndDateOfIssue     String?
+  signatoryCompany        String?
+  authorizedSignatory     String?
+  signature               String?
+}
+
+model BLDraftContainer {
+  id            String   @id @default(uuid())
+  bLDraftId     String
+  bLDraft       BLDraft  @relation(fields: [bLDraftId], references: [documentNo], onDelete: Cascade)
+  containerNumber String
+  sealNumber      String?
+  sizeType        String?
+  kindAndNoOfPackages String?
+  descriptionOfGoods   String?
+  grossWeightKg       Float?
+  netWeightKg         Float?
+  measurementsM3      Float?
+  // ...add more if needed
 }
 
 model BLDraftVersion {
@@ -550,6 +641,7 @@ model BLDraftVersion {
 
   createdById  String?
   createdBy    User?      @relation("DraftCreatedBy", fields: [createdById], references: [id])
+  snapshot     Json 
 
   documentId   String     @unique
   document     Document   @relation("BLDraftVersionToDocument", fields: [documentId], references: [id])

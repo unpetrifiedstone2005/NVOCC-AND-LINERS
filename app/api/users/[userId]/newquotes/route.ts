@@ -16,7 +16,7 @@ const QuotationContainerSchema = z.object({
 });
 
 const CreateQuotationSchema = z.object({
-  userId: z.string(),
+  // userId: z.string(), // REMOVED: userId now comes from URL param
   startLocation: z.string(),
   endLocation: z.string(),
   pickupType: z.enum(["door", "terminal"]),
@@ -62,28 +62,51 @@ async function calculateOffer(input: CreateQuotationInput) {
     }
 
     const weightKg = parseFloat(container.weightPerContainer);
+
+    // 1️⃣ Find weight bracket (if any)
     const bracket = rateSheet.weightBrackets.find(
       wb => weightKg >= wb.minWeightKg && weightKg <= wb.maxWeightKg
     );
 
-    let rate = new Prisma.Decimal(rateSheet.baseRate);
-    if (bracket) {
-      rate = new Prisma.Decimal(bracket.ratePerKg).mul(weightKg);
+    // 2️⃣ Calculate base rate or bracket rate
+    let base = new Prisma.Decimal(rateSheet.baseRate);
+    let bracketRate = new Prisma.Decimal(0);
+
+    if (bracket && bracket.ratePerKg && Number(bracket.ratePerKg) > 0) {
+      base = new Prisma.Decimal(bracket.ratePerKg).mul(weightKg);
     }
 
+    // 3️⃣ Overweight calculation (if enabled in your model)
+    let overweightCharge = new Prisma.Decimal(0);
+    if (
+      rateSheet.includedWeightKg &&
+      rateSheet.overweightRatePerKg &&
+      weightKg > rateSheet.includedWeightKg
+    ) {
+      const overweight = weightKg - rateSheet.includedWeightKg;
+      overweightCharge = new Prisma.Decimal(rateSheet.overweightRatePerKg).mul(overweight);
+    }
+
+    // 4️⃣ Surcharges
     let surchargeTotal = rateSheet.surcharges.reduce(
       (sum, s) => sum.add(new Prisma.Decimal(s.amount)),
       new Prisma.Decimal(0)
     );
 
-    const containerTotal = rate.add(surchargeTotal).mul(container.qty);
+    // 5️⃣ Container total
+    const containerTotal = base
+      .add(overweightCharge)
+      .add(surchargeTotal)
+      .mul(container.qty);
 
     total = total.add(containerTotal);
 
     details.push({
       type: container.type,
       qty: container.qty,
-      base: rate.toFixed(2),
+      base: base.toFixed(2),
+      bracketRate: bracket ? bracketRate.toFixed(2) : undefined,
+      overweight: overweightCharge.gt(0) ? overweightCharge.toFixed(2) : undefined,
       surcharges: surchargeTotal.toFixed(2),
       total: containerTotal.toFixed(2),
     });
@@ -97,11 +120,14 @@ async function calculateOffer(input: CreateQuotationInput) {
 }
 
 // --- Main Endpoint ---
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { userId: string } }
+): Promise<NextResponse> {
   try {
     const data: CreateQuotationInput = CreateQuotationSchema.parse(await req.json());
 
-    // 1. Calculate offer
+    // 1. Calculate offer using updated logic
     const offer = await calculateOffer(data);
 
     // 2. Determine status
@@ -111,44 +137,58 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     // (Add more rules for other exceptions as needed)
 
-    // 3. Create the quotation (including containers)
-    const quotation = await prismaClient.quotation.create({
-      data: {
-        userId: data.userId,
-        startLocation: data.startLocation,
-        endLocation: data.endLocation,
-        pickupType: data.pickupType,
-        deliveryType: data.deliveryType,
-        validFrom: new Date(data.validFrom),
-        commodity: data.commodity,
-        dangerousGoods: data.dangerousGoods,
-        imoClass: data.imoClass,
-        unNumber: data.unNumber,
-        shipperOwned: data.shipperOwned,
-        multipleTypes: data.multipleTypes,
-        offer,
-        services: data.services,
-        status, // <-- Set status based on business logic
-        containers: {
-          create: data.containers.map((container) => ({
-            type: container.type,
-            qty: container.qty,
-            weightPerContainer: parseFloat(container.weightPerContainer),
-            weightUnit: container.weightUnit,
-            hsCode: container.hsCode,
-            dangerousGoods: container.dangerousGoods,
-            imoClass: container.imoClass,
-            unNumber: container.unNumber,
-          })),
-        }
-      },
-      include: {
-        containers: true,
-        user: true,
-      }
+    // 3. Create the quotation and its containers, then the document
+    const result = await prismaClient.$transaction(async (tx) => {
+      // Create Quotation
+      const quotation = await tx.quotation.create({
+        data: {
+          userId: params.userId, // Use userId from URL
+          startLocation: data.startLocation,
+          endLocation: data.endLocation,
+          pickupType: data.pickupType,
+          deliveryType: data.deliveryType,
+          validFrom: new Date(data.validFrom),
+          commodity: data.commodity,
+          dangerousGoods: data.dangerousGoods,
+          imoClass: data.imoClass,
+          unNumber: data.unNumber,
+          shipperOwned: data.shipperOwned,
+          multipleTypes: data.multipleTypes,
+          offer,
+          services: data.services,
+          status,
+          containers: {
+            create: data.containers.map((container) => ({
+              type: container.type,
+              qty: container.qty,
+              weightPerContainer: parseFloat(container.weightPerContainer),
+              weightUnit: container.weightUnit,
+              hsCode: container.hsCode,
+              dangerousGoods: container.dangerousGoods,
+              imoClass: container.imoClass,
+              unNumber: container.unNumber,
+            })),
+          },
+        },
+        include: {
+          containers: true,
+          user: true,
+        },
+      });
+
+      // Create Document for this Quotation
+      const document = await tx.document.create({
+        data: {
+          type: "QUOTATION",
+          url: "", // Set this if you generate a file, else leave as empty string
+          quotationId: quotation.id,
+        },
+      });
+
+      return { quotation, document };
     });
 
-    return NextResponse.json(quotation, { status: 201 });
+    return NextResponse.json(result, { status: 201 });
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json({ error: err.errors }, { status: 400 });
