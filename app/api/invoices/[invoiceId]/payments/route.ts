@@ -45,7 +45,6 @@ const BLDraftHBLFields = z.object({
   signature: z.string().optional()
 }).partial();
 
-
 const PaymentSchema = z.object({
   amount: z.number(),
   method: z.string(),
@@ -65,7 +64,7 @@ export async function POST(
       // 1. Create payment
       const payment = await tx.payment.create({
         data: {
-          invoiceId: params.invoiceId, // Use invoiceId from URL
+          invoiceId: params.invoiceId,
           amount: data.amount,
           method: data.method,
           reference: data.reference ?? undefined,
@@ -136,20 +135,20 @@ export async function POST(
           );
         }
 
-        // 4e. Create a BLDraftVersion snapshotting the initial draft state
-        const versionDocument = await tx.document.create({
-          data: {
-            type: "BL_DRAFT_VERSION",
-            url: "",
-            bookingId: invoice.bookingId,
-          },
-        });
-
+        // 4e. Create BLDraftVersion snapshotting the initial draft state (NO documentId)
         blDraftVersion = await tx.bLDraftVersion.create({
           data: {
             draftNo: blDraft.documentNo,
-            documentId: versionDocument.id,
-            snapshot: blDraft,
+            snapshot: {
+              ...blDraft,
+              containers: blDraftContainers.map((c) => ({
+                containerNumber: c.containerNumber,
+                sizeType: c.sizeType,
+                kindAndNoOfPackages: c.kindAndNoOfPackages,
+                descriptionOfGoods: c.descriptionOfGoods,
+                grossWeightKg: c.grossWeightKg,
+              })),
+            },
           },
         });
       }

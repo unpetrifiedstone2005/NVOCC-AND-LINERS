@@ -4,6 +4,7 @@ import { z, ZodError } from "zod";
 import { ContainerStatus, BookingStatus } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
+// Input validation schema (NO containers array)
 const CreateBookingSchema = z.object({
   contactReference: z.string().optional().nullable(),
   contactName:      z.string().optional().nullable(),
@@ -16,14 +17,6 @@ const CreateBookingSchema = z.object({
   exportMoT:        z.string().optional().nullable(),
   importMoT:        z.string().optional().nullable(),
   optimizeReefer:   z.boolean().optional(),
-  containers: z
-    .array(
-      z.object({
-        type: z.string(),
-        qty:  z.number().int().min(1),
-      })
-    )
-    .min(1, "At least one container must be requested"),
 });
 
 type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
@@ -37,7 +30,7 @@ export async function POST(
 
     // 1. Load & validate quotation
     const quotation = await prismaClient.quotation.findUnique({
-      where: { id: params.quotationId }, // Use quotationId from URL
+      where: { id: params.quotationId },
       include: { containers: true },
     });
     if (!quotation) {
@@ -50,8 +43,9 @@ export async function POST(
       );
     }
 
-    // 2. Create booking and its document in a transaction
-    const { booking, bookingDocument } = await prismaClient.$transaction(async (tx) => {
+    // 2. Create booking, booking document, and (if needed) declaration & declaration document
+    const { booking, bookingDocument, declaration, declarationDocument } = await prismaClient.$transaction(async (tx) => {
+      // Booking
       const booking = await tx.booking.create({
         data: {
           userId:           quotation.userId,
@@ -74,6 +68,7 @@ export async function POST(
         },
       });
 
+      // Booking Document
       const bookingDocument = await tx.document.create({
         data: {
           type: "BOOKING",
@@ -82,42 +77,74 @@ export async function POST(
         },
       });
 
-      return { booking, bookingDocument };
+      // Dangerous Goods Declaration and Document (if needed)
+      let declaration = null;
+      let declarationDocument = null;
+      const dgContainer = quotation.containers.find(qc => qc.dangerousGoods === true);
+      if (dgContainer) {
+        declaration = await tx.declaration.create({
+          data: {
+            bookingId: booking.id,
+            quotationId: quotation.id,
+            hsCode: dgContainer.hsCode || "",
+            goodsDescription: dgContainer.cargoDescription || "",
+            countryOfOrigin: quotation.startLocation || "",
+            countryOfDestination: quotation.endLocation || "",
+            value: new Prisma.Decimal(0),
+            currency: "USD",
+            dutiesAmount: new Prisma.Decimal(0),
+            declarationType: "DG",
+            status: "PENDING",
+            isDangerous: true,
+            unNumber: dgContainer.unNumber || "",
+            imoClass: dgContainer.imoClass || "",
+            packingGroup: dgContainer.packingGroup || "",
+            emergencyContact: data.contactPhone || "",
+            createdById: quotation.userId,
+          },
+        });
+
+        declarationDocument = await tx.document.create({
+          data: {
+            type: "DECLARATION",
+            url: "",
+            bookingId: booking.id,
+            declarationId: declaration.id,
+          },
+        });
+      }
+
+      return { booking, bookingDocument, declaration, declarationDocument };
     });
 
-    // 3. Save booking-container specs with correct weight from quotation
+    // 3. Save booking-container specs using containers from quotation
     await prismaClient.bookingContainer.createMany({
-      data: data.containers.map((c) => {
-        const qContainer = quotation.containers.find(qc => qc.type === c.type);
-        return {
-          bookingId:        booking.id,
-          type:             c.type,
-          qty:              c.qty,
-          shipperOwned:     false,
-          cargoDescription: "",
-          hsCode:           qContainer?.hsCode || "",
-          weight:           qContainer ? qContainer.weightPerContainer : 0,
-          weightUnit:       qContainer ? qContainer.weightUnit : "kg",
-          dangerousGoods:   qContainer ? qContainer.dangerousGoods : false,
-        };
-      }),
+      data: quotation.containers.map((qc) => ({
+        bookingId:        booking.id,
+        type:             qc.type,
+        qty:              qc.qty,
+        shipperOwned:     false,
+        cargoDescription: qc.cargoDescription || "",
+        hsCode:           qc.hsCode || "",
+        weight:           qc.weightPerContainer || 0,
+        weightUnit:       qc.weightUnit || "kg",
+        dangerousGoods:   qc.dangerousGoods || false,
+      })),
     });
 
-    // ... (rest of your logic for allocations, invoice, etc. remains unchanged)
-
-    // 4. Attempt allocations
+    // 4. Attempt allocations (using container specs from quotation)
     let canAllocateAll = true;
     const txOps: any[] = [];
 
-    for (const spec of data.containers) {
+    for (const qc of quotation.containers) {
       const candidates = await prismaClient.container.findMany({
-        where: { type: spec.type, status: ContainerStatus.AVAILABLE },
+        where: { type: qc.type, status: ContainerStatus.AVAILABLE },
         orderBy: { lastUsedAt: "asc" },
-        take: spec.qty,
+        take: qc.qty,
         select: { id: true },
       });
 
-      if (candidates.length < spec.qty) {
+      if (candidates.length < qc.qty) {
         canAllocateAll = false;
         break;
       }
@@ -245,7 +272,15 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ booking: result, bookingDocument, documents: result.documents }, { status: 201 });
+    // Collect all documents (booking, declaration, invoice, etc.)
+    const documents = await prismaClient.document.findMany({
+      where: { bookingId: booking.id },
+    });
+
+    return NextResponse.json(
+      { booking: result, bookingDocument, declaration, declarationDocument, documents },
+      { status: 201 }
+    );
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json({ error: err.errors }, { status: 400 });

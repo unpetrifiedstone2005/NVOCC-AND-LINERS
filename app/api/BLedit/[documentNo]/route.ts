@@ -43,7 +43,7 @@ export async function PATCH(
     const data = EditableBLDraftFields.parse(await req.json());
     const { documentNo } = params;
 
-    // Build update object: convert date string to Date if present
+    // Prepare update object
     const updateData = {
       ...data,
       ...(data.shippedOnBoardDate
@@ -57,12 +57,54 @@ export async function PATCH(
       data: updateData,
     });
 
-    // 2. Create a new BLDraftVersion snapshot (if your model supports it)
+    // 2. Fetch all related containers for this booking
+    const containersRaw = await prismaClient.bookingContainer.findMany({
+      where: { bookingId: updated.bookingId },
+      select: {
+        id: true,
+        type: true,
+        qty: true,
+        shipperOwned: true,
+        cargoDescription: true,
+        hsCode: true,
+        weight: true,
+        weightUnit: true,
+        dangerousGoods: true,
+        imoClass: true,
+        unNumber: true,
+        releaseDate: true,
+        releaseTime: true,
+      },
+    });
+
+    // 3. Optionally, map/rename fields for the snapshot
+    const containers = containersRaw.map(c => ({
+      id: c.id,
+      sizeType: c.type, // Renamed for snapshot
+      qty: c.qty,
+      shipperOwned: c.shipperOwned,
+      descriptionOfGoods: c.cargoDescription,
+      hsCode: c.hsCode,
+      grossWeightKg: c.weight, // Assuming 'grossWeightKg' in snapshot
+      weightUnit: c.weightUnit,
+      dangerousGoods: c.dangerousGoods,
+      imoClass: c.imoClass,
+      unNumber: c.unNumber,
+      releaseDate: c.releaseDate,
+      releaseTime: c.releaseTime,
+    }));
+
+    // 4. Build a full snapshot with all details
+    const fullSnapshot = {
+      ...updated,
+      containers,
+    };
+
+    // 5. Create a new BLDraftVersion snapshot
     await prismaClient.bLDraftVersion.create({
       data: {
         draftNo: updated.documentNo,
-        documentId: updated.documentId,
-        snapshot: updated, // Remove if your model doesn't have a 'snapshot' field
+        snapshot: fullSnapshot,
       },
     });
 

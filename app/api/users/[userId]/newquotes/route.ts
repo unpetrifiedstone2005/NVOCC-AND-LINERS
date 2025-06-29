@@ -16,7 +16,6 @@ const QuotationContainerSchema = z.object({
 });
 
 const CreateQuotationSchema = z.object({
-  // userId: z.string(), // REMOVED: userId now comes from URL param
   startLocation: z.string(),
   endLocation: z.string(),
   pickupType: z.enum(["door", "terminal"]),
