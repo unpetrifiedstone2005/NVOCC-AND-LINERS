@@ -14,6 +14,7 @@ datasource db {
 
 enum Role {
   ADMIN
+  OPERATOR
   CLIENT
 }
 
@@ -148,6 +149,7 @@ model User {
   country        String
   createdAt      DateTime             @default(now())
 
+  bLDrafts    BLDraft[] @relation("BLDraftCreatedBy")
   quotations     Quotation[]
   bookings       Booking[]
   invoices       Invoice[]
@@ -156,7 +158,7 @@ model User {
   accountBalance AccountBalance?
 
   // back-relations for BL drafts
-  createdBLDraftVersions BLDraftVersion[] @relation("DraftCreatedBy")
+
   commentsMade           BLDraftComment[] @relation("DraftCommenter")
 
   // Back-relation for Declaration
@@ -694,6 +696,8 @@ model Declaration {
 
 model BLDraft {
   documentNo   String       @id
+  UserId   String
+  User     User             @relation("BLDraftCreatedBy", fields: [UserId], references: [id])
   bookingId    String
   booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
@@ -843,7 +847,6 @@ model BLDraftVersion {
   refunds                 Refunded[]
 
   createdById  String?
-  createdBy    User?      @relation("DraftCreatedBy", fields: [createdById], references: [id])
   snapshot     Json 
   
 }
