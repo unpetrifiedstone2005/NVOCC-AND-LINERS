@@ -35,6 +35,13 @@ enum QuotationStatus {
   cancelled
 }
 
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 enum WeightUnit {
   kg
   lb
@@ -104,11 +111,21 @@ enum DraftType {
 }
 
 enum DraftStatus {
-  OPEN              // Open for review
-  CORRECTION_SENT   // Corrections requested by user
-  APPROVED          // Approved by user
-  RELEASED          // Released to carrier
+  OPEN                // Open for review
+  CORRECTION_SENT     // Corrections requested by user
+  APPROVED            // Approved by user
+  RELEASED            // Released to carrier
+  EXCEEDS_CAPACITY    // Cargo exceeds booking limits, price review needed
+  PRICE_CHANGE_PENDING // Other price-affecting change (e.g. route/service)
 }
+
+enum CustomsReferenceType {
+  INVOICE
+  PACKING_LIST
+  // ...other types as needed
+}
+
+
 
 /// ─────────────────────────────────────────────────────────────────────────────
 /// MODELS
@@ -148,20 +165,42 @@ model User {
   @@map("user")
 }
 
+model SOCContainer {
+  id                    String   @id @default(uuid())
+  quotationContainerId  String
+  quotationContainer    QuotationContainer @relation(fields: [quotationContainerId], references: [id], onDelete: Cascade)
+
+  containerNo           String   @unique
+  type                  String
+  tareWeight            Decimal  @db.Decimal(10,2)
+  cscPlateUrl           String
+  cscExpiry             DateTime
+  manufactureDate       DateTime?
+  acepApprovalNo        String?
+  allowableStackWeight  Decimal? @db.Decimal(10,2)
+  rackingTestLoadValue  Decimal? @db.Decimal(10,2)
+  surveyReportUrl       String?
+  ownershipProofUrl     String?
+  declarationUrl        String
+  photos                String[] // Array of URLs
+  isReefer              Boolean  @default(false)
+  maintenanceManualUrl  String?
+  emergencyProceduresUrl String?
+  sparePartsKit         Boolean? // For reefers
+  createdAt             DateTime @default(now())
+}
+
 model QuotationContainer {
-  id               String     @id @default(uuid())
-  quotationId      String
-  quotation        Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  type             String
-  qty              Int
+  id                String     @id @default(uuid())
+  quotationId       String
+  quotation         Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  shipperOwned      Boolean    @default(false)
+  socContainers     SOCContainer[]
+  cargo             Cargo[]    // <-- Keep this if you want to link containers to cargo (recommended)
+  type              String
+  qty               Int
   weightPerContainer Decimal    @db.Decimal(10,2)
-  weightUnit       WeightUnit
-  hsCode           String
-  dangerousGoods   Boolean
-  imoClass         String?     // Use as dgClass
-  unNumber         String?
-  cargoDescription String?     // <-- Add this
-  packingGroup     String?     // <-- Add this
+  weightUnit        WeightUnit
 }
 
 
@@ -175,11 +214,7 @@ model Quotation {
   deliveryType  DeliveryType
   validFrom     DateTime
   commodity     String
-  dangerousGoods Boolean
-  imoClass      String?
-  unNumber      String?
   shipperOwned  Boolean
-  socDetails    Json?
   multipleTypes Boolean
   offer         Json?
   services      Json?
@@ -188,8 +223,9 @@ model Quotation {
   updatedAt     DateTime             @updatedAt
   documents     Document[]
   containers    QuotationContainer[]   // <-- for multi-container
+  cargo         Cargo[]               // <-- Keep this to link cargo to quotation
   declarations  Declaration[]
-  booking Booking?
+  booking       Booking?
 }
 
 model Booking {
@@ -200,45 +236,61 @@ model Booking {
   quotation         Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   // 1. Contact & Reference
-  contactReference  String?
-  contactName       String?
-  contactPhone      String?
-  contactEmail      String?
+  customerName        String?          // Pre-filled from user/org
+  customerAddress     String?          // Pre-filled from user/org
+  contactReference    String?
+  contactName         String?
+  contactPhone        String?
+  contactEmail        String?
 
-  // 2. Routing & Schedule
-  originDepot       String
-  pickupType        DeliveryType
-  scheduleDate      DateTime?
-  scheduleWeeks     Int?
-  via1              String?
-  via2              String?
-  destinationDepot  String
-  deliveryType      DeliveryType
-  exportMoT         String?
-  importMoT         String?
-  optimizeReefer    Boolean            @default(false)
+  // 2. Contract & Quotation
+  contractNumber      String?          // Quotation / Contract No.
+  contractValidTo     DateTime?        // Valid To (date)
+  contractualParty    String?          // Contractual Party
+  contractualPartyAddress String?      // Contractual Party Address
 
-  // 3. Cargo & Equipment
-  containers        BookingContainer[]  // <-- One-to-many, from Booking to BookingContainer
+  // 3. Routing & Schedule
+  routingSelected     String?          // Routing option chosen
+  originDepot         String           // Start Location
+  scheduleDate        DateTime?        // Start Date
+  scheduleWeeks       Int?             // Plus ... weeks
+  via1                String?
+  via2                String?
+  destinationDepot    String           // End Location
+  pickupType          DeliveryType     // Received At (door/terminal)
+  exportMoT           String?
+  importMoT           String?
+  optimizeReefer      Boolean          @default(false)
+  scheduleOption      String?          // Specific sailing (POL, Date, Vessel, POD, Transit Time)
 
-  // 4. Customs & Remarks
-  customsReferences CustomsReference[]
-  bolCount          Int?
-  exportFiling      Boolean            @default(false)
-  filingBy          String?
-  remarks           String?
+  // 4. Pickup & Delivery Detail
+  pickupDate          DateTime?
+  deliveryDate        DateTime?
+  deliveryType        DeliveryType     // Delivered At (door/terminal)
 
-  status            BookingStatus      @default(PENDING)
-  createdAt         DateTime           @default(now())
+  // 5. Cargo & Equipment
+  containers          BookingContainer[] // Container rows (up to 4)
+  commodity           String?           // Commodity (FAK, etc.)
+  customsDetails      String?           // Customs Details (free-text)
 
-  allocations       Allocation[]
-  invoice           Invoice?
-  documents         Document[]
-  declarations      Declaration[]
-  workflowTasks     WorkflowTask[]
+  // 6. Customs & Remarks
+  customsReferences   CustomsReference[]
+  bolCount            Int?              // Bill of Lading Numbers Needed
+  exportFiling        Boolean           @default(false)
+  filingBy            String?
+  remarks             String?
 
-  // back-relation for BL drafts
-  bldrafts          BLDraft[]
+
+  status              BookingStatus     @default(PENDING)
+  createdAt           DateTime          @default(now())
+
+  allocations         Allocation[]
+  invoice             Invoice?
+  documents           Document[]
+  declarations        Declaration[]
+  workflowTasks       WorkflowTask[]
+  bldrafts            BLDraft[]
+  refunds             Refunded[]
 }
 
 
@@ -246,12 +298,10 @@ model BookingContainer {
   id                String      @id @default(uuid())
   bookingId         String
   booking           Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-
   qty               Int
   type              String
   shipperOwned      Boolean
   cargoDescription  String
-  hsCode            String
   weight            Decimal     @db.Decimal(10,2)
   weightUnit        WeightUnit
   dangerousGoods    Boolean
@@ -263,12 +313,13 @@ model BookingContainer {
 }
 
 model CustomsReference {
-  id                String      @id @default(uuid())
-  bookingId         String
-  booking           Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-
-  type              String
-  reference         String
+  id        String                @id @default(uuid())
+  bookingId String
+  booking   Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  type      CustomsReferenceType  // Now enforced by enum!
+  reference String
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
 }
 
 model Container {
@@ -289,7 +340,6 @@ model Container {
 
   // Certification fields
   cscPlateUrl         String?           // Proof of CSC compliance
-  imoClass            String?           // E.g., "IMDG 3", "IMDG 8", etc.
   certificationExpiry DateTime?         // When does the cert expire?
   foodGrade           Boolean?          // If applicable
   reefer              Boolean?          // If applicable
@@ -297,6 +347,21 @@ model Container {
   allocations         Allocation[]
   events              ContainerEvent[]
   demurrageAlerts     DemurrageAlert[]
+}
+
+model Cargo {
+  id          String   @id @default(uuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  containerId String?
+  container   QuotationContainer? @relation(fields: [containerId], references: [id])
+  hsCode      String
+  description String
+  isDangerous Boolean  @default(false)
+  unNumber    String?
+  imoClass    String?
+  packingGroup String?
+  // ...other fields as needed
 }
 
 model Allocation {
@@ -307,6 +372,7 @@ model Allocation {
   container        Container  @relation(fields: [containerId], references: [id], onDelete: Cascade)
   allocatedAt      DateTime   @default(now())
   releasedAt       DateTime?
+  sealNumber       String?
 }
 
 model ContainerEvent {
@@ -368,23 +434,42 @@ model BankAccount {
 }
 
 model Invoice {
-  id             String        @id @default(uuid())
-  userId         String
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookingId      String        @unique
-  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  amount         Decimal       @db.Decimal(12, 2)
-  issuedDate     DateTime      @default(now()) @map("issued_date")
-  dueDate        DateTime      @map("due_date")
-  status         InvoiceStatus @default(PENDING)
+  id                           String                          @id @default(uuid())
+  userId                       String
+  user                         User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingId                    String                          @unique
+  booking                      Booking                         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount                       Decimal                         @db.Decimal(12, 2)
+  issuedDate                   DateTime                        @default(now()) @map("issued_date")
+  dueDate                      DateTime                        @map("due_date")
+  status                       InvoiceStatus                   @default(PENDING)
+  description                  String?
 
   // New fields for bank reference
-  bankAccountId  String
-  bankAccount    BankAccount   @relation(fields: [bankAccountId], references: [id])
-
-  documents      Document[]
-  payments       Payment[]
+  bankAccountId               String
+  bankAccount                 BankAccount                     @relation(fields: [bankAccountId], references: [id])
+  documents                   Document[]
+  payments                    Payment[]
 }
+
+
+
+model Refunded {
+  id                String      @id @default(uuid())
+  bookingId         String
+  booking           Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  draftVersionId    String?     // Optionally link to the B/L draft version that triggered the refund
+  draftVersion      BLDraftVersion? @relation(fields: [draftVersionId], references: [id])
+  amount            Decimal     @db.Decimal(12,2)
+  reason            String?
+  status            RefundStatus @default(PENDING)
+  createdAt         DateTime    @default(now())
+  processedAt       DateTime?
+  note              String?
+}
+
+
 
 model DemurrageAlert {
   id           String     @id @default(uuid())
@@ -449,29 +534,48 @@ model WeightBracket {
 }
 
 model RateSheet {
+  id                   String       @id @default(uuid())
+  // — ocean‐leg fields (keep existing) —
+  originPortId         String?      
+  destinationPortId    String?
+  // — inland‐leg fields (new) —
+  originDepotId        String?
+  destinationDepotId   String?
+
+  containerType        String
+  validFrom            DateTime
+  validTo              DateTime
+  baseRate             Decimal      @db.Decimal(12,2)
+  currency             String       @default("USD")
+  includedWeightKg     Int?
+  overweightRatePerKg  Decimal?     @db.Decimal(12,2)
+
+  carrierId            String?
+  serviceId            String?
+
+  isDangerousGoods     Boolean      @default(false)
+
+  createdAt            DateTime     @default(now())
+
+  surcharges           Surcharge[]
+  weightBrackets       WeightBracket[]
+
+  /// ocean‐leg relations (now optional)
+  originPort           Port?        @relation("originRates",      fields: [originPortId],       references: [id])
+  destinationPort      Port?        @relation("destRates",        fields: [destinationPortId],  references: [id])
+
+  /// inland‐leg relations (new)
+  originDepot          Depot?       @relation("originDepotRates",      fields: [originDepotId],       references: [id])
+  destinationDepot     Depot?       @relation("destDepotRates",        fields: [destinationDepotId],  references: [id])
+}
+
+model Depot {
   id                 String       @id @default(uuid())
-  originPortId       String
-  destinationPortId  String
-  containerType      String
-  validFrom          DateTime
-  validTo            DateTime
-  baseRate           Decimal      @db.Decimal(12,2)
-  currency           String       @default("USD")
-  includedWeightKg   Int?
-  overweightRatePerKg Decimal?    @db.Decimal(12,2)
+  name               String
+  address            String
 
-  carrierId          String?
-  serviceId          String?
-
-  isDangerousGoods   Boolean      @default(false) // <-- NEW FIELD
-
-  createdAt          DateTime     @default(now())
-
-  surcharges         Surcharge[]
-  weightBrackets     WeightBracket[]
-
-  originPort         Port         @relation("originRates", fields: [originPortId], references: [id])
-  destinationPort    Port         @relation("destRates",   fields: [destinationPortId], references: [id])
+  originDepotRates   RateSheet[]  @relation("originDepotRates")
+  destDepotRates     RateSheet[]  @relation("destDepotRates")
 }
 
 
@@ -524,6 +628,7 @@ model Payment {
   reference   String?
   paidAt      DateTime  @default(now())
 }
+
 
 model AccountBalance {
   userId      String    @id
@@ -597,33 +702,33 @@ model BLDraft {
   updatedAt    DateTime     @updatedAt
 
   documentId   String       @unique
-  document     Document? @relation(fields: [documentId], references: [id])
+  document     Document?    @relation(fields: [documentId], references: [id])
 
   versions     BLDraftVersion[]
   comments     BLDraftComment[]
 
-  // --- Mapped fields (renamed to match Booking/BookingContainer) ---
-  // Routing & Schedule
-  originDepot       String?   // was: placeOfReceipt or similar
-  destinationDepot  String?   // was: placeOfDelivery
-  pickupType        DeliveryType?
-  deliveryType      DeliveryType?
-  scheduleDate      DateTime?
-  scheduleWeeks     Int?
-  via1              String?
-  via2              String?
+  // --- Routing & Schedule ---
+  originDepot         String?   // Operational pickup (depot/terminal/ICD/CFS)
+  destinationDepot    String?   // Operational delivery (depot/terminal/ICD/CFS)
+  portOfLoading       String?   // Seaport where vessel is loaded (POL)
+  portOfDischarge     String?   // Seaport where vessel is discharged (POD)
+  pickupType          DeliveryType?
+  deliveryType        DeliveryType?
+  scheduleDate        DateTime?
+  scheduleWeeks       Int?
+  via1                String?
+  via2                String?
 
-  // Cargo & Equipment (from BookingContainer)
-  // If you want to support multiple containers, use a relation as in Booking
-  containers        BLDraftContainer[]  // new relation for containers
+  // --- Containers ---
+  containers          BLDraftContainer[]  // Relation for containers
 
-  // Customs & Remarks
-  remarks           String?   // was: additionalInformation
+  // --- Customs & Remarks ---
+  remarks             String?
 
-  // Other mapped fields
-  bolCount          Int?      // was: noOfOriginalBLs
+  // --- Other mapped fields ---
+  bolCount            Int?
 
-  // --- B/L-specific or legal fields (unchanged) ---
+  // --- B/L-specific or legal fields ---
   shipper                 String?
   shippersReference       String?
   carriersReference       String?
@@ -635,10 +740,8 @@ model BLDraft {
   preCarriageBy           String?
   vesselOrAircraft        String?
   voyageNo                String?
-  placeOfReceipt          String?
-  portOfLoading           String?
-  portOfDischarge         String?
-  finalDestination        String?
+  placeOfReceipt          String?   // For multimodal: where carrier took charge
+  finalDestination        String?   // For multimodal: ultimate delivery point
   shippedOnBoardDate      DateTime?
   marksAndNumbers         String?
   kindAndNoOfPackages     String?
@@ -683,13 +786,14 @@ model BLDraft {
   remarksToCarrier        String?
   serviceContractNumber   String?
   bookingReference        String?
-
 }
+
 
 model BLDraftContainer {
   id                 String     @id @default(uuid())
   bLDraftId          String
   bLDraft            BLDraft    @relation(fields: [bLDraftId], references: [documentNo], onDelete: Cascade)
+  cargoes            BLDraftCargo[]
   containerNumber    String
   sealNumber         String?
   sizeType           String?
@@ -708,12 +812,35 @@ model BLDraftContainer {
   // ...add more if needed
 }
 
+model BLDraftCargo {
+  id                  String           @id @default(cuid())
+  containerId         String
+  container           BLDraftContainer @relation(fields: [containerId], references: [id])
+  description         String
+  hsCode              String
+  grossWeight         Float?
+  grossVolume         Float?
+  noOfPackages        Int?
+  netWeight           Float?
+  netVolume           Float?
+  marksAndNumbers     String?          // <-- Add
+  outerPacking        String?          // <-- Add
+  sealNo              String?          // <-- Add
+  sealNoOptional      String?          // <-- Add
+  customerLoadReference String?        // <-- Add
+  isDangerous         Boolean?         // Optional, for DG cargo
+  unNumber            String?          // For DG cargo
+  imoClass            String?          // For DG cargo
+  packingGroup        String?          // For DG cargo
+  // ...add other fields as required
+}
 
 model BLDraftVersion {
   id           String     @id @default(uuid())
   draftNo      String
   draft        BLDraft    @relation(fields: [draftNo], references: [documentNo], onDelete: Cascade)
   createdAt    DateTime   @default(now())
+  refunds                 Refunded[]
 
   createdById  String?
   createdBy    User?      @relation("DraftCreatedBy", fields: [createdById], references: [id])

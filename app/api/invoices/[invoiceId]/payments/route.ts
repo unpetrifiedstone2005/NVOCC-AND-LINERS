@@ -3,54 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import type { BLDraftContainer, BookingContainer } from "@prisma/client";
 
-const BLDraftHBLFields = z.object({
-  shipper: z.string().optional(),
-  shippersReference: z.string().optional(),
-  carriersReference: z.string().optional(),
-  uniqueConsignmentRef: z.string().optional(),
-  consignee: z.string().optional(),
-  carrierName: z.string().optional(),
-  notifyParty: z.string().optional(),
-  additionalNotifyParty: z.string().optional(),
-  preCarriageBy: z.string().optional(),
-  placeOfReceipt: z.string().optional(),
-  vesselOrAircraft: z.string().optional(),
-  voyageNo: z.string().optional(),
-  portOfLoading: z.string().optional(),
-  portOfDischarge: z.string().optional(),
-  placeOfDelivery: z.string().optional(),
-  finalDestination: z.string().optional(),
-  additionalInformation: z.string().optional(),
-  shippedOnBoardDate: z.string().datetime().optional(),
-  marksAndNumbers: z.string().optional(),
-  kindAndNoOfPackages: z.string().optional(),
-  descriptionOfGoods: z.string().optional(),
-  netWeightKg: z.number().optional(),
-  grossWeightKg: z.number().optional(),
-  measurementsM3: z.number().optional(),
-  totalThisPage: z.string().optional(),
-  consignmentTotal: z.string().optional(),
-  containerNumbers: z.string().optional(),
-  sealNumbers: z.string().optional(),
-  sizeType: z.string().optional(),
-  totalNoOfContainersText: z.string().optional(),
-  noOfOriginalBLs: z.number().optional(),
-  incoterms2020: z.string().optional(),
-  payableAt: z.string().optional(),
-  freightCharges: z.string().optional(),
-  termsAndConditions: z.string().optional(),
-  placeAndDateOfIssue: z.string().optional(),
-  signatoryCompany: z.string().optional(),
-  authorizedSignatory: z.string().optional(),
-  signature: z.string().optional()
-}).partial();
-
+// Payment schema: only payment info is required
 const PaymentSchema = z.object({
   amount: z.number(),
   method: z.string(),
   reference: z.string().optional().nullable(),
-  paidAt: z.string().datetime().optional(),
-  blDraft: BLDraftHBLFields.optional()
+  paidAt: z.string().datetime().optional()
 });
 
 export async function POST(
@@ -76,7 +34,16 @@ export async function POST(
       const invoice = await tx.invoice.update({
         where: { id: params.invoiceId },
         data: { status: "PAID" },
-        include: { booking: { include: { containers: true } } },
+        include: {
+          booking: {
+            include: {
+              containers: true,
+              allocations: {
+                include: { container: true }
+              }
+            }
+          }
+        },
       });
 
       // 3. Check if a B/L draft already exists for this booking
@@ -98,19 +65,123 @@ export async function POST(
           },
         });
 
-        // 4b. Prepare B/L draft data
-        const blDraftData: any = {
-          documentNo: generateBLNo(invoice.bookingId),
-          booking: { connect: { id: invoice.bookingId } },
-          document: { connect: { id: blDocument.id } },
-        };
+        // 4b. Prepare B/L draft data from booking
+        const booking = invoice.booking;
+        const firstContainer = booking.containers[0] || {};
+        const firstAllocation = booking.allocations[0] || {};
+        const firstAllocContainer = firstAllocation.container || {};
 
-        if (data.blDraft) {
-          Object.assign(blDraftData, data.blDraft);
-          if (data.blDraft.shippedOnBoardDate) {
-            blDraftData.shippedOnBoardDate = new Date(data.blDraft.shippedOnBoardDate);
-          }
-        }
+        // Compose kindAndNoOfPackages as a string (e.g., "1 x 40HC - DRY")
+        const kindAndNoOfPackages = booking.containers
+          .map(c => `${c.qty} x ${c.type}`)
+          .join(", ");
+
+        // Compose container numbers and seal numbers as comma-separated strings
+        const containerNumbers = booking.allocations
+          .map(a => a.container?.containerNo)
+          .filter(Boolean)
+          .join(", ") || null;
+
+        // Compose seal numbers if available (assuming you have them in allocation or container)
+        const sealNumbers = booking.allocations
+          .map(a => a.sealNumber)
+          .filter(Boolean)
+          .join(", ") || null;
+
+
+
+        // Compose gross/net weights and volumes as totals
+        const grossWeightKg = booking.containers.reduce((sum, c) => sum + (Number(c.weight) || 0), 0) || null;
+        const netWeightKg = grossWeightKg; // If you have net weight, use that instead
+
+        // Compose container volume if you have it (otherwise null)
+        const measurementsM3 = null;
+
+        // Compose B/L draft data
+          const blDraftData: any = {
+            documentNo: generateBLNo(invoice.bookingId),
+            booking: { connect: { id: invoice.bookingId } },
+            document: { connect: { id: blDocument.id } },
+            status: "OPEN",
+
+            // Routing & Schedule
+            originDepot: booking.originDepot ?? null,
+            destinationDepot: booking.destinationDepot ?? null,
+            portOfLoading:  null,        // Use booking value, or null
+            portOfDischarge:  null,    // Use booking value, or null
+            pickupType: booking.pickupType ?? null,
+            deliveryType: booking.deliveryType ?? null,
+            scheduleDate: booking.scheduleDate ?? null,
+            scheduleWeeks: booking.scheduleWeeks ?? null,
+            via1: booking.via1 ?? null,
+            via2: booking.via2 ?? null,
+
+            // Customs & Remarks
+            remarks: booking.remarks ?? null,
+
+            // Other mapped fields
+            bolCount: booking.bolCount ?? null,
+
+            // B/L-specific or legal fields
+            shipper: booking.contactName ?? null,
+            shippersReference: booking.contactReference ?? null,
+            carriersReference: null,
+            uniqueConsignmentRef: null,
+            consignee: booking.customerName ?? null,
+            carrierName: null,
+            notifyParty: null,
+            additionalNotifyParty: null,
+            preCarriageBy: booking.exportMoT ?? null,
+            vesselOrAircraft: null,
+            voyageNo: null,
+            placeOfReceipt: null,
+            finalDestination: null,
+            shippedOnBoardDate: booking.scheduleDate ?? null,
+            marksAndNumbers: null,
+            kindAndNoOfPackages,
+            descriptionOfGoods: booking.commodity ?? null,
+            netWeightKg,
+            grossWeightKg,
+            measurementsM3,
+            totalThisPage: null,
+            consignmentTotal: null,
+            incoterms2020: null,
+            payableAt: null,
+            freightCharges: null,
+            termsAndConditions: null,
+            placeAndDateOfIssue: null,
+            signatoryCompany: null,
+            authorizedSignatory: null,
+            signature: null,
+            documentType: null,
+            numberOfFreightedOriginalBLs: null,
+            numberOfFreightedCopies: null,
+            numberOfUnfreightedOriginalBLs: null,
+            numberOfUnfreightedCopies: null,
+            placeOfIssue: null,
+            dateOfIssue: null,
+            freightPayableAtDetails: null,
+            freightTerms: null,
+            currency: null,
+            exchangeRate: null,
+            forwardingAgent: null,
+            exportReference: null,
+            notifyAddress: null,
+            grossVolumeM3: null,
+            netVolumeM3: null,
+            outerPackingType: null,
+            numberOfOuterPacking: null,
+            imoClass: firstContainer.imoClass ?? null,
+            unNumber: firstContainer.unNumber ?? null,
+            customsReference: null,
+            sealNumbers,
+            instructions: null,
+            deliveryInstructions: null,
+            remarksToCarrier: null,
+            serviceContractNumber: null,
+            bookingReference: booking.contactReference ?? null,
+          };
+
 
         // 4c. Create the B/L draft
         blDraft = await tx.bLDraft.create({
@@ -118,24 +189,37 @@ export async function POST(
         });
 
         // 4d. Create BLDraftContainer records for each BookingContainer
-        if (invoice.booking?.containers && invoice.booking.containers.length > 0) {
+        if (booking.containers && booking.containers.length > 0) {
           blDraftContainers = await Promise.all(
-            invoice.booking.containers.map((container: BookingContainer) => {
-              const containerData = {
-                bLDraftId: blDraft!.documentNo,
-                containerNumber: container.id,
-                sizeType: container.type,
-                kindAndNoOfPackages: String(container.qty),
-                descriptionOfGoods: container.cargoDescription,
-                grossWeightKg: Number(container.weight),
-                // Add more fields if your BLDraftContainer requires them
-              };
-              return tx.bLDraftContainer.create({ data: containerData });
+            booking.containers.map((container: BookingContainer) => {
+              const alloc = booking.allocations.find(a => a.containerId === container.id) as any || {};
+              const allocContainer = alloc.container || {};
+
+              return tx.bLDraftContainer.create({
+                data: {
+                  bLDraftId: blDraft!.documentNo,
+                  containerNumber: allocContainer.containerNo || container.id,
+                  sizeType: container.type,
+                  noOfPackages: container.qty,
+                  kindOfPackages: null,
+                  descriptionOfGoods: container.cargoDescription || booking.commodity || null,
+                  grossWeight: container.weight ? Number(container.weight) : null,
+                  grossWeightUnit: container.weightUnit ?? null,
+                  netWeight: null,
+                  netWeightUnit: null,
+                  grossVolume: null,
+                  grossVolumeUnit: null,
+                  netVolume: null,
+                  netVolumeUnit: null,
+                  measurementsM3: null,
+                  sealNumber: allocContainer.sealNumber || null,
+                }
+              });
             })
           );
         }
 
-        // 4e. Create BLDraftVersion snapshotting the initial draft state (NO documentId)
+        // 4e. Create BLDraftVersion snapshotting the initial draft state
         blDraftVersion = await tx.bLDraftVersion.create({
           data: {
             draftNo: blDraft.documentNo,
@@ -144,9 +228,10 @@ export async function POST(
               containers: blDraftContainers.map((c) => ({
                 containerNumber: c.containerNumber,
                 sizeType: c.sizeType,
-                kindAndNoOfPackages: c.kindAndNoOfPackages,
+                noOfPackages: c.noOfPackages,
+                kindOfPackages: c.kindOfPackages,
                 descriptionOfGoods: c.descriptionOfGoods,
-                grossWeightKg: c.grossWeightKg,
+                grossWeight: c.grossWeight,
               })),
             },
           },
@@ -178,3 +263,7 @@ export async function POST(
 function generateBLNo(bookingId: string): string {
   return `BL-${bookingId}-${Date.now()}`;
 }
+
+
+
+// Example usage:

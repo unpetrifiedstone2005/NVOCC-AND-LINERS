@@ -4,15 +4,29 @@ import { z, ZodError } from "zod";
 import { Prisma, QuotationStatus } from "@prisma/client";
 
 // --- Schemas ---
+
 const QuotationContainerSchema = z.object({
   type: z.string(),
   qty: z.number().int().min(1),
   weightPerContainer: z.string(),
   weightUnit: z.enum(["kg", "lb"]),
+});
+
+const CargoSchema = z.object({
   hsCode: z.string(),
   dangerousGoods: z.boolean(),
   imoClass: z.string().optional().nullable(),
   unNumber: z.string().optional().nullable(),
+  packingGroup: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+});
+
+const ContainerWithCargoSchema = z.object({
+  type: z.string(),
+  qty: z.number().int().min(1),
+  weightPerContainer: z.string(),
+  weightUnit: z.enum(["kg", "lb"]),
+  cargo: CargoSchema,
 });
 
 const CreateQuotationSchema = z.object({
@@ -21,11 +35,8 @@ const CreateQuotationSchema = z.object({
   pickupType: z.enum(["door", "terminal"]),
   deliveryType: z.enum(["door", "terminal"]),
   validFrom: z.string().datetime(),
-  containers: z.array(QuotationContainerSchema),
+  containers: z.array(ContainerWithCargoSchema),
   commodity: z.string(),
-  dangerousGoods: z.boolean(),
-  imoClass: z.string().optional().nullable(),
-  unNumber: z.string().optional().nullable(),
   shipperOwned: z.boolean(),
   multipleTypes: z.boolean(),
   offer: z.any().optional().nullable(),
@@ -34,27 +45,26 @@ const CreateQuotationSchema = z.object({
 
 type CreateQuotationInput = z.infer<typeof CreateQuotationSchema>;
 
-// --- Offer Calculation Helper ---
 async function calculateOffer(input: CreateQuotationInput) {
-  const rates = await prismaClient.rateSheet.findMany({
-    where: {
-      originPortId: input.startLocation,
-      destinationPortId: input.endLocation,
-      containerType: { in: input.containers.map(c => c.type) },
-      validFrom: { lte: new Date(input.validFrom) },
-      validTo: { gte: new Date(input.validFrom) },
-    },
-    include: {
-      weightBrackets: true,
-      surcharges: true,
-    },
-  });
-
   let total = new Prisma.Decimal(0);
   let details: any[] = [];
 
   for (const container of input.containers) {
-    const rateSheet = rates.find(r => r.containerType === container.type);
+    const rateSheet = await prismaClient.rateSheet.findFirst({
+      where: {
+        originPortId: input.startLocation,
+        destinationPortId: input.endLocation,
+        containerType: container.type,
+        isDangerousGoods: container.cargo.dangerousGoods,
+        validFrom: { lte: new Date(input.validFrom) },
+        validTo: { gte: new Date(input.validFrom) },
+      },
+      include: {
+        weightBrackets: true,
+        surcharges: true,
+      },
+    });
+
     if (!rateSheet) {
       details.push({ type: container.type, error: "No rate found" });
       continue;
@@ -62,20 +72,18 @@ async function calculateOffer(input: CreateQuotationInput) {
 
     const weightKg = parseFloat(container.weightPerContainer);
 
-    // 1️⃣ Find weight bracket (if any)
+    // Find weight bracket
     const bracket = rateSheet.weightBrackets.find(
       wb => weightKg >= wb.minWeightKg && weightKg <= wb.maxWeightKg
     );
 
-    // 2️⃣ Calculate base rate or bracket rate
+    // Calculate base rate or bracket rate
     let base = new Prisma.Decimal(rateSheet.baseRate);
-    let bracketRate = new Prisma.Decimal(0);
-
     if (bracket && bracket.ratePerKg && Number(bracket.ratePerKg) > 0) {
       base = new Prisma.Decimal(bracket.ratePerKg).mul(weightKg);
     }
 
-    // 3️⃣ Overweight calculation (if enabled in your model)
+    // Overweight calculation
     let overweightCharge = new Prisma.Decimal(0);
     if (
       rateSheet.includedWeightKg &&
@@ -86,13 +94,18 @@ async function calculateOffer(input: CreateQuotationInput) {
       overweightCharge = new Prisma.Decimal(rateSheet.overweightRatePerKg).mul(overweight);
     }
 
-    // 4️⃣ Surcharges
+    // Surcharges (only apply if not dangerous or if surcharge applies to DG)
     let surchargeTotal = rateSheet.surcharges.reduce(
-      (sum, s) => sum.add(new Prisma.Decimal(s.amount)),
+      (sum, s) => {
+        if (!container.cargo.dangerousGoods || s.appliesToDG) {
+          return sum.add(new Prisma.Decimal(s.amount));
+        }
+        return sum;
+      },
       new Prisma.Decimal(0)
     );
 
-    // 5️⃣ Container total
+    // Container total
     const containerTotal = base
       .add(overweightCharge)
       .add(surchargeTotal)
@@ -104,7 +117,7 @@ async function calculateOffer(input: CreateQuotationInput) {
       type: container.type,
       qty: container.qty,
       base: base.toFixed(2),
-      bracketRate: bracket ? bracketRate.toFixed(2) : undefined,
+      bracketRate: bracket ? base.toFixed(2) : undefined,
       overweight: overweightCharge.gt(0) ? overweightCharge.toFixed(2) : undefined,
       surcharges: surchargeTotal.toFixed(2),
       total: containerTotal.toFixed(2),
@@ -113,12 +126,11 @@ async function calculateOffer(input: CreateQuotationInput) {
 
   return {
     total: total.toFixed(2),
-    currency: rates[0]?.currency || "USD",
+    currency: "USD",
     details,
   };
 }
 
-// --- Main Endpoint ---
 export async function POST(
   req: NextRequest,
   { params }: { params: { userId: string } }
@@ -131,26 +143,21 @@ export async function POST(
 
     // 2. Determine status
     let status: QuotationStatus = QuotationStatus.accepted;
-    if (data.dangerousGoods) {
+    if (data.containers.some(c => c.cargo.dangerousGoods)) {
       status = QuotationStatus.pending_response;
     }
-    // (Add more rules for other exceptions as needed)
 
-    // 3. Create the quotation and its containers, then the document
+    // 3. Create the quotation, containers, and cargo records
     const result = await prismaClient.$transaction(async (tx) => {
-      // Create Quotation
       const quotation = await tx.quotation.create({
         data: {
-          userId: params.userId, // Use userId from URL
+          userId: params.userId,
           startLocation: data.startLocation,
           endLocation: data.endLocation,
           pickupType: data.pickupType,
           deliveryType: data.deliveryType,
           validFrom: new Date(data.validFrom),
           commodity: data.commodity,
-          dangerousGoods: data.dangerousGoods,
-          imoClass: data.imoClass,
-          unNumber: data.unNumber,
           shipperOwned: data.shipperOwned,
           multipleTypes: data.multipleTypes,
           offer,
@@ -162,10 +169,6 @@ export async function POST(
               qty: container.qty,
               weightPerContainer: parseFloat(container.weightPerContainer),
               weightUnit: container.weightUnit,
-              hsCode: container.hsCode,
-              dangerousGoods: container.dangerousGoods,
-              imoClass: container.imoClass,
-              unNumber: container.unNumber,
             })),
           },
         },
@@ -175,11 +178,25 @@ export async function POST(
         },
       });
 
-      // Create Document for this Quotation
+      for (const container of data.containers) {
+        await tx.cargo.create({
+          data: {
+            quotationId: quotation.id,
+            containerId: quotation.containers.find(c => c.type === container.type && c.qty === container.qty)?.id,
+            hsCode: container.cargo.hsCode,
+            description: container.cargo.description || data.commodity,
+            isDangerous: container.cargo.dangerousGoods,
+            imoClass: container.cargo.imoClass || null,
+            unNumber: container.cargo.unNumber || null,
+            packingGroup: container.cargo.packingGroup || null,
+          },
+        });
+      }
+
       const document = await tx.document.create({
         data: {
           type: "QUOTATION",
-          url: "", // Set this if you generate a file, else leave as empty string
+          url: "",
           quotationId: quotation.id,
         },
       });
