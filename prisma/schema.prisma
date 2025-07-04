@@ -18,6 +18,15 @@ enum Role {
   CLIENT
 }
 
+enum ContainerGroup {
+  DRY_STANDARD   // 20′ = 1 TEU, 40′ dry = 2 TEU
+  DRY_HC         // 40′ high-cube = 2 TEU
+  REEFER         // refrigerated (map to 1 or 2 TEU as needed)
+  OPEN_TOP       // open-top / flats (map to 2 TEU)
+  // …etc.
+}
+
+
 
 enum DeliveryType {
   door
@@ -72,26 +81,43 @@ enum BookingStatus {
 
 
 enum SurchargeType {
+  // FREIGHT & OCEAN-LEG
   BASE_FREIGHT
   BUNKER_ADJUSTMENT_FACTOR
   CURRENCY_ADJUSTMENT_FACTOR
-  TERMINAL_HANDLING_CHARGE
   PEAK_SEASON_SURCHARGE
+  WAR_RISK_SURCHARGE
+  EMERGENCY_RISK_SURCHARGE
+
+  // PORT / TERMINAL
+  TERMINAL_HANDLING_CHARGE
   SECURITY_ISPS_SURCHARGE
   PORT_CONGESTION_SURCHARGE
+
+  // SPECIAL CARGO
+  DANGEROUS_GOODS_SURCHARGE
   OVERWEIGHT_OUT_OF_GAUGE_CHARGE
+  REEFER_SURCHARGE
+  DECLARED_VALUE_SURCHARGE
+
+  // ADMIN / PAPERWORK
   DOCUMENTATION_ADMIN_FEE
-  EMERGENCY_RISK_SURCHARGE
+  SIGNATURE_SURCHARGE
+  ADDRESS_CORRECTION_SURCHARGE
+
+  // DELIVERY / LAST MILE
   RESIDENTIAL_DELIVERY_SURCHARGE
   DELIVERY_AREA_SURCHARGE
   SATURDAY_DELIVERY_SURCHARGE
-  DECLARED_VALUE_SURCHARGE
-  SIGNATURE_SURCHARGE
-  ADDRESS_CORRECTION_SURCHARGE
+
+  // MISC
   ADDITIONAL_HANDLING_SURCHARGE
-  DANGEROUS_GOODS_SURCHARGE
-  REEFER_SURCHARGE
-  WAR_RISK_SURCHARGE
+}
+
+enum SurchargeScope {
+  FREIGHT       // ocean-leg surcharges (BAF, CAF, PSS…)
+  ORIGIN        // terminal/handling at loading port
+  DESTINATION   // terminal/handling at discharge port
 }
 
 
@@ -125,6 +151,13 @@ enum CustomsReferenceType {
   PACKING_LIST
   // ...other types as needed
 }
+
+enum LegType {
+  ORIGIN_HAULAGE
+  OCEAN_LEG
+  DEST_HAULAGE
+}
+
 
 
 
@@ -167,67 +200,204 @@ model User {
   @@map("user")
 }
 
-model SOCContainer {
-  id                    String   @id @default(uuid())
-  quotationContainerId  String
-  quotationContainer    QuotationContainer @relation(fields: [quotationContainerId], references: [id], onDelete: Cascade)
-
-  containerNo           String   @unique
-  type                  String
-  tareWeight            Decimal  @db.Decimal(10,2)
-  cscPlateUrl           String
-  cscExpiry             DateTime
-  manufactureDate       DateTime?
-  acepApprovalNo        String?
-  allowableStackWeight  Decimal? @db.Decimal(10,2)
-  rackingTestLoadValue  Decimal? @db.Decimal(10,2)
-  surveyReportUrl       String?
-  ownershipProofUrl     String?
-  declarationUrl        String
-  photos                String[] // Array of URLs
-  isReefer              Boolean  @default(false)
-  maintenanceManualUrl  String?
-  emergencyProceduresUrl String?
-  sparePartsKit         Boolean? // For reefers
-  createdAt             DateTime @default(now())
+model DetentionTerm {
+  id             String   @id @default(uuid())
+  depotId        String?  // optional: null = global default
+  carrierId      String?  // optional: per‐carrier override
+  freeDays       Int      // e.g. 3 free days
+  ratePerDay     Decimal  @db.Decimal(12,2)  // e.g. 50.00
+  currency       String   @default("USD")
+  effectiveFrom  DateTime @default(now())
+  effectiveTo    DateTime? // if you need to version terms
+  cros           ContainerReleaseOrder[]
 }
 
-model QuotationContainer {
-  id                String     @id @default(uuid())
-  quotationId       String
-  quotation         Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  shipperOwned      Boolean    @default(false)
-  socContainers     SOCContainer[]
-  cargo             Cargo[]    // <-- Keep this if you want to link containers to cargo (recommended)
-  type              String
-  qty               Int
-  weightPerContainer Decimal    @db.Decimal(10,2)
-  weightUnit        WeightUnit
+
+
+model CROContainer {
+  id            String                   @id @default(uuid())
+  croId         String
+  cro           ContainerReleaseOrder    @relation(fields: [croId], references: [id], onDelete: Cascade)
+
+  containerId   String
+  container     Container                @relation(fields: [containerId], references: [id])
+
+  // Actual pickup time recorded by depot/operator
+  handedOverAt  DateTime                 @default(now())
 }
+
+
+model ContainerReleaseOrder {
+  id                 String          @id @default(uuid())
+  bookingId          String          @unique
+  booking            Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  // Who may pick it up: e.g. "TRUCKER" or "SHIPPER"
+  releasedToType     String
+  releasedToId       String
+
+  // Depot and timing
+  depotUnlocode      String?
+  issuedAt           DateTime        @default(now())
+
+  // Free‐day window (snapshot from the selected DetentionTerm)
+  freeDays           Int
+
+  // Link to the term you used when you created this CRO
+  detentionTermId    String?
+  detentionTerm      DetentionTerm?  @relation(fields: [detentionTermId], references: [id])
+
+  // Attached files (CRO PDFs, scans, etc.)
+  documents          Document[]      @relation("CRODocs")
+
+  // Which physical containers were released
+  releasedContainers CROContainer[]
+
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
 
 
 model Quotation {
-  id           String                @id @default(uuid())
-  userId       String
-  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  startLocation String
-  endLocation   String
-  pickupType    DeliveryType
-  deliveryType  DeliveryType
-  validFrom     DateTime
-  commodity     String
-  shipperOwned  Boolean
-  multipleTypes Boolean
-  offer         Json?
-  services      Json?
-  status        QuotationStatus      @default(accepted)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  documents     Document[]
-  containers    QuotationContainer[]   // <-- for multi-container
-  cargo         Cargo[]               // <-- Keep this to link cargo to quotation
-  declarations  Declaration[]
-  booking       Booking?
+  id                  String               @id @default(uuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Location values as strings, not strict FKs
+  startLocation       String               // port UNLOCODE or door address
+  startIsPort         Boolean  @default(true)
+  endLocation         String
+  endIsPort           Boolean  @default(true)
+
+  pickupType          DeliveryType
+  deliveryType        DeliveryType
+
+  validFrom           DateTime
+  commodity           String
+  shipperOwned        Boolean
+  multipleTypes       Boolean
+  offer               Json?
+  status              QuotationStatus      @default(accepted)
+
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+
+  documents           Document[]
+  quotationContainers QuotationContainer[]
+  quotationRoutings   QuotationRouting[]
+  booking             Booking?
+  quotationSurcharges QuotationSurcharge[]   @relation("QuoteToSnapshots")
+}
+
+model Service {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  description  String
+  ratePerUnit  Decimal  @db.Decimal(12,2)
+  currency     String
+  isRecommended Boolean @default(false)
+  createdAt    DateTime @default(now())
+
+  quotationContainerServices QuotationContainerService[]
+}
+
+model QuotationContainer {
+  id                  String                        @id @default(uuid())
+  quotationId         String
+
+  containerTypeIsoCode String         // FK
+  containerType       ContainerType    @relation(fields: [containerTypeIsoCode], references: [isoCode])
+  qty                 Int
+  weightPerContainer   Decimal
+  weightUnit          String
+
+  quotation           Quotation                     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  quotationContainerServices            QuotationContainerService[]   // ✅ New line
+}
+
+model QuotationContainerService {
+  id                     String             @id @default(uuid())
+  quotationContainerId   String
+  serviceId              String
+  qty                    Int                @default(1)
+
+  ratePerUnitSnapshot   Decimal  @db.Decimal(12,2)
+  currencySnapshot      String
+
+  quotationContainer     QuotationContainer @relation(fields: [quotationContainerId], references: [id], onDelete: Cascade)
+  service                Service            @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([quotationContainerId, serviceId])
+}
+
+
+/// ─────────────────────────────────────────────────────────
+/// 2. Carrier Schedule & Voyages
+/// ─────────────────────────────────────────────────────────
+model ServiceSchedule {
+  code        String     @id
+  description String?
+  voyages     Voyage[]
+  tariffs     Tariff[]
+
+  quotationRoutings QuotationRouting[] @relation("ServiceToQuotationRouting")
+}
+
+model Voyage {
+  id           String           @id @default(uuid())
+  serviceCode  String
+  voyageNumber String?          // “245N”, “006W” …
+  departure    DateTime         // first port’s ETD
+  arrival      DateTime?        // last port’s ETA
+  portCalls    PortCall[]
+  
+  quotationRoutings QuotationRouting[] @relation("VoyageToQuotationRouting")
+  service      ServiceSchedule  @relation(fields: [serviceCode], references: [code], onDelete: Cascade)
+
+  @@index([serviceCode])
+  @@index([departure])
+  @@index([arrival])
+}
+
+model PortCall {
+  id           String   @id @default(uuid())
+  voyageId     String
+  portCode     String   // UN/LOCODE
+  order        Int      // 1 = first call, 2 = second, …
+  etd          DateTime?// estimated time of departure at this port
+  eta          DateTime?// estimated time of arrival at this port
+  mode         String?  // “SEA”, “RAIL” etc (if multimodal)
+  vesselName   String?  // optional override (if different from Voyage-level)
+
+  voyage       Voyage   @relation(fields: [voyageId], references: [id], onDelete: Cascade)
+
+  @@index([portCode])
+  @@index([voyageId, order])
+  @@index([etd])
+  @@index([eta])
+}
+
+
+model QuotationRouting {
+  id            String           @id @default(uuid())
+  quotationId   String
+  pol           String           // should match Quotation.startLocation
+  pod           String           // should match Quotation.endLocation
+  serviceCode   String
+  voyageId      String
+  importHaulage DeliveryType     // e.g. TERMINAL or DOOR
+  commodity     String           // e.g., "FAK" or "DG"
+
+
+  // relations
+  quotation     Quotation        @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  voyage        Voyage           @relation("VoyageToQuotationRouting", fields: [voyageId], references: [id], onDelete: Cascade)
+  service       ServiceSchedule  @relation("ServiceToQuotationRouting", fields: [serviceCode], references: [code], onDelete: Cascade)
+
+  @@index([quotationId])
 }
 
 model Booking {
@@ -252,18 +422,24 @@ model Booking {
   contractualPartyAddress String?      // Contractual Party Address
 
   // 3. Routing & Schedule
-  routingSelected     String?          // Routing option chosen
-  originDepot         String           // Start Location
-  scheduleDate        DateTime?        // Start Date
-  scheduleWeeks       Int?             // Plus ... weeks
-  via1                String?
-  via2                String?
-  destinationDepot    String           // End Location
-  pickupType          DeliveryType     // Received At (door/terminal)
-  exportMoT           String?
-  importMoT           String?
-  optimizeReefer      Boolean          @default(false)
-  scheduleOption      String?          // Specific sailing (POL, Date, Vessel, POD, Transit Time)
+  startLocation     String         // “Start Location*”
+  departureDate     DateTime?      // calendar = “Departure Date”
+  transitWeeks      Int?           // dropdown = “Plus X week(s)”
+
+  pickupOption      DeliveryType   // radio = “Received at your door (CH)” / “…terminal (MH)”
+
+  via1              String?        // “Via 1”
+  via2              String?        // “Via 2”
+
+  endLocation       String         // “End Location*”
+  arrivalDate       DateTime?      // calendar = “Arrival Date”
+  deliveryOption    DeliveryType   // radio = “Delivered at your door (CH)” / “…terminal (MH)”
+
+  exportMOT         String?        // dropdown = “Export MoT”
+  importMOT         String?        // dropdown = “Import MoT”
+  optimizeReefer    Boolean @default(false) // checkbox “Optimize routing for reefer equipment”
+
+  selectedRoutingId String?        // FK to BookingRouting (the specific sailing chosen)
 
   // 4. Pickup & Delivery Detail
   pickupDate          DateTime?
@@ -271,7 +447,7 @@ model Booking {
   deliveryType        DeliveryType     // Delivered At (door/terminal)
 
   // 5. Cargo & Equipment
-  containers          BookingContainer[] // Container rows (up to 4)
+
   commodity           String?           // Commodity (FAK, etc.)
   customsDetails      String?           // Customs Details (free-text)
 
@@ -281,11 +457,14 @@ model Booking {
   exportFiling        Boolean           @default(false)
   filingBy            String?
   remarks             String?
-
+  shippingInstruction ShippingInstruction?
+  cargoes           Cargo[]
 
   status              BookingStatus     @default(PENDING)
   createdAt           DateTime          @default(now())
-
+  
+  containers        BookingContainer[]
+  cro                 ContainerReleaseOrder?
   allocations         Allocation[]
   invoice             Invoice?
   documents           Document[]
@@ -300,6 +479,7 @@ model BookingContainer {
   id                String      @id @default(uuid())
   bookingId         String
   booking           Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  cargoes           Cargo[]
   qty               Int
   type              String
   shipperOwned      Boolean
@@ -327,43 +507,56 @@ model CustomsReference {
 model Container {
   id                  String            @id @default(uuid())
   containerNo         String            @unique
-  type                String
-  description         String?
-  bicCode             String?
+  bicCode             String? 
+  containerTypeIsoCode String
+  containerType       ContainerType     @relation(fields: [containerTypeIsoCode], references: [isoCode])
+
   ownership           String?
   companyOrigin       String?
   manufacturer        String?
   customsApproval     String?
+  description         String?
+
   status              ContainerStatus   @default(AVAILABLE)
   currentDepot        String?
   lastUsedAt          DateTime?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  // Certification fields
-  cscPlateUrl         String?           // Proof of CSC compliance
-  certificationExpiry DateTime?         // When does the cert expire?
-  foodGrade           Boolean?          // If applicable
-  reefer              Boolean?          // If applicable
+  cscPlateUrl         String?
+  certificationExpiry DateTime?
+  foodGrade           Boolean?
 
+  croContainers       CROContainer[]
   allocations         Allocation[]
   events              ContainerEvent[]
   demurrageAlerts     DemurrageAlert[]
 }
 
 model Cargo {
-  id          String   @id @default(uuid())
-  quotationId String
-  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  containerId String?
-  container   QuotationContainer? @relation(fields: [containerId], references: [id])
-  hsCode      String
-  description String
-  isDangerous Boolean  @default(false)
-  unNumber    String?
-  imoClass    String?
-  packingGroup String?
-  // ...other fields as needed
+  id                   String            @id @default(uuid())
+  bookingId            String
+  booking              Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  bookingContainerId   String
+  container            BookingContainer  @relation(fields: [bookingContainerId], references: [id], onDelete: Cascade)
+
+  hsCode               String
+  description          String
+
+  grossWeight          Decimal?         @db.Decimal(10,2)
+  netWeight            Decimal?         @db.Decimal(10,2)
+  noOfPackages         Int?
+
+  isDangerous          Boolean          @default(false)
+  unNumber             String?
+  imoClass             String?
+  packingGroup         String?
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([bookingContainerId])
 }
 
 model Allocation {
@@ -500,116 +693,176 @@ model APISnapshot {
 }
 
 model Port {
-  id         String         @id @default(uuid())
-  unlocode   String         @unique
-  name       String
-  city       String
-  country    String
-  latitude   Float?
-  longitude  Float?
-  createdAt  DateTime       @default(now())
+  id           String   @id @default(uuid())
+  unlocode     String   @unique
+  name         String
+  city         String
+  country      String
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime @default(now())
 
-  rateSheetsOrigin      RateSheet[]       @relation("originRates")
-  rateSheetsDestination RateSheet[]       @relation("destRates")
-  vesselSchedules       VesselSchedule[]
-  containerEvents       ContainerEvent[]  @relation("portEvents")
+  vesselSchedules            VesselSchedule[]
+  containerEvents            ContainerEvent[]  @relation("portEvents")
 }
 
-model ContainerTypeSpec {
-  type             String   @id
+
+model ContainerType {
+  isoCode       String           @id  // e.g., "40HC-DRY", "40RFR"
+  name             String             @unique              // e.g., "40HC - DRY"
+  
   lengthMm         Int
   widthMm          Int
   heightMm         Int
   maxStackWeightKg Int
   tareWeightKg     Int
+  maxGrossWeightKg Int
+
+  // NEW: assign each type to a broad bucket and TEU multiplier
+  group            ContainerGroup     // e.g. DRY_STANDARD, REEFER, OPEN_TOP
+  teuFactor        Float              // e.g. 1.0 for 20', 2.0 for 40'
+
+  containers            Container[]
+  surchargeRates        SurchargeRate[]       @relation("TypeToRates")
+  quotationSurcharges   QuotationSurcharge[] @relation("TypeToSnapshots")
+  quotationContainers   QuotationContainer[]
+}
+
+model Tariff {
+  serviceCode    String            // e.g. "WAX"
+  pol            String            // port-of-loading UN/LOCODE
+  pod            String            // port-of-discharge UN/LOCODE
+  commodity      String            // e.g. "FAK"
+  group          ContainerGroup    // one of the four buckets
+  ratePerTeu     Decimal           @db.Decimal(12,2)  // USD per TEU
+
+  validFrom      DateTime
+  validTo        DateTime?
+
+  service        ServiceSchedule   @relation(fields: [serviceCode], references: [code], onDelete: Cascade)
+
+  @@id([serviceCode, pol, pod, commodity, group, validFrom])
 }
 
 
+model SurchargeDef {
+  id            String           @id @default(uuid())
+  name          String           // e.g. "Fuel Surcharge Origin Land"
+  scope         SurchargeScope   // ORIGIN | FREIGHT | DESTINATION
+  portCode      String?          // for ORIGIN & DESTINATION
+  serviceCode   String?          // for FREIGHT
+  isPercentage  Boolean          @default(false)
+  currency      String           @default("USD")
+  effectiveFrom DateTime         @default(now())
+  effectiveTo   DateTime?        // null = open‐ended
 
-model WeightBracket {
-  id           String      @id @default(uuid())
-  rateSheetId  String
-  rateSheet    RateSheet   @relation(fields:[rateSheetId], references:[id], onDelete: Cascade)
-  minWeightKg  Int
-  maxWeightKg  Int
-  ratePerKg    Decimal     @db.Decimal(12,2)
-}
+  rates         SurchargeRate[]  @relation("DefToRates")
+  snapshots     QuotationSurcharge[] @relation("DefToSnapshots")
 
-model RateSheet {
-  id                   String       @id @default(uuid())
-  // — ocean‐leg fields (keep existing) —
-  originPortId         String?      
-  destinationPortId    String?
-  // — inland‐leg fields (new) —
-  originDepotId        String?
-  destinationDepotId   String?
-
-  containerType        String
-  validFrom            DateTime
-  validTo              DateTime
-  baseRate             Decimal      @db.Decimal(12,2)
-  currency             String       @default("USD")
-  includedWeightKg     Int?
-  overweightRatePerKg  Decimal?     @db.Decimal(12,2)
-
-  carrierId            String?
-  serviceId            String?
-
-  isDangerousGoods     Boolean      @default(false)
-
-  createdAt            DateTime     @default(now())
-
-  surcharges           Surcharge[]
-  weightBrackets       WeightBracket[]
-
-  /// ocean‐leg relations (now optional)
-  originPort           Port?        @relation("originRates",      fields: [originPortId],       references: [id])
-  destinationPort      Port?        @relation("destRates",        fields: [destinationPortId],  references: [id])
-
-  /// inland‐leg relations (new)
-  originDepot          Depot?       @relation("originDepotRates",      fields: [originDepotId],       references: [id])
-  destinationDepot     Depot?       @relation("destDepotRates",        fields: [destinationDepotId],  references: [id])
-}
-
-model Depot {
-  id                 String       @id @default(uuid())
-  name               String
-  address            String
-
-  originDepotRates   RateSheet[]  @relation("originDepotRates")
-  destDepotRates     RateSheet[]  @relation("destDepotRates")
+  @@index([scope, portCode])
+  @@index([scope, serviceCode])
 }
 
 
-model Surcharge {
-  id             String         @id @default(uuid())
-  rateSheetId    String
-  rateSheet      RateSheet      @relation(fields: [rateSheetId], references: [id], onDelete: Cascade)
-  surchargeType  SurchargeType
-  amount         Decimal        @db.Decimal(12,2)
-  isPercentage   Boolean        @default(false)
-  effectiveDate  DateTime       @default(now())
+model SurchargeRate {
+  id              String        @id @default(uuid())
+  surchargeDefId  String
+  surchargeDef    SurchargeDef  @relation("DefToRates", fields: [surchargeDefId], references: [id], onDelete: Cascade)
 
-  appliesToDG    Boolean        @default(false) // <-- NEW FIELD
+  containerTypeIsoCode String
+  containerType   ContainerType @relation("TypeToRates", fields: [containerTypeIsoCode], references: [isoCode])
+
+  amount          Decimal       @db.Decimal(12,2)  // flat or %, see parent.isPercentage
+
+  @@index([surchargeDefId, containerTypeIsoCode])
+}
+
+
+model QuotationSurcharge {
+  id               String        @id @default(uuid())
+  quotationId      String
+  quotation        Quotation     @relation("QuoteToSnapshots", fields: [quotationId], references: [id], onDelete: Cascade)
+
+  surchargeDefId   String
+  surchargeDef     SurchargeDef  @relation("DefToSnapshots", fields: [surchargeDefId], references: [id])
+
+  containerTypeIsoCode  String
+  containerType    ContainerType @relation("TypeToSnapshots", fields: [containerTypeIsoCode], references: [isoCode])
+
+  appliedAmount    Decimal       @db.Decimal(12,2)  // the computed $, not re‐computed later
+  currency         String
+
+  @@index([quotationId])
+  @@index([surchargeDefId])
 }
 
 
 model Document {
-  id             String      @id @default(uuid())
-  type           String
-  url            String
-  uploadedAt     DateTime    @default(now())
-  bookingId      String?
-  quotationId    String?
-  invoiceId      String?
-  declarationId  String?
+  id                        String      @id @default(uuid())
+  type                      String
+  url                       String
+  uploadedAt                DateTime    @default(now())
+  bookingId                 String?
+  quotationId               String?
+  invoiceId                 String?
+  declarationId             String?
+  shippingInstructionId     String?
 
-  booking        Booking?    @relation(fields: [bookingId], references: [id])
-  quotation      Quotation?  @relation(fields: [quotationId], references: [id])
-  invoice        Invoice?    @relation(fields: [invoiceId], references: [id])
-  declaration    Declaration? @relation("DeclarationDocuments", fields: [declarationId], references: [id])
-  bldraft        BLDraft?    // Back relation (optional)
+  booking                    Booking?    @relation(fields: [bookingId], references: [id])
+  quotation                  Quotation?  @relation(fields: [quotationId], references: [id])
+  invoice                    Invoice?    @relation(fields: [invoiceId], references: [id])
+  declaration                Declaration? @relation("DeclarationDocuments", fields: [declarationId], references: [id])
+  shippingInstruction        ShippingInstruction? @relation("ShippingInstructionDocs", fields: [shippingInstructionId], references: [id])
+  bldraft                    BLDraft?    // Back relation (optional)
+  croId                      String? 
+  containerReleaseOrder      ContainerReleaseOrder?       @relation("CRODocs", fields: [croId], references: [id])
 }
+
+
+model ShippingInstruction {
+  id              String    @id @default(uuid())
+  bookingId       String    @unique
+  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  consignee       String
+  notifyParty     String?
+  vesselName      String?
+  voyageNumber    String?
+  placeOfReceipt  String?
+  portOfLoading   String?
+  portOfDischarge String?
+  finalDestination String?
+  specialRemarks  String?
+  // add any fields you need from the SI form…
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  packingLists      PackingList[]  @relation("PackingListToSI")
+  documents       Document[] @relation("ShippingInstructionDocs")
+}
+
+
+model PackingList {
+  id                    String    @id @default(uuid())
+  shippingInstructionId String
+  shippingInstruction   ShippingInstruction  @relation("PackingListToSI", fields: [shippingInstructionId], references: [id])
+  createdAt             DateTime  @default(now())
+
+  items PackingListItem[]
+}
+
+model PackingListItem {
+  id           String   @id @default(uuid())
+  packingListId String
+  packingList  PackingList @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+
+  hsCode       String
+  description  String
+  quantity     Int
+  netWeight    Float?
+  grossWeight  Float?
+  marksAndNumbers String?
+}
+
 
 model EdiMessage {
   id            String    @id @default(uuid())
@@ -684,7 +937,6 @@ model Declaration {
   updatedAt            DateTime  @updatedAt
 
   booking              Booking?   @relation(fields: [bookingId],   references: [id])
-  quotation            Quotation? @relation(fields: [quotationId], references: [id])
   documents            Document[] @relation("DeclarationDocuments")
   
 }

@@ -266,4 +266,3 @@ function generateBLNo(bookingId: string): string {
 
 
 
-// Example usage:
