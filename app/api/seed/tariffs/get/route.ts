@@ -14,7 +14,7 @@ const QuerySchema = z.object({
                    (val) => typeof val === "string" ? [val] : val,
                    z.array(z.enum([
                      "DRY_STANDARD",
-                     "HC_STANDARD",
+                     "DRY_HC",
                      "REEFER",
                      "OPEN_TOP"
                    ])).optional()
