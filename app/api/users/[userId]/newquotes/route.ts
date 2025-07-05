@@ -66,7 +66,7 @@ export async function POST(
         const teuFactor = new Prisma.Decimal(type.teuFactor);
 
         // a) Base tariff
-        const tariffURL = new URL("/api/tariffs", req.url);
+        const tariffURL = new URL("/api/seed/tariffs/get", req.url);
         tariffURL.searchParams.set("commodity",   data.commodity);
         tariffURL.searchParams.append("serviceCodes","OCEAN");
         tariffURL.searchParams.append("groups",      type.group);
@@ -80,7 +80,7 @@ export async function POST(
         // b) Surcharges
         type SDef = { isPercentage: boolean; rates: { containerTypeIsoCode: string; amount: string }[] };
         const loadSc = async (scope: string, key: string, val: string) => {
-          const u = new URL("/api/surcharges", req.url);
+          const u = new URL("/api/seed/surcharges/get", req.url);
           u.searchParams.set("scope", scope);
           u.searchParams.set(key, val);
           u.searchParams.set("pageSize","100");
