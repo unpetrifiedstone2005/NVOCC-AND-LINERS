@@ -533,6 +533,9 @@ model Cargo {
 
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
+
+
+  declarationLines    DeclarationLine[] @relation("CargoToDeclarationLine")
 }
 
 model Allocation {
@@ -824,7 +827,9 @@ model ShippingInstruction {
 
   /// any generic documents (e.g. PDFs) attached
   documents         Document[]                     @relation("ShippingInstructionDocs")
+  declarations      Declaration[] @relation("SIToDeclaration")
   versions          SIVersion[]   @relation("SIToVersions")
+  
 }
 
 model SIVersion {
@@ -926,32 +931,62 @@ model WorkflowTask {
 }
 
 model Declaration {
-  id                   String    @id @default(uuid())
-  bookingId            String?
-  quotationId          String?
-  hsCode               String
-  goodsDescription     String
-  countryOfOrigin      String
-  countryOfDestination String
-  value                Decimal   @db.Decimal(12,2)
-  currency             String
-  dutiesAmount         Decimal   @db.Decimal(12,2)
-  declarationType      String    // e.g. "CUSTOMS", "DG"
-  status               String    @default("PENDING")
-  filingDate           DateTime  @default(now())
-  isDangerous          Boolean   @default(false)
-  unNumber             String?
-  imoClass             String?
-  packingGroup         String?
-  emergencyContact     String?
-  createdById          String?
-  createdBy            User?     @relation("UserDeclarations", fields: [createdById], references: [id])
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                     String            @id @default(uuid())
+  shippingInstructionId  String?                  
+  shippingInstruction    ShippingInstruction?     @relation("SIToDeclaration", fields: [shippingInstructionId], references: [id], onDelete: Cascade)
 
 
-  documents            Document[] @relation("DeclarationDocuments")
-  
+  declarationType        String
+
+  status                 String            @default("PENDING")
+  filingDate             DateTime          @default(now())
+
+  // master-level financials (for customs)
+  value                  Decimal           @db.Decimal(12,2)   // declared value
+  currency               String
+  dutiesAmount           Decimal           @db.Decimal(12,2)   // calculated duties
+
+  // emergency & sign-off
+  emergencyContact       String?
+  createdById            String?
+  createdBy              User?             @relation("UserDeclarations", fields: [createdById], references: [id])
+
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  // one-to-many of each DG/customs line
+  lines                  DeclarationLine[]
+
+  // any scanned PDFs, photos, etc.
+  documents              Document[]        @relation("DeclarationDocuments")
+}
+
+model DeclarationLine {
+  id                     String         @id @default(uuid())
+  declarationId          String
+  declaration            Declaration    @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+
+  // link back to the SI cargo line, if you want traceability
+  cargoId                String?        
+  cargo            Cargo?       @relation("CargoToDeclarationLine", fields: [cargoId], references: [id])
+
+  // required DG fields
+  unNumber               String         // e.g. "UN1202"
+  properShippingName     String         // e.g. "Diesel fuel"
+  imoClass               String         // e.g. "3"
+  packingGroup           String         // I, II or III
+  flashPointC            Decimal?       @db.Decimal(6,2) // °C, for liquid DG
+  flashPointF            Decimal?       @db.Decimal(6,2) // optional °F
+
+  // packaging & weights
+  packageType            String         // e.g. "Drums", "UN1H1"
+  numberOfPackages       Int
+  netWeight              Decimal        @db.Decimal(12,2)
+  netWeightUnit          String         // "kg" or "lb"
+  grossWeight            Decimal?       @db.Decimal(12,2)
+  grossWeightUnit        String?        
+
+  createdAt              DateTime       @default(now())
 }
 
 

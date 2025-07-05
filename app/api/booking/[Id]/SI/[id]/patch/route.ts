@@ -15,7 +15,6 @@ const PatchSISchema = z.object({
   portOfDischarge:  z.string().optional(),
   finalDestination: z.string().optional(),
   specialRemarks:   z.string().optional(),
-  // add nested schemas here if you allow container/cargo edits
 });
 type PatchSIInput = z.infer<typeof PatchSISchema>;
 
@@ -30,7 +29,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid bookingId" }, { status: 400 });
   }
 
-  // 2) Validate body
+  // 2) Parse & validate request body
   let updates: PatchSIInput;
   try {
     updates = PatchSISchema.parse(await req.json());
@@ -41,25 +40,25 @@ export async function PATCH(
     throw err;
   }
 
-  // 3) Fetch existing SI + its containers & cargo for snapshot
+  // 3) Load existing SI with children for snapshot
   const existingSI = await prismaClient.shippingInstruction.findUnique({
     where: { bookingId },
     include: {
-      containers: {
-        include: { cargoes: true }   // <-- use 'cargoes'
-      },
+      containers:  { include: { cargoes: true } },
       packingLists: true,
-      documents:    true
+      documents:    true,
     }
   });
   if (!existingSI) {
     return NextResponse.json({ error: "Shipping Instruction not found" }, { status: 404 });
   }
 
-  // 4) In a transaction, snapshot pre-edit, apply updates, snapshot post-edit
-  let beforeVersion, afterVersion, updatedSI;
+  // 4) Transaction: pre-edit snapshot → apply update → post-edit snapshot
+  let beforeVersion, afterVersion;
+  let updatedSI!: typeof existingSI;  // non-null assertion
+
   await prismaClient.$transaction(async (tx) => {
-    // A) pre-edit snapshot
+    // A) pre-edit
     beforeVersion = await tx.sIVersion.create({
       data: {
         shippingInstructionId: existingSI.id,
@@ -71,31 +70,55 @@ export async function PATCH(
     // B) apply updates
     updatedSI = await tx.shippingInstruction.update({
       where: { id: existingSI.id },
-      data: updates
-    });
-
-    // C) re-fetch with children and post-edit snapshot
-    const reloaded = await tx.shippingInstruction.findUnique({
-      where: { id: existingSI.id },
+      data: updates,
       include: {
-        containers:   { include: { cargoes: true } },
+        containers:  { include: { cargoes: true } },
         packingLists: true,
-        documents:    true
+        documents:    true,
       }
     });
+
+    // C) post-edit
     afterVersion = await tx.sIVersion.create({
       data: {
-        shippingInstructionId: existingSI.id,
-        data: JSON.parse(JSON.stringify(reloaded)),
+        shippingInstructionId: updatedSI.id,
+        data: JSON.parse(JSON.stringify(updatedSI)),
         note: "post-edit snapshot",
       }
     });
   });
 
-  // 5) Return both snapshots and the updated SI
+  // 5) Compute declaration flags on updatedSI
+  const hasDG = updatedSI.containers.some(c =>
+    c.cargoes.some(line => line.isDangerous)
+  );
+  const dgDone = !!(
+    await prismaClient.declaration.findFirst({
+      where: {
+        shippingInstructionId: updatedSI.id,
+        declarationType:       "DG",
+        status:                "COMPLETED",
+      },
+      select: { id: true }
+    })
+  );
+  const customsDone = !!(
+    await prismaClient.declaration.findFirst({
+      where: {
+        shippingInstructionId: updatedSI.id,
+        declarationType:       "CUSTOMS",
+        status:                "COMPLETED",
+      },
+      select: { id: true }
+    })
+  );
+
+  // 6) Return snapshots, updated SI, and flags
   return NextResponse.json({
     beforeVersion,
     afterVersion,
-    shippingInstruction: updatedSI
+    shippingInstruction:        updatedSI,
+    requiresCustomsDeclaration: !customsDone,
+    requiresDGDeclaration:      hasDG && !dgDone,
   }, { status: 200 });
 }
