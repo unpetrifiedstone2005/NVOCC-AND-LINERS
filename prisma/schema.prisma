@@ -122,6 +122,18 @@ enum SurchargeScope {
 }
 
 
+enum DeclarationType {
+  CUSTOMS
+  DG
+}
+
+enum DeclarationStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 enum InvoiceStatus {
   PENDING
   PAID
@@ -226,13 +238,14 @@ model CROContainer {
 
   // Actual pickup time recorded by depot/operator
   handedOverAt  DateTime                 @default(now())
+  vgmTransmissions VGMTransmission[]  @relation("CROContainerToVGM")
 }
 
 
 model ContainerReleaseOrder {
   id                 String          @id @default(uuid())
   bookingId          String          @unique
-
+  booking     Booking  @relation("BookingToCRO", fields: [bookingId], references: [id], onDelete: Cascade)
 
   // Who may pick it up: e.g. "TRUCKER" or "SHIPPER"
   releasedToType     String
@@ -290,7 +303,22 @@ model Quotation {
   quotationContainers QuotationContainer[]
   quotationRoutings   QuotationRouting[]
   booking             Booking?
-  quotationSurcharges QuotationSurcharge[]   @relation("QuoteToSnapshots")
+  quotationLines      QuotationLine[]
+}
+
+
+model QuotationLine {
+  id             String     @id @default(uuid())
+  quotationId    String
+  quotation      Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  description    String     // e.g. "40HC base freight" or "THC (40HC)"
+  amount         Decimal    @db.Decimal(12,2)  // per-container rate snapshot
+  reference      String?    // e.g. "BASE_FREIGHT" or surchargeDefId
+  glCode         String?    // e.g. "4001-FRT"
+  costCenter     String?    // e.g. "Freight" or "Surcharge"
+
+  createdAt      DateTime   @default(now())
 }
 
 model Service {
@@ -403,48 +431,67 @@ model QuotationRouting {
 }
 
 model Booking {
-  id                 String               @id @default(uuid())
-  userId             String
-  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String                  @id @default(uuid())
+  userId              String
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  quotationId        String               @unique
-  quotation          Quotation            @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  quotationId         String                  @unique
+  quotation           Quotation               @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   // Contact & Reference
-  customerName       String?              // from user profile
-  contactReference   String?              // customer PO or ref
-  contactName        String?              
-  contactPhone       String?              
-  contactEmail       String?              
+  customerName        String?
+  contactReference    String?
+  contactName         String?
+  contactPhone        String?
+  contactEmail        String?
 
   // Routing & Schedule
-  startLocation      String               
-  departureDate      DateTime?            
-  pickupOption       DeliveryType         
-  via1               String?              
-  via2               String?              
-  endLocation        String               
-  arrivalDate        DateTime?            
-  deliveryOption     DeliveryType         
-  exportMOT          String?              
-  importMOT          String?              
-  optimizeReefer     Boolean   @default(false)
-  selectedRoutingId  String?              // FK to QuotationRouting or Voyage
+  startLocation       String
+  departureDate       DateTime?
+  vgmCutOffAt         DateTime?               // e.g. departureDate minus 4h
+  siCutOffAt          DateTime?               // e.g. departureDate minus 48h
+  blCutOffAt          DateTime?               // e.g. departureDate minus 24h
+  pickupOption        DeliveryType
+  via1                String?
+  via2                String?
+  endLocation         String
+  arrivalDate         DateTime?
+  deliveryOption      DeliveryType
+  exportMOT           String?
+  importMOT           String?
+  optimizeReefer      Boolean                 @default(false)
+  selectedRoutingId   String?
 
   // Cargo & Equipment
-  containers         BookingContainer[]   // per‐container details
+  containers          BookingContainer[]
 
   // Customs & Documentation
-  customsReferences  CustomsReference[]   
-  bolCount           Int?                 
-  exportFiling       Boolean   @default(false)
-  filingBy           String?              
-  remarks            String?              
+  customsReferences   CustomsReference[]
+  bolCount            Int?
+  exportFiling        Boolean                 @default(false)
+  filingBy            String?
+  remarks             String?
 
-  status             BookingStatus @default(PENDING)
-  createdAt          DateTime       @default(now())
-  shippingInstruction ShippingInstruction[]
+  // ──────────────────────────────────────────────────────
+  // Back-relations for downstream workflows
+  // ──────────────────────────────────────────────────────
+
+  /// The one‐and-only CRO for this booking (origin container release)
+  containerReleaseOrder ContainerReleaseOrder?   @relation("BookingToCRO")
+
+  /// All VGM entries submitted against this booking
+  vgmTransmissions VGMTransmission[] @relation("BookingToVGM")
+
+  /// The Shipping Instruction you’ll submit
+  shippingInstruction ShippingInstruction?
+
+  /// All B/L drafts & amendments for this booking
+  blDrafts          BLDraft[]          @relation("BookingToBLDraft")
+
+  status              BookingStatus          @default(PENDING)
+  createdAt           DateTime                @default(now())
 }
+
 
 
 
@@ -514,7 +561,44 @@ model Container {
   demurrageAlerts     DemurrageAlert[]
 }
 
-model Cargo {
+
+model VGMTransmission {
+  id               String        @id @default(uuid())
+
+  bookingId        String
+  booking        Booking  @relation("BookingToVGM", fields: [bookingId], references: [id], onDelete: Cascade)
+
+  croContainerId   String
+  croContainer     CROContainer  @relation("CROContainerToVGM", fields: [croContainerId], references: [id], onDelete: Cascade)
+
+  // ────────────────────────────────────────────────────────────────
+  // Required fields
+  // ────────────────────────────────────────────────────────────────
+  verifiedWeight     Float
+  providerSignature  String
+  shipperCompany     String
+
+  // ────────────────────────────────────────────────────────────────
+  // Optional Details
+  // ────────────────────────────────────────────────────────────────
+  determinationDate  DateTime?
+  solasMethod        String?
+  solasCertificate   String?
+  country            String?
+
+  // ────────────────────────────────────────────────────────────────
+  // Internal
+  // ────────────────────────────────────────────────────────────────
+  status             String        @default("PENDING")
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([bookingId, croContainerId])
+  @@index([bookingId])
+  @@index([croContainerId])
+} 
+
+model SiCargo {
   id                   String     @id @default(uuid())
   shippingInstructionContainerId   String
   container                         ShippingInstructionContainer  @relation(fields: [shippingInstructionContainerId], references: [id], onDelete: Cascade)
@@ -716,7 +800,6 @@ model ContainerType {
 
   containers            Container[]
   surchargeRates        SurchargeRate[]       @relation("TypeToRates")
-  quotationSurcharges   QuotationSurcharge[] @relation("TypeToSnapshots")
   quotationContainers   QuotationContainer[]
 }
 
@@ -749,8 +832,6 @@ model SurchargeDef {
   effectiveTo   DateTime?        // null = open‐ended
 
   rates         SurchargeRate[]  @relation("DefToRates")
-  snapshots     QuotationSurcharge[] @relation("DefToSnapshots")
-
   @@index([scope, portCode])
   @@index([scope, serviceCode])
 }
@@ -770,23 +851,7 @@ model SurchargeRate {
 }
 
 
-model QuotationSurcharge {
-  id               String        @id @default(uuid())
-  quotationId      String
-  quotation        Quotation     @relation("QuoteToSnapshots", fields: [quotationId], references: [id], onDelete: Cascade)
 
-  surchargeDefId   String
-  surchargeDef     SurchargeDef  @relation("DefToSnapshots", fields: [surchargeDefId], references: [id])
-
-  containerTypeIsoCode  String
-  containerType    ContainerType @relation("TypeToSnapshots", fields: [containerTypeIsoCode], references: [isoCode])
-
-  appliedAmount    Decimal       @db.Decimal(12,2)  // the computed $, not re‐computed later
-  currency         String
-
-  @@index([quotationId])
-  @@index([surchargeDefId])
-}
 
 
 model Document {
@@ -799,14 +864,13 @@ model Document {
   invoiceId                 String?
   declarationId             String?
   shippingInstructionId     String?
-
+  croId                      String? 
 
 
   invoice                    Invoice?    @relation(fields: [invoiceId], references: [id])
   declaration                Declaration? @relation("DeclarationDocuments", fields: [declarationId], references: [id])
   shippingInstruction        ShippingInstruction? @relation("ShippingInstructionDocs", fields: [shippingInstructionId], references: [id])
   bldraft                    BLDraft?    // Back relation (optional)
-  croId                      String? 
   containerReleaseOrder      ContainerReleaseOrder?       @relation("CRODocs", fields: [croId], references: [id])
 }
 
@@ -869,7 +933,7 @@ model ShippingInstructionContainer {
   marksAndNumbers        String?
   hsCode                 String?
 
-  cargoes                Cargo[]
+  cargoes                SiCargo[]
 }
 
 model PackingList {
@@ -943,65 +1007,63 @@ model WorkflowTask {
 
 }
 
+
 model Declaration {
-  id                     String            @id @default(uuid())
-  shippingInstructionId  String?                  
-  shippingInstruction    ShippingInstruction?     @relation("SIToDeclaration", fields: [shippingInstructionId], references: [id], onDelete: Cascade)
+  id                     String               @id @default(uuid())
+  
+  // Always filed against exactly one SI:
+  shippingInstructionId  String               @unique
+  shippingInstruction    ShippingInstruction  @relation("SIToDeclaration", fields: [shippingInstructionId], references: [id], onDelete: Cascade)
 
+  declarationType        DeclarationType
+  status                 DeclarationStatus    @default(PENDING)
+  filingDate             DateTime             @default(now())
 
-  declarationType        String
+  // for CUSTOMS
+  value                  Decimal?             @db.Decimal(12,2)
+  currency               String?              @db.Char(3)
+  dutiesAmount           Decimal?             @db.Decimal(12,2)
 
-  status                 String            @default("PENDING")
-  filingDate             DateTime          @default(now())
-
-  // master-level financials (for customs)
-  value                  Decimal           @db.Decimal(12,2)   // declared value
-  currency               String
-  dutiesAmount           Decimal           @db.Decimal(12,2)   // calculated duties
-
-  // emergency & sign-off
+  // optional DG sign-off
   emergencyContact       String?
+
   createdById            String?
-  createdBy              User?             @relation("UserDeclarations", fields: [createdById], references: [id])
+  createdBy              User?                @relation("UserDeclarations", fields: [createdById], references: [id])
 
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
 
-  // one-to-many of each DG/customs line
   lines                  DeclarationLine[]
-
-  // any scanned PDFs, photos, etc.
-  documents              Document[]        @relation("DeclarationDocuments")
+  documents              Document[]           @relation("DeclarationDocuments")
 }
 
 model DeclarationLine {
-  id                     String         @id @default(uuid())
+  id                     String        @id @default(uuid())
   declarationId          String
-  declaration            Declaration    @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  declaration            Declaration   @relation(fields: [declarationId], references: [id], onDelete: Cascade)
 
-  // link back to the SI cargo line, if you want traceability
+  // optional trace back to one of your SI cargo lines:
   cargoId                String?        
-  cargo            Cargo?       @relation("CargoToDeclarationLine", fields: [cargoId], references: [id])
+  cargo                  SiCargo?        @relation("CargoToDeclarationLine", fields: [cargoId], references: [id])
 
-  // required DG fields
-  unNumber               String         // e.g. "UN1202"
-  properShippingName     String         // e.g. "Diesel fuel"
-  imoClass               String         // e.g. "3"
-  packingGroup           String         // I, II or III
-  flashPointC            Decimal?       @db.Decimal(6,2) // °C, for liquid DG
-  flashPointF            Decimal?       @db.Decimal(6,2) // optional °F
+  // DG fields (always required for DG lines)
+  unNumber               String
+  properShippingName     String
+  imoClass               String
+  packingGroup           String
+  flashPointC            Decimal?      @db.Decimal(6,2)
+  flashPointF            Decimal?      @db.Decimal(6,2)
 
   // packaging & weights
-  packageType            String         // e.g. "Drums", "UN1H1"
+  packageType            String
   numberOfPackages       Int
-  netWeight              Decimal        @db.Decimal(12,2)
-  netWeightUnit          String         // "kg" or "lb"
-  grossWeight            Decimal?       @db.Decimal(12,2)
-  grossWeightUnit        String?        
+  netWeight              Decimal       @db.Decimal(12,2)
+  netWeightUnit          WeightUnit
+  grossWeight            Decimal?      @db.Decimal(12,2)
+  grossWeightUnit        WeightUnit?
 
-  createdAt              DateTime       @default(now())
+  createdAt              DateTime      @default(now())
 }
-
 
 /// ─────────────────────────────────────────────────────────────────────────────
 /// BL DRAFT APPROVAL MODELS
@@ -1011,7 +1073,8 @@ model BLDraft {
   documentNo   String       @id
   UserId   String
   User     User             @relation("BLDraftCreatedBy", fields: [UserId], references: [id])
-  bookingId    String
+  bookingId       String
+  booking        Booking  @relation("BookingToBLDraft", fields: [bookingId], references: [id], onDelete: Cascade)
 
 
   type         DraftType    @default(BL)

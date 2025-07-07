@@ -1,8 +1,10 @@
-// app/api/quotations/[userId]/route.ts
+// app/api/quotations/[userId]/newquotes/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }             from "zod";
-import { prismaClient }            from "@/app/lib/db";
+import { PrismaClient, Prisma }    from "@prisma/client";
+
+const prismaClient = new PrismaClient();
 
 // 1) Shape of the “offer” JSON your front-end computes
 const OfferContainerSchema = z.object({
@@ -17,7 +19,6 @@ const OfferContainerSchema = z.object({
   transitDays:   z.number().int().min(0),
   total:         z.string(),
 });
-
 const OfferSchema = z.object({
   currency:        z.string(),
   containerOffers: z.array(OfferContainerSchema).min(1),
@@ -30,7 +31,6 @@ const QuotationContainerSchema = z.object({
   weightPerContainer: z.number(),
   weightUnit:         z.enum(["kg","lb","t"]),
 });
-
 const QuotationRoutingSchema = z.object({
   pol:           z.string(),
   pod:           z.string(),
@@ -60,7 +60,6 @@ const CreateQuotationSchema = z.object({
   // ← the blob your UI computed and is now POSTing
   offer: OfferSchema,
 });
-
 type CreateQuotationInput = z.infer<typeof CreateQuotationSchema>;
 
 // 4) POST handler
@@ -75,7 +74,7 @@ export async function POST(
     );
     const validFrom = new Date(input.validFrom);
 
-    // 4.2 Persist quotation, containers, routings & offer
+    // 4.2 Persist quotation, containers, routings & raw offer
     const quotation = await prismaClient.quotation.create({
       data: {
         userId:        params.userId,
@@ -91,12 +90,12 @@ export async function POST(
         multipleTypes: input.multipleTypes,
         status:        "accepted",
 
-        // ← store the exact offer JSON here
+        // ← snapshot the exact offer JSON
         offer:         input.offer,
 
         // nested-create containers
         quotationContainers: {
-          create: input.containers.map((c) => ({
+          create: input.containers.map(c => ({
             containerTypeIsoCode: c.type,
             qty:                  c.qty,
             weightPerContainer:   c.weightPerContainer,
@@ -106,7 +105,7 @@ export async function POST(
 
         // nested-create routings
         quotationRoutings: {
-          create: input.quotationRoutings.map((r) => ({
+          create: input.quotationRoutings.map(r => ({
             pol:           r.pol,
             pod:           r.pod,
             serviceCode:   r.serviceCode,
@@ -123,14 +122,52 @@ export async function POST(
       },
     });
 
-    // 4.3 Return the fully populated quotation
-    return NextResponse.json({ quotation }, { status: 201 });
+    // 4.3 Snapshot one QuotationLine per baseRate + per surcharge
+    const quoteLines: Prisma.QuotationLineCreateManyInput[] = [];
+    for (const o of input.offer.containerOffers) {
+      // base freight row
+      quoteLines.push({
+        quotationId: quotation.id,
+        description: `${o.containerType} base freight`,
+        amount:      new Prisma.Decimal(o.baseRate),
+        reference:   "BASE_FREIGHT",
+        glCode:      "4001-FRT",
+        costCenter:  "Freight",
+        createdAt:   new Date()
+      });
+      // each surcharge row
+      for (const amt of o.surcharges) {
+        quoteLines.push({
+          quotationId: quotation.id,
+          description: `${o.containerType} surcharge`,
+          amount:      new Prisma.Decimal(amt),
+          reference:   "SURCHARGE",
+          glCode:      "4002-SUR",
+          costCenter:  "Surcharge",
+          createdAt:   new Date()
+        });
+      }
+    }
+    await prismaClient.quotationLine.createMany({ data: quoteLines });
+
+    // 4.4 Return the full quotation (with lines)
+    const full = await prismaClient.quotation.findUnique({
+      where: { id: quotation.id },
+      include: {
+        quotationContainers: true,
+        quotationRoutings:   true,
+        quotationLines:      true,
+      },
+    });
+    return NextResponse.json({ quotation: full }, { status: 201 });
+
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json({ errors: err.flatten().fieldErrors }, { status: 422 });
     }
+    console.error(err);
     return NextResponse.json(
-      { error: "Server Error", detail: err instanceof Error ? err.message : String(err) },
+      { error: "Server Error", detail: (err as Error).message },
       { status: 500 }
     );
   }

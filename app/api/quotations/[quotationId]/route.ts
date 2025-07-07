@@ -35,8 +35,6 @@ export async function GET(request: Request, { params }: { params: Record<string,
       pod:          true,
       serviceCode:  true,
       commodity:    true,
-      ctrTypes:     true,   // e.g. ["20'STD","40'HC"]
-      ratePerCtr:   true,
       voyageId:     true,
     },
   });
