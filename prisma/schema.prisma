@@ -490,6 +490,7 @@ model Booking {
 
   status              BookingStatus          @default(PENDING)
   createdAt           DateTime                @default(now())
+  egm                 EGM?        @relation("BookingToEGM")
 }
 
 
@@ -958,6 +959,48 @@ model PackingListItem {
   marksAndNumbers String?
 }
 
+model EGM {
+  /// Primary key
+  id               String      @id @default(uuid())
+
+  /// Link back to your Booking
+  bookingId        String      @unique
+  booking          Booking     @relation("BookingToEGM", fields: [bookingId], references: [id], onDelete: Cascade)
+
+
+  /// Basic voyage info
+  vesselName       String?
+  voyageNumber     String?
+  portOfLoading    String
+  portOfDischarge  String
+
+  /// When the manifest was filed
+  manifestDate     DateTime    @default(now())
+
+  /// Raw or parsed manifest details if you prefer a single field
+  data             Json
+
+  /// Timestamps
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  /// (optional) expand into a child table if you want one row per container
+  containers       EGMContainer[]
+}
+
+model EGMContainer {
+  id              String   @id @default(uuid())
+  egmId           String
+  egm             EGM      @relation(fields: [egmId], references: [id], onDelete: Cascade)
+
+  containerNo     String
+  hsCode          String
+  grossWeight     Decimal  @db.Decimal(12,2)
+  netWeight       Decimal? @db.Decimal(12,2)
+  noOfPackages    Int
+
+  createdAt       DateTime @default(now())
+}
 
 model EdiMessage {
   id            String    @id @default(uuid())

@@ -5,11 +5,9 @@ import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
 import { DeclarationStatus, DeclarationType } from "@prisma/client";
 
-// --- Zod schemas for allowed SI fields to patch ---
-
-// Cargo update schema
+// --- Zod schemas for nested containers & cargo ---
 const PatchCargoSchema = z.object({
-  id:            z.string().uuid(),       // existing SiCargo.id
+  id:            z.string().uuid(),
   hsCode:        z.string().min(1).optional(),
   description:   z.string().min(1).optional(),
   noOfPackages:  z.number().int().nonnegative().optional(),
@@ -21,21 +19,34 @@ const PatchCargoSchema = z.object({
   packingGroup:  z.string().optional().nullable(),
 });
 
-// Container update schema
 const PatchContainerSchema = z.object({
-  id:               z.string().uuid(),         // existing ShippingInstructionContainer.id
+  id:               z.string().uuid(),
   containerNumber:  z.string().optional(),
   seals:            z.array(z.string()).optional(),
   marksAndNumbers:  z.string().optional(),
   cargo:            z.array(PatchCargoSchema).optional(),
 });
 
-// Top-level PATCH payload
+// --- Zod schema for packing‐list updates ---
+const PatchPackingListItem = z.object({
+  hsCode:          z.string().min(1),
+  description:     z.string().min(1),
+  quantity:        z.number().int().nonnegative(),
+  netWeight:       z.number().nonnegative().optional(),
+  grossWeight:     z.number().nonnegative().optional(),
+  marksAndNumbers: z.string().optional(),
+});
+const PatchPackingListSchema = z.object({
+  items: z.array(PatchPackingListItem).min(1)
+});
+
+// --- Top-level PATCH payload ---
 const PatchSISchema = z.object({
   consignee:       z.string().min(1).optional(),
   notifyParty:     z.string().optional(),
   specialRemarks:  z.string().optional(),
   containers:      z.array(PatchContainerSchema).optional(),
+  packingLists:    z.array(PatchPackingListSchema).optional()
 });
 type PatchSIInput = z.infer<typeof PatchSISchema>;
 
@@ -93,7 +104,6 @@ export async function PATCH(
 
   // 5) Validate container changes if provided
   if (updates.containers) {
-    // enforce total count <= CRO count
     if (updates.containers.length > croRows.length) {
       return NextResponse.json(
         { error: `You can only include up to ${croRows.length} containers.` },
@@ -101,7 +111,6 @@ export async function PATCH(
       );
     }
     for (const c of updates.containers) {
-      // if they provided a new containerNumber, it must be one of the CRO ones
       if (c.containerNumber !== undefined) {
         if (!allowedNumbers.has(c.containerNumber)) {
           return NextResponse.json(
@@ -109,11 +118,10 @@ export async function PATCH(
             { status: 400 }
           );
         }
-        // and its type must match one of the booked types
         const typ = typeByNumber.get(c.containerNumber)!;
         if (!allowedTypes.has(typ)) {
           return NextResponse.json(
-            { error: `Container ${c.containerNumber} has type ${typ}, which was not in the original booking.` },
+            { error: `Container ${c.containerNumber} type ${typ} not in booking.` },
             { status: 400 }
           );
         }
@@ -124,7 +132,10 @@ export async function PATCH(
   // 6) Load existing SI
   const existingSI = await prismaClient.shippingInstruction.findUnique({
     where: { bookingId },
-    include: { containers: { include: { cargoes: true } } }
+    include: {
+      containers: { include: { cargoes: true } },
+      packingLists: { include: { items: true } }
+    }
   });
   if (!existingSI) {
     return NextResponse.json({ error: "SI not found" }, { status: 404 });
@@ -146,18 +157,14 @@ export async function PATCH(
     // B) Container-level updates
     if (updates.containers) {
       for (const c of updates.containers) {
-        // Update container metadata
         const contData: Record<string, any> = {};
-        if (c.containerNumber     !== undefined) contData.containerNumber    = c.containerNumber;
-        if (c.seals               !== undefined) contData.seals               = c.seals;
-        if (c.marksAndNumbers     !== undefined) contData.marksAndNumbers     = c.marksAndNumbers;
-
+        if (c.containerNumber     !== undefined) contData.containerNumber   = c.containerNumber;
+        if (c.seals               !== undefined) contData.seals              = c.seals;
+        if (c.marksAndNumbers     !== undefined) contData.marksAndNumbers    = c.marksAndNumbers;
         await tx.shippingInstructionContainer.update({
           where: { id: c.id },
           data: contData
         });
-
-        // Update cargo lines under this container
         if (c.cargo) {
           for (const line of c.cargo) {
             const cargoData: Record<string, any> = {};
@@ -170,7 +177,6 @@ export async function PATCH(
             if (line.unNumber     !== undefined) cargoData.unNumber     = line.unNumber;
             if (line.imoClass     !== undefined) cargoData.imoClass     = line.imoClass;
             if (line.packingGroup !== undefined) cargoData.packingGroup = line.packingGroup;
-
             await tx.siCargo.update({
               where: { id: line.id },
               data: cargoData
@@ -180,10 +186,39 @@ export async function PATCH(
       }
     }
 
-    // C) Return full SI with updated children
+    // C) Packing-list updates
+    if (updates.packingLists) {
+      // remove all existing
+      await tx.packingList.deleteMany({
+        where: { shippingInstructionId: existingSI.id }
+      });
+      // create new ones
+      for (const pl of updates.packingLists) {
+        await tx.packingList.create({
+          data: {
+            shippingInstructionId: existingSI.id,
+            items: {
+              create: pl.items.map(item => ({
+                hsCode:          item.hsCode,
+                description:     item.description,
+                quantity:        item.quantity,
+                netWeight:       item.netWeight,
+                grossWeight:     item.grossWeight,
+                marksAndNumbers: item.marksAndNumbers
+              }))
+            }
+          }
+        });
+      }
+    }
+
+    // D) Return full SI with updated children
     return tx.shippingInstruction.findUniqueOrThrow({
       where: { id: existingSI.id },
-      include: { containers: { include: { cargoes: true } } }
+      include: {
+        containers:   { include: { cargoes: true } },
+        packingLists: { include: { items: true } }
+      }
     });
   });
 
