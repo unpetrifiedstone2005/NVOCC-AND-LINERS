@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
 
-// Allow only these fields to be patched
+// Only these fields can be patched
 const PatchBLSchema = z.object({
-  portOfLoading:   z.string().optional(),
-  portOfDischarge: z.string().optional(),
+  portOfLoading:   z.string().length(5).optional(),
+  portOfDischarge: z.string().length(5).optional(),
 });
 type PatchBLInput = z.infer<typeof PatchBLSchema>;
 
@@ -32,7 +32,7 @@ export async function PATCH(
     throw err;
   }
 
-  // 2) Load existing B/L draft + booking.cutOff + quotationId
+  // 2) Load existing B/L draft + cut-off + quotationId
   const existing = await prismaClient.bLDraft.findUnique({
     where: { documentNo: draftNo },
     select: {
@@ -52,27 +52,36 @@ export async function PATCH(
     return NextResponse.json({ error: "B/L draft not found" }, { status: 404 });
   }
 
-  // Determine new vs old ports
+  // 2a) Guard against null ports
+  if (existing.portOfLoading == null || existing.portOfDischarge == null) {
+    return NextResponse.json(
+      { error: "Existing B/L draft missing portOfLoading or portOfDischarge" },
+      { status: 500 }
+    );
+  }
+
+  // 3) Determine old vs new ports (safe to trim/compare now)
   const oldPOL = existing.portOfLoading;
   const oldPOD = existing.portOfDischarge;
-  const newPOL = updates.portOfLoading   ?? oldPOL;
-  const newPOD = updates.portOfDischarge ?? oldPOD;
-  if (!newPOL || !newPOD) {
-    return NextResponse.json({ error: "Both portOfLoading and portOfDischarge must be set" }, { status: 400 });
-  }
+  const newPOL = updates.portOfLoading
+    ? updates.portOfLoading.trim().toUpperCase()
+    : oldPOL;
+  const newPOD = updates.portOfDischarge
+    ? updates.portOfDischarge.trim().toUpperCase()
+    : oldPOD;
   const polChanged = newPOL !== oldPOL;
   const podChanged = newPOD !== oldPOD;
 
-  // 3) Enforce cut-off
+  // 4) Enforce cut-off
   const now    = new Date();
   const cutoff = existing.booking.blCutOffAt;
   if (cutoff && now > cutoff) {
     return NextResponse.json({ error: "B/L amendment cut-off has passed" }, { status: 403 });
   }
 
-  // 4) Transaction: snapshot → patch → invoice adjustments → snapshot
+  // 5) Perform patch + invoice adjustments in a transaction
   const updated = await prismaClient.$transaction(async tx => {
-    // a) Pre-edit snapshot
+    // a) Snapshot before edit
     await tx.bLDraftVersion.create({
       data: {
         draftNo:     existing.documentNo,
@@ -81,18 +90,21 @@ export async function PATCH(
       }
     });
 
-    // b) Apply the patch
+    // b) Apply the port changes
     const patched = await tx.bLDraft.update({
       where: { documentNo: draftNo },
-      data: { portOfLoading: newPOL, portOfDischarge: newPOD }
+      data: {
+        portOfLoading:   newPOL,
+        portOfDischarge: newPOD
+      }
     });
 
-    // c) If route changed, rebuild freight & surcharge lines
+    // c) If the route changed, rebuild freight & surcharge lines
     if (polChanged || podChanged) {
       // 1) Load the invoice
       const inv = await tx.invoice.findFirstOrThrow({ where: { bookingId } });
 
-      // 2) Delete old freight/surcharge lines
+      // 2) Delete old freight & surcharge lines
       await tx.invoiceLine.deleteMany({
         where: {
           invoiceId: inv.id,
@@ -100,14 +112,14 @@ export async function PATCH(
         }
       });
 
-      // 3) Load booking containers
+      // 3) Get booking containers
       const bookingRec = await tx.booking.findUnique({
         where: { id: bookingId },
         include: { containers: true }
       });
       if (!bookingRec) throw new Error("Booking not found");
 
-      // 4) Fetch the quotation routing to get serviceCode & commodity
+      // 4) Find the correct quotation route
       const route = await tx.quotationRouting.findFirstOrThrow({
         where: {
           quotationId: bookingRec.quotationId,
@@ -117,25 +129,25 @@ export async function PATCH(
       });
       const { serviceCode, commodity } = route;
 
-      // 5) For each container in booking
+      // 5) For each container type on the booking
       for (const bc of bookingRec.containers) {
         const qty  = bc.qty;
-        const type = bc.type;              // e.g. "20GP" or "40HC"
+        const type = bc.type; // e.g. "20GP"
 
-        // a) Fetch container TEU factor and group
-        const containerType = await tx.containerType.findUniqueOrThrow({
+        // a) Fetch TEU factor & group
+        const ct = await tx.containerType.findUniqueOrThrow({
           where: { isoCode: type },
           select: { teuFactor: true, group: true }
         });
 
-        // b) Look up live Tariff
+        // b) Look up the live Tariff
         const tariff = await tx.tariff.findFirstOrThrow({
           where: {
             serviceCode,
             pol:        newPOL,
             pod:        newPOD,
             commodity,
-            group:      containerType.group,
+            group:      ct.group,
             validFrom: { lte: now },
             OR: [
               { validTo: null },
@@ -146,7 +158,7 @@ export async function PATCH(
         });
 
         // c) Insert base freight line
-        const baseAmt = tariff.ratePerTeu.toNumber() * containerType.teuFactor * qty;
+        const baseAmt = tariff.ratePerTeu.toNumber() * ct.teuFactor * qty;
         await tx.invoiceLine.create({
           data: {
             invoiceId:  inv.id,
@@ -158,21 +170,22 @@ export async function PATCH(
           }
         });
 
-        // d) Fetch & insert surcharges for FREIGHT scope
+        // d) Fetch & insert FREIGHT‐scope surcharges
         const rates = await tx.surchargeRate.findMany({
           where: { containerTypeIsoCode: type },
           include: { surchargeDef: true }
         });
         for (const r of rates) {
+          const def = r.surchargeDef;
           if (
-            r.surchargeDef.scope === "FREIGHT" &&
-            (!r.surchargeDef.serviceCode || r.surchargeDef.serviceCode === serviceCode)
+            def.scope === "FREIGHT" &&
+            (!def.serviceCode || def.serviceCode === serviceCode)
           ) {
             const amt = r.amount.toNumber() * qty;
             await tx.invoiceLine.create({
               data: {
                 invoiceId:  inv.id,
-                description:`${r.surchargeDef.name} (${qty}×${type})`,
+                description:`${def.name} (${qty}×${type})`,
                 amount:     amt,
                 reference:  r.surchargeDefId,
                 glCode:     "4002-SUR",
@@ -183,7 +196,7 @@ export async function PATCH(
         }
       }
 
-      // 6) Append one AMEND_FEE if past cut-off
+      // e) If we’re past cut-off, add the amendment fee once
       if (cutoff && now > cutoff) {
         const exists = await tx.invoiceLine.findFirst({
           where: { invoiceId: inv.id, reference: "AMEND_FEE" }
@@ -206,7 +219,7 @@ export async function PATCH(
         }
       }
 
-      // 7) Re-aggregate invoice total
+      // f) Re‐aggregate invoice total
       const agg = await tx.invoiceLine.aggregate({
         where: { invoiceId: inv.id },
         _sum:  { amount: true }
@@ -217,7 +230,7 @@ export async function PATCH(
       });
     }
 
-    // d) Post-edit snapshot
+    // d) Snapshot after edit
     await tx.bLDraftVersion.create({
       data: {
         draftNo:     existing.documentNo,
