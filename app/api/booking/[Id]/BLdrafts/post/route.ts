@@ -14,24 +14,34 @@ export async function POST(
     return NextResponse.json({ error: "Invalid bookingId" }, { status: 400 });
   }
 
-  // 1) Load booking.userId + quotationId
+  // 1) Load booking with all needed scalar fields + containers
   const booking = await prismaClient.booking.findUnique({
     where: { id: bookingId },
-    select: { userId: true, quotationId: true }
+    select: {
+      userId:          true,
+      quotationId:     true,
+      pickupOption:    true,
+      deliveryOption:  true,
+      departureDate:   true,
+      via1:            true,
+      via2:            true,
+      remarks:         true,
+      containers:      true
+    }
   });
   if (!booking) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
-  // 2) Load latest SI, including the fields we need
+  // 2) Load latest SI, including containers + cargoes
   const si = await prismaClient.shippingInstruction.findUnique({
     where: { bookingId },
     include: {
       containers: {
         select: {
-          containerNumber:  true,
-          seals:            true,
-          marksAndNumbers:  true,
+          containerNumber: true,
+          seals:           true,
+          marksAndNumbers: true,
           cargoes: {
             select: {
               description:  true,
@@ -84,18 +94,29 @@ export async function POST(
     }
   }));
 
-  // 4) Create the B/L draft
+  // 4) Create the B/L draft, back-filling optional fields from booking & SI
   const draft = await prismaClient.bLDraft.create({
     data: {
-      documentNo:  uuidv4(),
-      documentId:  uuidv4(),
-      UserId:      booking.userId,
+      documentNo:    uuidv4(),
+      documentId:    uuidv4(),
+      UserId:        booking.userId,
       bookingId,
 
+      // Routing & schedule
+      pickupType:    booking.pickupOption,
+      deliveryType:  booking.deliveryOption,
+      scheduleDate:  booking.departureDate,
+      via1:          booking.via1,
+      via2:          booking.via2,
+      remarks:       booking.remarks,
+
+      // Parties & references
       shipper:               si.consignee,
       consignee:             si.consignee,
       notifyParty:           si.notifyParty ?? undefined,
       additionalNotifyParty: si.notifyParty ?? undefined,
+
+      // Transport details
       placeOfReceipt:        si.placeOfReceipt ?? undefined,
       portOfLoading:         si.portOfLoading,
       portOfDischarge:       si.portOfDischarge,
@@ -104,12 +125,12 @@ export async function POST(
       voyageNo:              si.voyageNumber ?? undefined,
       remarksToCarrier:      si.specialRemarks ?? undefined,
 
-      placeOfIssue:   "AUTO-GENERATED",
-      dateOfIssue:    new Date(),
+      // Legal / issuance
+      placeOfIssue:          "AUTO-GENERATED",
+      dateOfIssue:           new Date(),
 
-      containers: {
-        create: containerCreates
-      }
+      // Containers & cargo
+      containers: { create: containerCreates }
     },
     include: {
       containers: { include: { cargoes: true } }
@@ -130,7 +151,7 @@ export async function POST(
       userId:        booking.userId,
       bankAccountId: defaultBank?.id!,
       totalAmount:   0,
-      dueDate:       new Date(Date.now() + 30*24*60*60*1000),
+      dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       status:        "PENDING",
       description:   `Draft invoice for BL ${draft.documentNo}`,
     },
@@ -138,25 +159,18 @@ export async function POST(
   });
 
   // 7) Copy only relevant quotation lines into invoice lines
-  // a) get moved container numbers from the draft
   const movedContainerNos = draft.containers.map(c => c.containerNumber!);
-
-  // b) lookup their master records to get container types
-  const containers = await prismaClient.container.findMany({
+  const containersMaster = await prismaClient.container.findMany({
     where: { containerNo: { in: movedContainerNos } },
     select: { containerTypeIsoCode: true }
   });
-  const movedTypes = Array.from(new Set(containers.map(c => c.containerTypeIsoCode)));
-
-  // c) fetch all quotation lines
+  const movedTypes = Array.from(new Set(containersMaster.map(c => c.containerTypeIsoCode)));
   const allQuoteLines = await prismaClient.quotationLine.findMany({
     where: { quotationId: booking.quotationId }
   });
-  // d) filter to only those whose description mentions a moved type
   const relevant = allQuoteLines.filter(ql =>
     movedTypes.some(type => ql.description.includes(type))
   );
-  // e) insert those into invoice
   if (relevant.length) {
     await prismaClient.invoiceLine.createMany({
       data: relevant.map(q => ({
@@ -168,7 +182,6 @@ export async function POST(
         costCenter: q.costCenter
       }))
     });
-    // re-sum invoice
     const agg1 = await prismaClient.invoiceLine.aggregate({
       where: { invoiceId: invoice.id },
       _sum:  { amount: true }
@@ -195,7 +208,6 @@ export async function POST(
         costCenter: "Documentation"
       }
     });
-    // re-sum invoice total
     const agg2 = await prismaClient.invoiceLine.aggregate({
       where: { invoiceId: invoice.id },
       _sum:  { amount: true }

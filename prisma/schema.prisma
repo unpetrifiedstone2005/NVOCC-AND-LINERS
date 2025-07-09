@@ -1070,7 +1070,8 @@ model DeclarationLine {
 /// ─────────────────────────────────────────────────────────────────────────────
 
 model BLDraft {
-  documentNo   String       @id
+    id                    String       @id @default(uuid())
+  documentNo   String       
   UserId   String
   User     User             @relation("BLDraftCreatedBy", fields: [UserId], references: [id])
   bookingId       String
@@ -1171,8 +1172,9 @@ model BLDraft {
 
 model BLDraftContainer {
   id                 String     @id @default(uuid())
-  bLDraftId          String
-  bLDraft            BLDraft    @relation(fields: [bLDraftId], references: [documentNo], onDelete: Cascade)
+  bLDraftId            String
+  bLDraft              BLDraft       @relation(fields: [bLDraftId], references: [id], onDelete: Cascade)
+
   cargoes            BLDraftCargo[]
   containerNumber    String
   sealNumber         String?
@@ -1217,8 +1219,8 @@ model BLDraftCargo {
 
 model BLDraftVersion {
   id           String     @id @default(uuid())
-  draftNo      String
-  draft        BLDraft    @relation(fields: [draftNo], references: [documentNo], onDelete: Cascade)
+  draftNo              String
+  draft                BLDraft      @relation(fields: [draftNo], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
   refunds                 Refunded[]
 
@@ -1229,8 +1231,9 @@ model BLDraftVersion {
 
 model BLDraftComment {
   id           String     @id @default(uuid())
-  draftNo      String
-  draft        BLDraft    @relation(fields: [draftNo], references: [documentNo], onDelete: Cascade)
+  draftNo              String
+  draft                BLDraft      @relation(fields: [draftNo], references: [id], onDelete: Cascade)
+
 
   commenterId  String
   commenter    User       @relation("DraftCommenter", fields: [commenterId], references: [id], onDelete: Cascade)
