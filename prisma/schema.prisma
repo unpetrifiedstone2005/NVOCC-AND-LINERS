@@ -988,6 +988,10 @@ model EGM {
   bookingId        String      @unique
   booking          Booking     @relation("BookingToEGM", fields: [bookingId], references: [id], onDelete: Cascade)
 
+  blDraftVersionId   String           @unique
+  blDraftVersion     BLDraftVersion   @relation(fields: [blDraftVersionId], references: [id])
+
+
 
   /// Basic voyage info
   vesselName       String?
@@ -1204,7 +1208,7 @@ model DeclarationLine {
 /// ─────────────────────────────────────────────────────────────────────────────
 
 model BLDraft {
-    id                    String       @id @default(uuid())
+  id                    String       @id @default(uuid())
   documentNo   String       
   UserId   String
   User     User             @relation("BLDraftCreatedBy", fields: [UserId], references: [id])
@@ -1221,6 +1225,8 @@ model BLDraft {
 
   versions     BLDraftVersion[]
   comments     BLDraftComment[]
+
+
 
   // --- Routing & Schedule ---
   originDepot         String?   // Operational pickup (depot/terminal/ICD/CFS)
@@ -1360,6 +1366,7 @@ model BLDraftVersion {
   createdById  String?
   snapshot     Json 
   
+   egm          EGM?     
 }
 
 model BLDraftComment {
