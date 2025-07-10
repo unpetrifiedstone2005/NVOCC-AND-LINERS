@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }             from "zod";
 import { prismaClient }            from "@/app/lib/db";
+import { DeclarationType }         from "@prisma/client";
 
 // 1) Zod schema for each DG line
 const LineSchema = z.object({
@@ -44,20 +45,21 @@ export async function POST(
     throw err;
   }
 
-  // 2) find the SI for this booking
-  const si = await prismaClient.shippingInstruction.findUnique({
+  // 2) find the SI and booking.userId
+  const siWithBooking = await prismaClient.shippingInstruction.findUnique({
     where: { bookingId },
-    select: { id: true }
+    select: { id: true, booking: { select: { userId: true } } }
   });
-  if (!si) {
+  if (!siWithBooking) {
     return NextResponse.json({ error: "Shipping Instruction not found" }, { status: 404 });
   }
+  const { id: siId, booking: { userId } } = siWithBooking;
 
   // 3) create the DG declaration
   const declaration = await prismaClient.declaration.create({
     data: {
-      shippingInstructionId: si.id,
-      declarationType:      "DG",
+      shippingInstructionId: siId,
+      declarationType:      DeclarationType.DG,
       filingDate:           payload.filingDate ? new Date(payload.filingDate) : undefined,
       emergencyContact:     payload.emergencyContact,
       lines: {
@@ -78,19 +80,38 @@ export async function POST(
     include: { lines: true }
   });
 
-  // 4) append the DG Declaration Fee to the invoice
+  // 4) append the “DG Declaration Fee” to the **EXPORT** invoice
   try {
     const feeRate = await prismaClient.surchargeRate.findFirst({
       where: { surchargeDef: { name: "DG Declaration Fee" } },
       select: { amount: true, surchargeDefId: true }
     });
     if (feeRate) {
-      const invoice = await prismaClient.invoice.findUniqueOrThrow({
-        where: { bookingId }
+      // find or create the EXPORT‐leg invoice
+      const defaultBank = await prismaClient.bankAccount.findFirst({
+        where: { isActive: true },
+        select: { id: true }
       });
+      const exportInvoice = await prismaClient.invoice.findFirst({
+        where: { bookingId, leg: "EXPORT" }
+      }) ?? await prismaClient.invoice.create({
+        data: {
+          bookingId,
+          userId,
+          leg:           "EXPORT",
+          totalAmount:   0,
+          issuedDate:    new Date(),
+          dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          status:        "PENDING",
+          description:   "Export invoice",
+          bankAccountId: defaultBank?.id!
+        }
+      });
+
+      // create the fee line
       await prismaClient.invoiceLine.create({
         data: {
-          invoiceId:   invoice.id,
+          invoiceId:   exportInvoice.id,
           description: "DG Declaration Fee",
           amount:      feeRate.amount,
           reference:   feeRate.surchargeDefId,
@@ -98,17 +119,19 @@ export async function POST(
           costCenter:  "Documentation"
         }
       });
+
+      // re-aggregate total
       const agg = await prismaClient.invoiceLine.aggregate({
-        where: { invoiceId: invoice.id },
+        where: { invoiceId: exportInvoice.id },
         _sum:  { amount: true }
       });
       await prismaClient.invoice.update({
-        where: { id: invoice.id },
+        where: { id: exportInvoice.id },
         data:  { totalAmount: agg._sum.amount! }
       });
     }
   } catch {
-    // skip if invoice missing or fee undefined
+    // safe to ignore if invoice or feeDef missing
   }
 
   return NextResponse.json(declaration, { status: 201 });

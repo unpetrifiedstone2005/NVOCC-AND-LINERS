@@ -3,8 +3,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }             from "zod";
 import { prismaClient }            from "@/app/lib/db";
+import { DeclarationType }         from "@prisma/client";
 
-// 1) Zod schema for a customs declaration — no lines here
+// 1) Zod schema for a customs declaration
 const CustomsSchema = z.object({
   filingDate:       z.string().optional(),     // ISO date or omit
   value:            z.number().nonnegative(),  // declared shipment value
@@ -43,33 +44,51 @@ export async function POST(
     return NextResponse.json({ error: "SI not found for booking" }, { status: 404 });
   }
 
-  // 3) create the customs declaration (no lines field)
+  // 3) create the customs declaration
   const declaration = await prismaClient.declaration.create({
     data: {
       shippingInstructionId: si.id,
-      declarationType:      "CUSTOMS",
+      declarationType:      DeclarationType.CUSTOMS,
       filingDate:           payload.filingDate ? new Date(payload.filingDate) : undefined,
       value:                payload.value,
       currency:             payload.currency,
       dutiesAmount:         payload.dutiesAmount,
       emergencyContact:     payload.emergencyContact,
-      // <— no lines here, we dropped that optional field —
     }
   });
 
-  // 4) append a “Customs Brokerage Fee” to the Invoice
+  // 4) append a “Customs Brokerage Fee” to the **EXPORT** invoice
   try {
     const feeRate = await prismaClient.surchargeRate.findFirst({
       where: { surchargeDef: { name: "Customs Brokerage Fee" } },
       select: { amount: true, surchargeDefId: true }
     });
     if (feeRate) {
-      const invoice = await prismaClient.invoice.findUniqueOrThrow({
-        where: { bookingId }
+      // find-or-create the EXPORT invoice
+      const exportInvoice = await prismaClient.invoice.findFirst({
+        where: { bookingId, leg: "EXPORT" }
+      }) ?? await prismaClient.invoice.create({
+        data: {
+          bookingId,
+          // assume you fetch userId from booking or context
+          userId:        declaration.createdById!,  
+          leg:           "EXPORT",
+          totalAmount:   0,
+          issuedDate:    new Date(),
+          dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          status:        "PENDING",
+          description:   "Export invoice",
+          bankAccountId: (await prismaClient.bankAccount.findFirst({
+            where: { isActive: true },
+            select: { id: true }
+          }))!.id
+        }
       });
+
+      // create the fee line
       await prismaClient.invoiceLine.create({
         data: {
-          invoiceId:   invoice.id,
+          invoiceId:   exportInvoice.id,
           description: "Customs Brokerage Fee",
           amount:      feeRate.amount,
           reference:   feeRate.surchargeDefId,
@@ -77,17 +96,19 @@ export async function POST(
           costCenter:  "Customs"
         }
       });
+
+      // re-aggregate total
       const agg = await prismaClient.invoiceLine.aggregate({
-        where: { invoiceId: invoice.id },
+        where: { invoiceId: exportInvoice.id },
         _sum:  { amount: true }
       });
       await prismaClient.invoice.update({
-        where: { id: invoice.id },
+        where: { id: exportInvoice.id },
         data:  { totalAmount: agg._sum.amount! }
       });
     }
   } catch {
-    // invoice might not exist yet, or fee not defined—safe to ignore
+    // safe to ignore if invoice or feeDef missing
   }
 
   return NextResponse.json(declaration, { status: 201 });

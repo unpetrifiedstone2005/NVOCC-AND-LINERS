@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
-import { DeclarationStatus, DeclarationType } from "@prisma/client";
+import { DeclarationStatus, DeclarationType, Leg } from "@prisma/client";
 
 // --- Zod schemas for nested containers & cargo ---
 const PatchCargoSchema = z.object({
@@ -72,18 +72,21 @@ export async function PATCH(
     throw err;
   }
 
-  // 3) Load booking with qty & types
+  // 3) Load booking (for cut‐off & types)
   const booking = await prismaClient.booking.findUnique({
     where: { id: bookingId },
     select: {
-      containers: { select: { type: true, qty: true } }
+      siCutOffAt:  true,
+      userId:      true,
+      containers:  { select: { type: true, qty: true } }
     }
   });
   if (!booking) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
-  const maxAllowed = booking.containers.reduce((sum, bc) => sum + bc.qty, 0);
-  const allowedTypes = new Set(booking.containers.map(bc => bc.type));
+  const { siCutOffAt, userId, containers: booked } = booking;
+  const maxAllowed = booked.reduce((sum, bc) => sum + bc.qty, 0);
+  const allowedTypes = new Set(booked.map(bc => bc.type));
 
   // 4) Load CRO-released container numbers & types
   const croRows = await prismaClient.cROContainer.findMany({
@@ -98,11 +101,9 @@ export async function PATCH(
     }
   });
   const allowedNumbers = new Set(croRows.map(r => r.container.containerNo));
-  const typeByNumber = new Map<string,string>(
-    croRows.map(r => [r.container.containerNo, r.container.containerTypeIsoCode])
-  );
+  const typeByNumber = new Map(croRows.map(r => [r.container.containerNo, r.container.containerTypeIsoCode]));
 
-  // 5) Validate container changes if provided
+  // 5) Validate any container updates
   if (updates.containers) {
     if (updates.containers.length > croRows.length) {
       return NextResponse.json(
@@ -133,7 +134,7 @@ export async function PATCH(
   const existingSI = await prismaClient.shippingInstruction.findUnique({
     where: { bookingId },
     include: {
-      containers: { include: { cargoes: true } },
+      containers:   { include: { cargoes: true } },
       packingLists: { include: { items: true } }
     }
   });
@@ -188,11 +189,7 @@ export async function PATCH(
 
     // C) Packing-list updates
     if (updates.packingLists) {
-      // remove all existing
-      await tx.packingList.deleteMany({
-        where: { shippingInstructionId: existingSI.id }
-      });
-      // create new ones
+      await tx.packingList.deleteMany({ where: { shippingInstructionId: existingSI.id } });
       for (const pl of updates.packingLists) {
         await tx.packingList.create({
           data: {
@@ -212,7 +209,6 @@ export async function PATCH(
       }
     }
 
-    // D) Return full SI with updated children
     return tx.shippingInstruction.findUniqueOrThrow({
       where: { id: existingSI.id },
       include: {
@@ -222,32 +218,83 @@ export async function PATCH(
     });
   });
 
-  // 8) Determine declaration requirements
+  // 8) SI cut-off amendment fee (EXPORT leg)
+  const now = new Date();
+  if (siCutOffAt && now > siCutOffAt) {
+    const feeRate = await prismaClient.surchargeRate.findFirst({
+      where: { surchargeDef: { name: "SI Cut-off Amendment Fee" } },
+      select: { amount: true, surchargeDefId: true }
+    });
+    if (feeRate) {
+      // find or create EXPORT invoice
+      const defaultBank = await prismaClient.bankAccount.findFirst({
+        where: { isActive: true },
+        select: { id: true }
+      });
+      const exportInv = await prismaClient.invoice.findFirst({
+        where: { bookingId, leg: Leg.EXPORT }
+      }) ?? await prismaClient.invoice.create({
+        data: {
+          bookingId,
+          userId,
+          leg:           Leg.EXPORT,
+          totalAmount:   0,
+          issuedDate:    new Date(),
+          dueDate:       new Date(Date.now() + 30*24*60*60*1000),
+          status:        "PENDING",
+          description:   "Export invoice",
+          bankAccountId: defaultBank?.id!
+        }
+      });
+      // prevent duplicate fee
+      const exists = await prismaClient.invoiceLine.findFirst({
+        where: { invoiceId: exportInv.id, reference: feeRate.surchargeDefId }
+      });
+      if (!exists) {
+        await prismaClient.invoiceLine.create({
+          data: {
+            invoiceId:   exportInv.id,
+            description: "SI Cut-off Amendment Fee",
+            amount:      feeRate.amount,
+            reference:   feeRate.surchargeDefId,
+            glCode:      "6003-DOC",
+            costCenter:  "Documentation"
+          }
+        });
+        const agg = await prismaClient.invoiceLine.aggregate({
+          where: { invoiceId: exportInv.id },
+          _sum:  { amount: true }
+        });
+        await prismaClient.invoice.update({
+          where: { id: exportInv.id },
+          data:  { totalAmount: agg._sum.amount! }
+        });
+      }
+    }
+  }
+
+  // 9) Determine declarations
   const hasDG = updatedSI.containers.some(c =>
     c.cargoes.some(l => l.isDangerous)
   );
-  const dgDone = Boolean(
-    await prismaClient.declaration.findFirst({
-      where: {
-        shippingInstructionId: updatedSI.id,
-        declarationType:       DeclarationType.DG,
-        status:                DeclarationStatus.SUBMITTED
-      },
-      select: { id: true }
-    })
-  );
-  const customsDone = Boolean(
-    await prismaClient.declaration.findFirst({
-      where: {
-        shippingInstructionId: updatedSI.id,
-        declarationType:       DeclarationType.CUSTOMS,
-        status:                DeclarationStatus.SUBMITTED
-      },
-      select: { id: true }
-    })
-  );
+  const dgDone = Boolean(await prismaClient.declaration.findFirst({
+    where: {
+      shippingInstructionId: updatedSI.id,
+      declarationType:       DeclarationType.DG,
+      status:                DeclarationStatus.SUBMITTED
+    },
+    select: { id: true }
+  }));
+  const customsDone = Boolean(await prismaClient.declaration.findFirst({
+    where: {
+      shippingInstructionId: updatedSI.id,
+      declarationType:       DeclarationType.CUSTOMS,
+      status:                DeclarationStatus.SUBMITTED
+    },
+    select: { id: true }
+  }));
 
-  // 9) Return
+  // 10) Return
   return NextResponse.json({
     shippingInstruction:        updatedSI,
     requiresCustomsDeclaration: !customsDone,

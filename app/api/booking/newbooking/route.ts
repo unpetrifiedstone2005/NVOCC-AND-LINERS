@@ -3,7 +3,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
-import { DeclarationStatus, DeclarationType, InvoiceStatus } from "@prisma/client";
+import {
+  DeclarationStatus,
+  DeclarationType,
+  InvoiceStatus,
+  Leg
+} from "@prisma/client";
 
 // --- Zod schemas for nested containers & cargo ---
 const CargoSchema = z.object({
@@ -38,6 +43,7 @@ const CreateSISchema = z.object({
   specialRemarks:   z.string().optional(),
   containers:       z.array(ContainerSchema).min(1),
 });
+type CreateSIInput = z.infer<typeof CreateSISchema>;
 
 export async function POST(
   request: NextRequest,
@@ -51,7 +57,7 @@ export async function POST(
   }
 
   // 2) Parse & validate the request body
-  let data: z.infer<typeof CreateSISchema>;
+  let data: CreateSIInput;
   try {
     data = CreateSISchema.parse(await request.json());
   } catch (err) {
@@ -110,7 +116,7 @@ export async function POST(
             seals:           c.seals,
             marksAndNumbers: c.marksAndNumbers,
             hsCode:          c.hsCode,
-            cargo: {
+            cargoes: {
               create: c.cargo.map(line => ({
                 hsCode:       line.hsCode,
                 description:  line.description,
@@ -135,32 +141,67 @@ export async function POST(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 
-  // 7) Ensure a draft invoice exists for this booking
-  try {
-    // find a default active bank account for your company
-    const defaultBank = await prismaClient.bankAccount.findFirst({
-      where: { isActive: true }
-    });
-    if (!defaultBank) {
-      console.warn("No active bank account found; skipping invoice creation");
-    } else {
-      await prismaClient.invoice.upsert({
-        where: { bookingId },
-        create: {
-          bookingId:     bookingId,
-          userId:        booking.userId,
-          totalAmount:   0,
-          dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Net-30
-          status:        InvoiceStatus.PENDING,
-          description:   `Draft invoice for booking ${bookingId}`,
-          bankAccountId: defaultBank.id
-        },
-        update: {} // no-op if already exists
-      });
+  // 7) Find or create EXPORT‐leg draft invoice
+  const defaultBank = await prismaClient.bankAccount.findFirst({
+    where: { isActive: true },
+    select: { id: true }
+  });
+
+  const exportInvoice = await prismaClient.invoice.findFirst({
+    where: { bookingId, leg: Leg.EXPORT }
+  }) ?? await prismaClient.invoice.create({
+    data: {
+      bookingId,
+      userId:        booking.userId,
+      leg:           Leg.EXPORT,
+      totalAmount:   0,
+      issuedDate:    new Date(),
+      dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      status:        InvoiceStatus.PENDING,
+      description:   `Export invoice for booking ${bookingId}`,
+      bankAccountId: defaultBank?.id!
     }
-  } catch (e) {
-    console.warn("Failed to upsert draft invoice:", e);
+  });
+
+  // 8) Append SI Preparation Fee to EXPORT invoice
+  const siPrep = await prismaClient.surchargeRate.findFirst({
+    where: { surchargeDef: { name: "SI Preparation Fee" } },
+    select: { amount: true, surchargeDefId: true }
+  });
+  if (siPrep) {
+    await prismaClient.invoiceLine.create({
+      data: {
+        invoiceId:   exportInvoice.id,
+        description: "SI Preparation Fee",
+        amount:      siPrep.amount,
+        reference:   siPrep.surchargeDefId,
+        glCode:      "6003-DOC",
+        costCenter:  "Documentation"
+      }
+    });
+    const agg = await prismaClient.invoiceLine.aggregate({
+      where: { invoiceId: exportInvoice.id },
+      _sum:  { amount: true }
+    });
+    await prismaClient.invoice.update({
+      where: { id: exportInvoice.id },
+      data:  { totalAmount: agg._sum.amount! }
+    });
   }
 
-
+  // 9) Return SI + workflow flags
+  return NextResponse.json(
+    {
+      shippingInstruction:        si,
+      requiresCustomsDeclaration: !Boolean(await prismaClient.declaration.findFirst({
+        where: {
+          shippingInstructionId: si.id,
+          declarationType:       DeclarationType.CUSTOMS,
+          status:                DeclarationStatus.APPROVED
+        }
+      })),
+      requiresDGDeclaration
+    },
+    { status: 201 }
+  );
 }

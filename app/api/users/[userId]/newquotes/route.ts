@@ -1,4 +1,4 @@
-// app/api/quotations/[userId]/newquotes/route.ts
+// File: app/api/quotations/[userId]/newquotes/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }             from "zod";
@@ -8,16 +8,17 @@ const prismaClient = new PrismaClient();
 
 // 1) Shape of the “offer” JSON your front-end computes
 const OfferContainerSchema = z.object({
-  containerType: z.string(),
-  qty:           z.number().int().min(1),
-  baseRate:      z.string(),            // e.g. "1365.00"
-  surcharges:    z.array(z.string()),   // e.g. ["54.00","342.00"]
-  services:      z.array(z.object({     // any container-level add-ons
-                    serviceId: z.string(),
-                    qty:       z.number().int().min(1),
-                  })),
-  transitDays:   z.number().int().min(0),
-  total:         z.string(),
+  containerType:    z.string(),
+  qty:              z.number().int().min(1),
+  baseRate:         z.string(),            // e.g. "1365.00"
+  exportSurcharges: z.array(z.string()).optional().default([]),   // export‐leg fees
+  importSurcharges: z.array(z.string()).optional().default([]),   // import‐leg fees
+  services:         z.array(z.object({     // any container-level add-ons
+                      serviceId: z.string(),
+                      qty:       z.number().int().min(1),
+                    })),
+  transitDays:      z.number().int().min(0),
+  total:            z.string(),
 });
 const OfferSchema = z.object({
   currency:        z.string(),
@@ -122,7 +123,7 @@ export async function POST(
       },
     });
 
-    // 4.3 Snapshot one QuotationLine per baseRate + per surcharge
+    // 4.3 Snapshot one QuotationLine per baseRate + per surcharge (both legs)
     const quoteLines: Prisma.QuotationLineCreateManyInput[] = [];
     for (const o of input.offer.containerOffers) {
       // base freight row
@@ -135,13 +136,27 @@ export async function POST(
         costCenter:  "Freight",
         createdAt:   new Date()
       });
-      // each surcharge row
-      for (const amt of o.surcharges) {
+
+      // export-leg surcharges
+      for (const amt of o.exportSurcharges) {
         quoteLines.push({
           quotationId: quotation.id,
-          description: `${o.containerType} surcharge`,
+          description: `${o.containerType} export surcharge`,
           amount:      new Prisma.Decimal(amt),
-          reference:   "SURCHARGE",
+          reference:   "SURCHARGE_EXPORT",
+          glCode:      "4002-SUR",
+          costCenter:  "Surcharge",
+          createdAt:   new Date()
+        });
+      }
+
+      // import-leg surcharges
+      for (const amt of o.importSurcharges) {
+        quoteLines.push({
+          quotationId: quotation.id,
+          description: `${o.containerType} import surcharge`,
+          amount:      new Prisma.Decimal(amt),
+          reference:   "SURCHARGE_IMPORT",
           glCode:      "4002-SUR",
           costCenter:  "Surcharge",
           createdAt:   new Date()

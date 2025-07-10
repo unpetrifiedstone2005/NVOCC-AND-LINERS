@@ -21,8 +21,8 @@ const CargoSchema = z.object({
 const ContainerSchema = z.object({
   containerNumber: z.string(),
   seals:           z.array(z.string()).optional().default([]),
-  marksAndNumbers: z.string().optional(),
-  hsCode:          z.string().optional(),
+  marksAndNumbers: z.string().optional().nullable(),
+  hsCode:          z.string().optional().nullable(),
   cargo:           z.array(CargoSchema).min(1),
 });
 
@@ -33,7 +33,7 @@ const PackingListItemSchema = z.object({
   quantity:        z.number().int().nonnegative(),
   netWeight:       z.number().nonnegative().optional(),
   grossWeight:     z.number().nonnegative().optional(),
-  marksAndNumbers: z.string().optional(),
+  marksAndNumbers: z.string().optional().nullable(),
 });
 
 const PackingListSchema = z.object({
@@ -47,9 +47,9 @@ const CreateSISchema = z.object({
   portOfLoading:    z.string().min(1),
   portOfDischarge:  z.string().min(1),
   finalDestination: z.string().min(1),
-  vesselName:       z.string().optional(),
-  voyageNumber:     z.string().optional(),
-  specialRemarks:   z.string().optional(),
+  vesselName:       z.string().optional().nullable(),
+  voyageNumber:     z.string().optional().nullable(),
+  specialRemarks:   z.string().optional().nullable(),
   containers:       z.array(ContainerSchema).min(1),
   packingLists:     z.array(PackingListSchema).optional()
 });
@@ -87,10 +87,7 @@ export async function POST(
       id: true,
       userId: true,
       containers: {
-        select: {
-          type: true,
-          qty:  true
-        }
+        select: { type: true, qty: true }
       }
     }
   });
@@ -109,7 +106,7 @@ export async function POST(
     );
   }
 
-  // 5) Load CRO-released empties for this booking
+  // 5) Load CRO‐released empties for this booking
   const croRows = await prismaClient.cROContainer.findMany({
     where: { cro: { bookingId } },
     select: {
@@ -143,57 +140,51 @@ export async function POST(
     }
   }
 
-  // 7) Detect DG cargo
+  // 7) Detect if any DG cargo present
   const requiresDGDeclaration = data.containers.some(c =>
     c.cargo.some(line => line.isDangerous)
   );
 
   // 8) Create the SI with nested containers & cargo
-  let si;
-  try {
-    si = await prismaClient.shippingInstruction.create({
-      data: {
-        bookingId,
-        consignee:        data.consignee,
-        placeOfReceipt:   data.placeOfReceipt,
-        portOfLoading:    data.portOfLoading,
-        portOfDischarge:  data.portOfDischarge,
-        finalDestination: data.finalDestination,
-        vesselName:       data.vesselName,
-        voyageNumber:     data.voyageNumber,
-        specialRemarks:   data.specialRemarks,
-        containers: {
-          create: data.containers.map(c => ({
-            containerNumber: c.containerNumber,
-            seals:           c.seals,
-            marksAndNumbers: c.marksAndNumbers,
-            hsCode:          c.hsCode,
-            cargoes: {
-              create: c.cargo.map(line => ({
-                hsCode:       line.hsCode,
-                description:  line.description,
-                grossWeight:  line.grossWeight,
-                netWeight:    line.netWeight,
-                noOfPackages: line.noOfPackages,
-                isDangerous:  line.isDangerous,
-                unNumber:     line.unNumber,
-                imoClass:     line.imoClass,
-                packingGroup: line.packingGroup,
-              }))
-            }
-          }))
-        }
-      },
-      include: {
-        containers: { include: { cargoes: true } }
+  const si = await prismaClient.shippingInstruction.create({
+    data: {
+      bookingId,
+      consignee:        data.consignee,
+      placeOfReceipt:   data.placeOfReceipt,
+      portOfLoading:    data.portOfLoading,
+      portOfDischarge:  data.portOfDischarge,
+      finalDestination: data.finalDestination,
+      vesselName:       data.vesselName,
+      voyageNumber:     data.voyageNumber,
+      specialRemarks:   data.specialRemarks,
+      containers: {
+        create: data.containers.map(c => ({
+          containerNumber: c.containerNumber,
+          seals:           c.seals,
+          marksAndNumbers: c.marksAndNumbers,
+          hsCode:          c.hsCode,
+          cargoes: {
+            create: c.cargo.map(line => ({
+              hsCode:       line.hsCode,
+              description:  line.description,
+              grossWeight:  line.grossWeight,
+              netWeight:    line.netWeight,
+              noOfPackages: line.noOfPackages,
+              isDangerous:  line.isDangerous,
+              unNumber:     line.unNumber,
+              imoClass:     line.imoClass,
+              packingGroup: line.packingGroup,
+            }))
+          }
+        }))
       }
-    });
-  } catch (err) {
-    console.error("Error creating SI:", err);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
+    },
+    include: {
+      containers: { include: { cargoes: true } }
+    }
+  });
 
-  // 8a) Create packing-list records if provided
+  // 8a) Create packing‐list records if provided
   if (data.packingLists) {
     for (const pl of data.packingLists) {
       await prismaClient.packingList.create({
@@ -214,60 +205,65 @@ export async function POST(
     }
   }
 
-  // 9) Upsert a draft Invoice for this booking
-  try {
-    const defaultBank = await prismaClient.bankAccount.findFirst({ where: { isActive: true } });
-    if (defaultBank) {
-      await prismaClient.invoice.upsert({
-        where: { bookingId },
-        create: {
-          bookingId:     booking.id,
-          userId:        booking.userId,
-          totalAmount:   0,
-          dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          status:        "PENDING",
-          description:   `Draft invoice for booking ${booking.id}`,
-          bankAccountId: defaultBank.id
-        },
-        update: {}
-      });
-    }
-  } catch (e) {
-    console.warn("Failed to upsert draft invoice:", e);
+  // --- NOW: invoice the SI Preparation Fee on EXPORT leg ---
+
+  // 9) Find or create the EXPORT‐leg invoice
+  let exportInvoice = await prismaClient.invoice.findFirst({
+    where: { bookingId, leg: "EXPORT" }
+  });
+  if (!exportInvoice) {
+    const defaultBank = await prismaClient.bankAccount.findFirst({
+      where: { isActive: true },
+      select: { id: true }
+    });
+    exportInvoice = await prismaClient.invoice.create({
+      data: {
+        userId:        booking.userId,
+        bookingId,
+        leg:           "EXPORT",
+        totalAmount:   0,
+        issuedDate:    new Date(),
+        dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        status:        "PENDING",
+        description:   "Export invoice",
+        bankAccountId: defaultBank?.id!
+      }
+    });
   }
 
-  // 10) Append the SI Preparation Fee
+  // 10) Add the SI Preparation Fee line
   try {
     const siPrep = await prismaClient.surchargeRate.findFirst({
       where: { surchargeDef: { name: "SI Preparation Fee" } },
       select: { amount: true, surchargeDefId: true }
     });
     if (siPrep) {
-      const invoice = await prismaClient.invoice.findUniqueOrThrow({ where: { bookingId } });
       await prismaClient.invoiceLine.create({
         data: {
-          invoiceId:   invoice.id,
+          invoiceId:   exportInvoice.id,
           description: "SI Preparation Fee",
           amount:      siPrep.amount,
           reference:   siPrep.surchargeDefId,
           glCode:      "6003-DOC",
-          costCenter:  "Documentation",
+          costCenter:  "Documentation"
         }
       });
-      const agg = await prismaClient.invoiceLine.aggregate({
-        where: { invoiceId: invoice.id },
-        _sum:  { amount: true }
-      });
-      await prismaClient.invoice.update({
-        where: { id: invoice.id },
-        data:  { totalAmount: agg._sum.amount! }
-      });
     }
-  } catch (e) {
-    console.warn("Skipping SI prep fee:", e);
+  } catch {
+    // skip if missing
   }
 
-  // 11) Check for existing CUSTOMS declaration
+  // 11) Re‐aggregate totalAmount from export‐leg lines
+  const agg = await prismaClient.invoiceLine.aggregate({
+    where: { invoiceId: exportInvoice.id },
+    _sum:  { amount: true }
+  });
+  await prismaClient.invoice.update({
+    where: { id: exportInvoice.id },
+    data:  { totalAmount: agg._sum.amount ?? 0 }
+  });
+
+  // 12) Check for existing CUSTOMS declaration
   const customsDone = Boolean(
     await prismaClient.declaration.findFirst({
       where: {
@@ -279,12 +275,16 @@ export async function POST(
     })
   );
 
-  // 12) Return the SI plus workflow flags
+  // 13) Return SI + workflow flags + exportInvoice
   return NextResponse.json(
     {
       shippingInstruction:        si,
       requiresCustomsDeclaration: !customsDone,
       requiresDGDeclaration,
+      exportInvoice:              await prismaClient.invoice.findUnique({
+        where: { id: exportInvoice.id },
+        include: { lines: true }
+      })
     },
     { status: 201 }
   );

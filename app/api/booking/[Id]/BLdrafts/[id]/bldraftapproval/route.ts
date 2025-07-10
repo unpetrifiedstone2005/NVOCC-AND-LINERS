@@ -28,7 +28,8 @@ export async function POST(
         select: {
           blCutOffAt:   true,
           quotationId:  true,
-          containers:   true
+          containers:   true,
+          userId:       true
         }
       }
     }
@@ -74,8 +75,10 @@ export async function POST(
       data:  { status: DraftStatus.APPROVED }
     });
 
-    // c) invoice recalculation
-    const inv = await tx.invoice.findFirstOrThrow({ where: { bookingId } });
+    // c) invoice recalculation on EXPORT leg
+    const inv = await tx.invoice.findFirstOrThrow({
+      where: { bookingId, leg: "EXPORT" }
+    });
 
     // remove old freight & surcharge lines
     await tx.invoiceLine.deleteMany({
@@ -95,7 +98,7 @@ export async function POST(
       }
     });
 
-    // rebuild freight & FREIGHT-scope surcharges
+    // rebuild base freight & FREIGHT-scope surcharges
     for (const bc of containers) {
       const qty  = bc.qty;
       const type = bc.type;
@@ -120,7 +123,7 @@ export async function POST(
         select: { ratePerTeu: true }
       });
 
-      // base freight
+      // base freight line
       const baseAmt = tariff.ratePerTeu.toNumber() * ct.teuFactor * qty;
       await tx.invoiceLine.create({
         data: {
@@ -133,7 +136,7 @@ export async function POST(
         }
       });
 
-      // FREIGHT-scope surcharges
+      // FREIGHT-scope surcharge lines
       const rates = await tx.surchargeRate.findMany({
         where: { containerTypeIsoCode: type },
         include: { surchargeDef: true }

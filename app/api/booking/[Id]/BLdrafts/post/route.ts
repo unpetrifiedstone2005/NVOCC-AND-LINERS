@@ -14,26 +14,26 @@ export async function POST(
     return NextResponse.json({ error: "Invalid bookingId" }, { status: 400 });
   }
 
-  // 1) Load booking with all needed scalar fields + containers
+  // 1) Load booking with needed fields
   const booking = await prismaClient.booking.findUnique({
     where: { id: bookingId },
     select: {
-      userId:          true,
-      quotationId:     true,
-      pickupOption:    true,
-      deliveryOption:  true,
-      departureDate:   true,
-      via1:            true,
-      via2:            true,
-      remarks:         true,
-      containers:      true
+      userId:         true,
+      quotationId:    true,
+      pickupOption:   true,
+      deliveryOption: true,
+      departureDate:  true,
+      via1:           true,
+      via2:           true,
+      remarks:        true,
+      containers:     true
     }
   });
   if (!booking) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
-  // 2) Load latest SI, including containers + cargoes
+  // 2) Load SI with containers & cargo
   const si = await prismaClient.shippingInstruction.findUnique({
     where: { bookingId },
     include: {
@@ -63,23 +63,23 @@ export async function POST(
     return NextResponse.json({ error: "Shipping Instruction not found" }, { status: 404 });
   }
 
-  // 3) Build nested create data for B/L containers & cargo
+  // 3) Prepare nested container & cargo create data
   const containerCreates = si.containers.map(c => ({
-    containerNumber:    c.containerNumber!,
-    sealNumber:         c.seals.join(","),
-    sizeType:           null,
-    kindOfPackages:     c.marksAndNumbers,
-    noOfPackages:       null,
-    descriptionOfGoods: null,
-    netWeightKg:        null,
-    grossWeightKg:      null,
-    measurementsM3:     null,
+    containerNumber:      c.containerNumber!,
+    sealNumber:           c.seals.join(","),
+    sizeType:             null,
+    kindOfPackages:       c.marksAndNumbers,
+    noOfPackages:         null,
+    descriptionOfGoods:   null,
+    netWeightKg:          null,
+    grossWeightKg:        null,
+    measurementsM3:       null,
     cargoes: {
       create: c.cargoes.map(cg => ({
         description:           cg.description,
         hsCode:                cg.hsCode,
-        grossWeight:           cg.grossWeight !== null ? cg.grossWeight.toNumber() : null,
-        netWeight:             cg.netWeight   !== null ? cg.netWeight.toNumber()   : null,
+        grossWeight:           cg.grossWeight?.toNumber() ?? null,
+        netWeight:             cg.netWeight?.toNumber() ?? null,
         noOfPackages:          cg.noOfPackages ?? null,
         marksAndNumbers:       null,
         outerPacking:          null,
@@ -94,43 +94,33 @@ export async function POST(
     }
   }));
 
-  // 4) Create the B/L draft, back-filling optional fields from booking & SI
+  // 4) Create the B/L draft
   const draft = await prismaClient.bLDraft.create({
     data: {
-      documentNo:    uuidv4(),
-      documentId:    uuidv4(),
-      UserId:        booking.userId,
+      documentNo:             uuidv4(),
+      documentId:             uuidv4(),
+      UserId:                 booking.userId,
       bookingId,
-
-      // Routing & schedule
-      pickupType:    booking.pickupOption,
-      deliveryType:  booking.deliveryOption,
-      scheduleDate:  booking.departureDate,
-      via1:          booking.via1,
-      via2:          booking.via2,
-      remarks:       booking.remarks,
-
-      // Parties & references
-      shipper:               si.consignee,
-      consignee:             si.consignee,
-      notifyParty:           si.notifyParty ?? undefined,
-      additionalNotifyParty: si.notifyParty ?? undefined,
-
-      // Transport details
-      placeOfReceipt:        si.placeOfReceipt ?? undefined,
-      portOfLoading:         si.portOfLoading,
-      portOfDischarge:       si.portOfDischarge,
-      finalDestination:      si.finalDestination ?? undefined,
-      vesselOrAircraft:      si.vesselName ?? undefined,
-      voyageNo:              si.voyageNumber ?? undefined,
-      remarksToCarrier:      si.specialRemarks ?? undefined,
-
-      // Legal / issuance
-      placeOfIssue:          "AUTO-GENERATED",
-      dateOfIssue:           new Date(),
-
-      // Containers & cargo
-      containers: { create: containerCreates }
+      pickupType:             booking.pickupOption,
+      deliveryType:           booking.deliveryOption,
+      scheduleDate:           booking.departureDate,
+      via1:                   booking.via1,
+      via2:                   booking.via2,
+      remarks:                booking.remarks,
+      shipper:                si.consignee,
+      consignee:              si.consignee,
+      notifyParty:            si.notifyParty ?? undefined,
+      additionalNotifyParty:  si.notifyParty ?? undefined,
+      placeOfReceipt:         si.placeOfReceipt ?? undefined,
+      portOfLoading:          si.portOfLoading,
+      portOfDischarge:        si.portOfDischarge,
+      finalDestination:       si.finalDestination ?? undefined,
+      vesselOrAircraft:       si.vesselName ?? undefined,
+      voyageNo:               si.voyageNumber ?? undefined,
+      remarksToCarrier:       si.specialRemarks ?? undefined,
+      placeOfIssue:           "AUTO-GENERATED",
+      dateOfIssue:            new Date(),
+      containers:             { create: containerCreates }
     },
     include: {
       containers: { include: { cargoes: true } }
@@ -143,38 +133,46 @@ export async function POST(
     select: { id: true }
   });
 
-  // 6) Upsert draft invoice with bankAccountId
-  let invoice = await prismaClient.invoice.upsert({
-    where: { bookingId },
-    create: {
+  // 6) Find or create the EXPORT‐leg invoice
+  const exportInvoice = await prismaClient.invoice.findFirst({
+    where: { bookingId, leg: "EXPORT" }
+  }) ?? await prismaClient.invoice.create({
+    data: {
       bookingId,
       userId:        booking.userId,
-      bankAccountId: defaultBank?.id!,
+      leg:           "EXPORT",
       totalAmount:   0,
+      issuedDate:    new Date(),
       dueDate:       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       status:        "PENDING",
       description:   `Draft invoice for BL ${draft.documentNo}`,
-    },
-    update: {}
+      bankAccountId: defaultBank?.id!
+    }
   });
 
-  // 7) Copy only relevant quotation lines into invoice lines
-  const movedContainerNos = draft.containers.map(c => c.containerNumber!);
-  const containersMaster = await prismaClient.container.findMany({
-    where: { containerNo: { in: movedContainerNos } },
+  // 7) Copy only **export‐leg** quotation lines into the EXPORT invoice
+  const movedNos = draft.containers.map(c => c.containerNumber!);
+  const typeRows = await prismaClient.container.findMany({
+    where: { containerNo: { in: movedNos } },
     select: { containerTypeIsoCode: true }
   });
-  const movedTypes = Array.from(new Set(containersMaster.map(c => c.containerTypeIsoCode)));
+  const types = Array.from(new Set(typeRows.map(r => r.containerTypeIsoCode)));
+
+  // fetch all quotation lines
   const allQuoteLines = await prismaClient.quotationLine.findMany({
     where: { quotationId: booking.quotationId }
   });
-  const relevant = allQuoteLines.filter(ql =>
-    movedTypes.some(type => ql.description.includes(type))
+
+  // filter to only base freight and export surcharges
+  const exportQuoteLines = allQuoteLines.filter(ql =>
+    types.some(t => ql.description.includes(t)) &&
+    (ql.reference === "BASE_FREIGHT" || ql.reference === "SURCHARGE_EXPORT")
   );
-  if (relevant.length) {
+
+  if (exportQuoteLines.length) {
     await prismaClient.invoiceLine.createMany({
-      data: relevant.map(q => ({
-        invoiceId:  invoice.id,
+      data: exportQuoteLines.map(q => ({
+        invoiceId:  exportInvoice.id,
         description:q.description,
         amount:     q.amount.toNumber(),
         reference:  q.reference,
@@ -182,45 +180,45 @@ export async function POST(
         costCenter: q.costCenter
       }))
     });
-    const agg1 = await prismaClient.invoiceLine.aggregate({
-      where: { invoiceId: invoice.id },
+    const sum1 = await prismaClient.invoiceLine.aggregate({
+      where: { invoiceId: exportInvoice.id },
       _sum:  { amount: true }
     });
-    invoice = await prismaClient.invoice.update({
-      where: { id: invoice.id },
-      data:  { totalAmount: agg1._sum.amount! }
+    await prismaClient.invoice.update({
+      where: { id: exportInvoice.id },
+      data:  { totalAmount: sum1._sum.amount! }
     });
   }
 
-  // 8) Append B/L Generation Fee
-  const feeRate = await prismaClient.surchargeRate.findFirst({
+  // 8) Append B/L Generation Fee to EXPORT invoice
+  const fee = await prismaClient.surchargeRate.findFirst({
     where: { surchargeDef: { name: "B/L Generation Fee" } },
     select: { amount: true, surchargeDefId: true }
   });
-  if (feeRate) {
+  if (fee) {
     await prismaClient.invoiceLine.create({
       data: {
-        invoiceId:  invoice.id,
+        invoiceId:  exportInvoice.id,
         description:"B/L Generation Fee",
-        amount:     feeRate.amount,
-        reference:  feeRate.surchargeDefId,
+        amount:     fee.amount,
+        reference:  fee.surchargeDefId,
         glCode:     "6003-DOC",
         costCenter: "Documentation"
       }
     });
-    const agg2 = await prismaClient.invoiceLine.aggregate({
-      where: { invoiceId: invoice.id },
+    const sum2 = await prismaClient.invoiceLine.aggregate({
+      where: { invoiceId: exportInvoice.id },
       _sum:  { amount: true }
     });
-    invoice = await prismaClient.invoice.update({
-      where: { id: invoice.id },
-      data:  { totalAmount: agg2._sum.amount! }
+    await prismaClient.invoice.update({
+      where: { id: exportInvoice.id },
+      data:  { totalAmount: sum2._sum.amount! }
     });
   }
 
   // 9) Return draft & invoice total
   return NextResponse.json(
-    { draft, invoiceTotal: invoice.totalAmount },
+    { draft, invoiceTotal: exportInvoice.totalAmount },
     { status: 201 }
   );
 }

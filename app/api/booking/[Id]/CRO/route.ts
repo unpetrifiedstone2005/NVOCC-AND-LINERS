@@ -1,12 +1,12 @@
-// app/api/bookings/[bookingId]/release-order/route.ts
+// File: app/api/bookings/[bookingId]/release-order/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { z, ZodError }             from "zod";
-import { prismaClient }            from "@/app/lib/db";
-import { ContainerStatus }         from "@prisma/client";
+import { z, ZodError }              from "zod";
+import { prismaClient }             from "@/app/lib/db";
+import { ContainerStatus }          from "@prisma/client";
 
 const CreateCROSchema = z.object({
-  releasedToType: z.enum(["TRUCKER","SHIPPER","OTHER"]),
+  releasedToType: z.enum(["TRUCKER", "SHIPPER", "OTHER"]),
   releasedToId:   z.string().min(1),
   documents: z
     .array(z.object({
@@ -41,17 +41,13 @@ export async function POST(
   });
   const depotUnlocode = booking.startLocation;
 
-  // 3) Lookup the applicable detention term
+  // 3) Lookup the applicable detention term and snapshot its values
   const term = await prismaClient.detentionTerm.findFirst({
     where: {
       AND: [
         { effectiveFrom: { lte: new Date() } },
         { OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }] },
-        { OR: [
-            { depotId: depotUnlocode },
-            { depotId: null }
-          ]
-        }
+        { OR: [{ depotId: depotUnlocode }, { depotId: null }] }
       ]
     },
     orderBy: [
@@ -59,10 +55,13 @@ export async function POST(
       { effectiveFrom: 'desc' }
     ]
   });
-  const freeDays = term?.freeDays ?? 0;
-  const detentionTermId = term?.id;
 
-  // 4) Fetch non-SOC container lines
+  const freeDays        = term?.freeDays       ?? 0;
+  const detentionTermId = term?.id;
+  const ratePerDay      = term?.ratePerDay     ?? 0;
+  const currency        = term?.currency       ?? "USD";
+
+  // 4) Fetch non-SOC (carrier-owned) container lines to allocate
   const lines = await prismaClient.bookingContainer.findMany({
     where: { bookingId, shipperOwned: false },
     select: { type: true, qty: true }
@@ -89,7 +88,7 @@ export async function POST(
     toAllocate.push(...available.map(c => c.id));
   }
 
-  // 6) Transaction: mark ALLOCATED + create CRO (+ docs)
+  // 6) Transaction: mark containers ALLOCATED + create the CRO with detention snapshots
   const [_, cro] = await prismaClient.$transaction([
     prismaClient.container.updateMany({
       where: { id: { in: toAllocate } },
@@ -101,8 +100,13 @@ export async function POST(
         releasedToType:   input.releasedToType,
         releasedToId:     input.releasedToId,
         depotUnlocode,
+
+        // --- snapshot detention terms ---
         freeDays,
         detentionTermId,
+        ratePerDay,
+        currency,
+
         releasedContainers: {
           create: toAllocate.map(containerId => ({ containerId }))
         },
