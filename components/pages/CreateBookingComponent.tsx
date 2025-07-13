@@ -372,13 +372,13 @@ const handleAddContainer = () => {
     setScheduleResults([]); setSelectedScheduleId(null); setHasLookedUp(false);
   };
 
-  const sectionStyle = "max-w-[1600px] mx-auto bg-[#0A1A2F] border-2 border-white rounded-xl p-8 mb-8";
+  const sectionStyle = "bg-[#0A1A2F] border-2 border-white rounded-xl p-8 mb-8";
   const navButtonStyle = "bg-white rounded-xl px-4 py-2 font-bold hover:bg-gray-300 transition";
 
   return (
-    <div className="font-bold text-[#faf9f6] p-6">
+    <div className="font-bold text-[#faf9f6] p-6 max-w-[1600px] mx-auto">
       {/* Header */}
-      <div className="inline-flex items-center space-x-3 text-2xl bg-[#0A1A2F] border-2 border-white rounded-xl p-4 mb-8">
+      <div className="inline-flex items-center space-x-3 text-2xl bg-[#0A1A2F] border-2 border-white rounded-xl p-4 mb-8 ">
         <Package size={32} /><span>NEW BOOKING REQUEST</span>
       </div>
 

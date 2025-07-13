@@ -3,6 +3,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
+import { getServerSession }         from "next-auth/next";
+import { authOptions }              from "@/app/lib/auth"; 
 import {
   DeclarationStatus,
   DeclarationType,
@@ -49,6 +51,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { bookingId: string } }
 ) {
+    
+   const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
   const { bookingId } = params;
 
   // 1) Validate bookingId format
