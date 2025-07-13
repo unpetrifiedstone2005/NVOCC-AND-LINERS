@@ -18,12 +18,10 @@ const handler = NextAuth({
         });
 
         if (user && await bcrypt.compare(credentials.password, user.hashedPassword)) {
-          // Optionally, you can ensure the role matches allowed values
-          // (user.role as Role) guarantees type
           return {
             id: user.id,
             email: user.email,
-            role: user.role as Role,   // <-- USE user.role, CAST AS Role TYPE
+            role: user.role as Role,
             firstName: user.firstName,
             lastName: user.lastName,
           };
@@ -33,10 +31,17 @@ const handler = NextAuth({
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
+
+  // 👇 CUSTOM PAGE CONFIG
+  pages: {
+    signIn: "/auth/login", // 👈 your custom login route
+    error: "/auth/login",  // (optional) redirect errors to same page
+  },
+
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role as Role;   // Attach actual user's role to token
+        token.role = user.role as Role;
         token.id = user.id;
         token.email = user.email;
         token.firstName = user.firstName;
@@ -46,7 +51,7 @@ const handler = NextAuth({
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.role = token.role as Role;     // Attach to session.user
+        session.user.role = token.role as Role;
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.firstName = token.firstName as string;

@@ -202,13 +202,13 @@ model User {
   role           Role                 @default(CLIENT)
   firstName      String
   lastName       String
-  countryCode    String               @db.Char(2)
+  countryCode    String               @db.Char(3)
   phoneNumber    String
-  companyName    String?
+  companyName    String
   vatNumber      String?
   streetAddress  String
   city           String
-  postalCode     String
+  postalCode     String?
   country        String
   createdAt      DateTime             @default(now())
 

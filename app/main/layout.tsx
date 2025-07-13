@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { signIn, signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import {
   Search,
@@ -51,7 +52,7 @@ const menuData: MenuItem[] = [
     label: "BOOK",
     icon: <Book size={24} />,
     sub: [
-      { label: "CREATE BOOKING", key: "book_new", pathPattern: "/main/book/new" },
+      { label: "CREATE BOOKING", key: "book_new", pathPattern: "/main/book/createbooking" },
       { label: "BOOKING TEMPLATES", key: "book_templates", pathPattern: "/main/book/templates" },
       { label: "MY BOOKINGS", key: "book_my", pathPattern: "/main/book/mybookings" },
       { label: "BOOKING AMENDMENTS", key: "book_amendments", pathPattern: "/main/book/amendments" },
@@ -135,7 +136,8 @@ export default function MainLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter()
   const pathname = usePathname();
-
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -169,6 +171,27 @@ export default function MainLayout({
       setSidebarJustOpened(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    // If user menu isn’t open, no need to check anything
+    if (!userMenuOpen) return;
+
+    const target = event.target;
+    // event.target can be null or not an element, so guard & narrow:
+    if (!(target instanceof HTMLElement)) return;
+
+    // If click happened outside any element with class "relative", close the menu
+    if (!target.closest('.relative')) {
+      setUserMenuOpen(false);
+    }
+  };
+
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside);
+  };
+}, [userMenuOpen]);
 
   const handleMenuClick = (key: string) => {
     if (!isOpen) {
@@ -323,9 +346,89 @@ export default function MainLayout({
           </button>
         </div>
 
-        <button className="uppercase bg-[#105cb8] text-lg hover:bg-[#022e63] hover:text-cyan-300 rounded-2xl  text-white shadow  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold hover:font-bold ">
-          log in
-        </button>
+       {session?.user ? (
+         <div className="relative">
+           <button
+             onClick={() => setUserMenuOpen(!userMenuOpen)}
+             className="flex items-center gap-3 bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl text-white hover:text-[#00FFFF] shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-4 py-2 font-bold w-full"
+           >
+             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-black font-bold text-lg">
+               {session.user.firstName?.charAt(0) || 'U'}
+             </div>
+             <span className="uppercase">Hello {session.user.firstName}</span>
+             <ChevronDown size={16} className={`transition-transform duration-300 ${userMenuOpen ? 'rotate-180' : ''}`} />
+           </button>
+           
+           <div className={`absolute right-0 top-full mt-2 w-full bg-white rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] border-4 border-black z-50 transition-all duration-300 ease-in-out origin-top ${
+             userMenuOpen 
+               ? 'opacity-100 scale-y-100 translate-y-0' 
+               : 'opacity-0 scale-y-0 -translate-y-2 pointer-events-none'
+           }`}>
+             <div className="py-2">
+               <button
+                 onClick={() => {
+                   setUserMenuOpen(false);
+                   // Add your personal information handler here
+                 }}
+                 className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200"
+               >
+                 <div className="w-4 h-4 bg-gray-400 rounded"></div>
+                 Personal Information
+               </button>
+               <button
+                 onClick={() => {
+                   setUserMenuOpen(false);
+                   // Add your account settings handler here
+                 }}
+                 className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200"
+               >
+                 <div className="w-4 h-4 bg-gray-400 rounded"></div>
+                 Account Settings
+               </button>
+               <button
+                 onClick={() => {
+                   setUserMenuOpen(false);
+                   // Add your company details handler here
+                 }}
+                 className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200"
+               >
+                 <div className="w-4 h-4 bg-gray-400 rounded"></div>
+                 Company Details
+               </button>
+               {session.user.role !== 'CLIENT' && (
+                 <button
+                   onClick={() => {
+                     setUserMenuOpen(false);
+                     // Add your user list handler here
+                   }}
+                   className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200"
+                 >
+                   <div className="w-4 h-4 bg-gray-400 rounded"></div>
+                   User List
+                 </button>
+               )}
+               <hr className="my-2 border-gray-200" />
+               <button
+                 onClick={() => {
+                   setUserMenuOpen(false);
+                   signOut();
+                 }}
+                 className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200"
+               >
+                 <div className="w-4 h-4 bg-gray-400 rounded"></div>
+                 Logout
+               </button>
+             </div>
+           </div>
+         </div>
+       ) : (
+         <button 
+           onClick={() => signIn()}
+           className="uppercase bg-[#105cb8] text-lg hover:bg-[#022e63] hover:text-cyan-300 rounded-2xl text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold">
+           log in
+         </button>
+       )}
+         
       </div>
 
       {/* Sidebar + toggle */}
