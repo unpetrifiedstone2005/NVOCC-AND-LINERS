@@ -4,8 +4,8 @@ import { prismaClient } from "@/app/lib/db";
 import { ContainerGroup } from "@prisma/client";
 
 const CreateContainerTypeSchema = z.object({
-  isoCode:           z.string().min(1),
-  name:              z.string().min(1),
+  isoCode:           z.string(),
+  name:              z.string(),
   lengthMm:          z.number().int().positive(),
   widthMm:           z.number().int().positive(),
   heightMm:          z.number().int().positive(),

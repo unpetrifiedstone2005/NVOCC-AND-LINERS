@@ -215,7 +215,7 @@ export function ServicesInfoComponent() {
       {/* Advantages - horizontal pill scroll */}
       <section
         id="advantages"
-        className={`py-16 px-6 md:px-16 bg-[#121c2d] rounded-3xl mt-16 shadow-[0px_30px_0px_rgba(0,0,0,1)] transition-all duration-1000 ${isVisible.advantages ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+        className={`py-16 px-6 md:px-16 bg-[#121c2d] rounded-3xl mt-16 mb-15 shadow-[0px_30px_0px_rgba(0,0,0,1)] transition-all duration-1000 ${isVisible.advantages ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
         style={cardGradientStyle}
       >
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-10">

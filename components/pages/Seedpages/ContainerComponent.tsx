@@ -293,44 +293,44 @@ useEffect(() => {
     t => !dbIsoCodes.includes(t.isoCode)
   );
 
-  const handleSubmitContainerType = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+const handleSubmitContainerType = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      const response = await fetch("/api/container-types", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(containerTypeForm),
-      });
+  try {
+    // 1) POST the new type
+    const { data: newType } = await axios.post<ContainerType>("/api/seed/containers/types/post", containerTypeForm);
 
-      if (response.ok) {
-        const newType: ContainerType = await response.json();
-        setContainerTypes(prev => [...prev, newType]);
-        setDbIsoCodes(prev => [...prev, newType.isoCode]);
-        setContainerTypeForm({
-          isoCode: "",
-          name: "",
-          lengthMm: 0,
-          widthMm: 0,
-          heightMm: 0,
-          maxStackWeightKg: 0,
-          tareWeightKg: 0,
-          maxGrossWeightKg: 0,
-          group: ContainerGroup.DRY_STANDARD,
-          teuFactor: 1.0,
-        });
-        showMessage("success", "Container Type created successfully!");
-      } else {
-        const error = await response.json();
-        showMessage("error", `Error: ${error.error || "Failed to create container type"}`);
-      }
-    } catch {
-      showMessage("error", "Network error occurred");
+    // 2) update your local state
+    setContainerTypes(prev => [...prev, newType]);
+    setDbIsoCodes(prev => [...prev, newType.isoCode]);
+
+    // 3) reset the form
+    setContainerTypeForm({
+      isoCode: "",
+      name: "",
+      lengthMm: 0,
+      widthMm: 0,
+      heightMm: 0,
+      maxStackWeightKg: 0,
+      tareWeightKg: 0,
+      maxGrossWeightKg: 0,
+      group: ContainerGroup.DRY_STANDARD,
+      teuFactor: 1.0,
+    });
+
+    showMessage("success", "Container Type created successfully!");
+  } catch (err: any) {
+    // handle validation errors from Zod or Prisma
+    if (err.response?.data?.errors) {
+      showMessage("error", err.response.data.errors.map((e: any) => e.message).join("; "));
+    } else {
+      showMessage("error", err.response?.data?.error || "Failed to create container type");
     }
-
+  } finally {
     setIsLoading(false);
-  };
+  }
+};
 
   const handleSubmitContainer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -609,8 +609,8 @@ useEffect(() => {
 
       {/* Container Types Tab */}
       {activeTab === 'container-types' && (
-        <section className="px-6 md:px-16">
-          <div className="rounded-3xl shadow-[0px_30px_0px_rgba(0,0,0,1)] p-8" style={cardGradientStyle}>
+        <section className=" px-6 md:px-16">
+          <div className=" rounded-3xl border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8" style={cardGradientStyle}>
             <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
               <Package className="w-8 h-8 text-cyan-400" /> Create Container Type
             </h2>
@@ -622,12 +622,12 @@ useEffect(() => {
                   value={containerTypeForm.isoCode}
                   onChange={e => setContainerTypeForm(prev => ({ ...prev, isoCode: e.target.value }))}
                   required
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white focus:border-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
                 >
                   <option value="">Select Container Type</option>
                   {availableTypes.map(type => (
                     <option key={type.isoCode} value={type.isoCode}>
-                      {type.isoCode} — {type.name}
+                      {type.isoCode}
                     </option>
                   ))}
                 </select>
@@ -635,7 +635,7 @@ useEffect(() => {
 
               {/* Name (locked) */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Name *</label>
+                <label className="text-sm font-semibold text-white">Name *</label>
                 <input
                   type="text"
                   value={
@@ -643,13 +643,13 @@ useEffect(() => {
                     containerTypeForm.name
                   }
                   readOnly
-                  className="w-full px-4 py-3 bg-[#2D4D8B] border border-slate-600 rounded-lg text-white placeholder-slate-300 focus:border-cyan-400 focus:outline-none cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-[#2D4D8B] mt-2  border-black border-4 rounded-lg text-white placeholder-slate-300 focus:border-white focus:outline-none cursor-not-allowed shadow-[4px_4px_0px_rgba(0,0,0,1)]"
                 />
               </div>
 
               {/* Group (locked) */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Group *</label>
+                <label className="text-sm font-semibold text-white">Group *</label>
                 <input
                   type="text"
                   value={
@@ -658,95 +658,108 @@ useEffect(() => {
                     containerTypeForm.group.replace('_', ' ')
                   }
                   readOnly
-                  className="w-full px-4 py-3 bg-[#2D4D8B] border border-slate-600 rounded-lg text-white focus:border-cyan-400 focus:outline-none cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-[#2D4D8B] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] rounded-lg text-white focus:border-white focus:outline-none cursor-not-allowed"
                 />
               </div>
 
               {/* Specs fields */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Length (mm) *</label>
+                <label className="text-sm font-semibold text-white">Length (mm) *</label>
                 <input
                   type="number"
                   value={containerTypeForm.lengthMm || ''}
                   onChange={e => setContainerTypeForm(prev => ({ ...prev, lengthMm: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   placeholder="e.g., 6058"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Width (mm) *</label>
+                <label className="text-sm font-semibold text-white">Width (mm) *</label>
                 <input
                   type="number"
                   value={containerTypeForm.widthMm || ''}
                   onChange={e => setContainerTypeForm(prev => ({ ...prev, widthMm: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   placeholder="e.g., 2438"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Height (mm) *</label>
+                <label className="text-sm font-semibold text-white">Height (mm) *</label>
                 <input
                   type="number"
                   value={containerTypeForm.heightMm || ''}
                   onChange={e => setContainerTypeForm(prev => ({ ...prev, heightMm: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   placeholder="e.g., 2591"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Tare Weight (kg) *</label>
+                <label className="text-sm font-semibold text-white">Tare Weight (kg) *</label>
                 <input
                   type="number"
                   value={containerTypeForm.tareWeightKg || ''}
                   onChange={e => setContainerTypeForm(prev => ({ ...prev, tareWeightKg: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#11235d] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   placeholder="e.g., 2200"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Max Gross Weight (kg) *</label>
+                <label className="text-sm font-semibold text-white">Max Gross Weight (kg) *</label>
                 <input
                   type="number"
                   value={containerTypeForm.maxGrossWeightKg || ''}
                   onChange={e => setContainerTypeForm(prev => ({ ...prev, maxGrossWeightKg: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#11235d] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   placeholder="e.g., 30480"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">Max Stack Weight (kg) *</label>
+                <label className="text-sm font-semibold text-white">Max Stack Weight (kg) *</label>
                 <input
                   type="number"
                   value={containerTypeForm.maxStackWeightKg || ''}
                   onChange={e => setContainerTypeForm(prev => ({ ...prev, maxStackWeightKg: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#11235d] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   placeholder="e.g., 192000"
                   required
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300">TEU Factor *</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={containerTypeForm.teuFactor || ""}
-                  onChange={e => setContainerTypeForm(prev => ({ ...prev, teuFactor: parseFloat(e.target.value) || 1.0 }))}
-                  className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
-                  placeholder="e.g., 1.0"
-                  required
-                />
-              </div>
+               <div className="space-y-2 col-span-full md:col-span-2 lg:col-span-1 lg:col-start-2">
+              <label className="text-sm font-semibold text-white">TEU Factor *</label>
+             <input
+                type="number"
+                step="0.01"
+                value={
+                  // if ISO is picked, show the standard value; otherwise fallback to form state
+                  STANDARD_CONTAINER_TYPES.find(t => t.isoCode === containerTypeForm.isoCode)
+                    ?.teuFactor.toString() ||
+                  containerTypeForm.teuFactor.toString()
+                }
+                onChange={e => setContainerTypeForm(prev => ({
+                  ...prev,
+                  teuFactor: parseFloat(e.target.value) || 0
+                }))}
+                readOnly={!!containerTypeForm.isoCode}
+                className={`
+                  w-full px-4 py-3 bg-[#0A1A2F] mt-2 border-4 border-black
+                  shadow-[4px_4px_0px_rgba(0,0,0,1)] rounded-lg text-white
+                  placeholder-white/80 focus:border-white focus:outline-none
+                  ${containerTypeForm.isoCode ? 'cursor-not-allowed' : ''}
+                `}
+                placeholder="e.g., 1.0"
+              />
+            </div>
 
               <div className="md:col-span-2 lg:col-span-3 flex justify-center mt-6">
                 <button
