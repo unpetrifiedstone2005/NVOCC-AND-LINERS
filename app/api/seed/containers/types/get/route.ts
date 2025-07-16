@@ -1,41 +1,13 @@
-// File: app/api/container-types/route.ts
+// app/api/seed/containers/types/get/route.ts
+
 import { NextResponse } from "next/server";
-import { z, ZodError } from "zod";
 import { prismaClient } from "@/app/lib/db";
 
-const QuerySchema = z.object({
-  /** Only return the type with this exact ISO code */
-  iso: z.string().optional(),
-  /** Maximum number of types to return */
-  maxCount: z
-    .preprocess((val) => (val !== null ? Number(val) : undefined), z.number().int().min(1))
-    .default(100),
-});
-
-export async function GET(request: Request) {
-  let q;
+export async function GET() {
   try {
-    const url = new URL(request.url);
-    q = QuerySchema.parse({
-      iso: url.searchParams.get("iso") ?? undefined,
-      maxCount: url.searchParams.get("maxCount"),
-    });
-  } catch (err) {
-    if (err instanceof ZodError) {
-      return NextResponse.json({ error: err.errors }, { status: 400 });
-    }
-    return NextResponse.json({ error: "Invalid query parameters" }, { status: 400 });
-  }
-
-  try {
-    const whereClause = q.iso
-      ? { isoCode: q.iso }
-      : {}; // no filter → all types
-
-    const types = await prismaClient.containerType.findMany({
-      where: whereClause,
+    // Fetch and return all container types, ordered by ISO code
+    const items = await prismaClient.containerType.findMany({
       orderBy: { isoCode: "asc" },
-      take: q.maxCount,
       select: {
         isoCode: true,
         name: true,
@@ -50,9 +22,9 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.json({ items: types }, { status: 200 });
+    return NextResponse.json({ items }, { status: 200 });
   } catch (error) {
-    console.error("GET /api/container-types error", error);
+    console.error("GET /api/seed/containers/types/get error:", error);
     return NextResponse.json(
       { error: "Failed to load container types" },
       { status: 500 }

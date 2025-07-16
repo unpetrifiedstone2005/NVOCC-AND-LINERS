@@ -70,9 +70,11 @@ enum VolumeUnit {
 enum ContainerStatus {
   AVAILABLE
   ALLOCATED
+  DAMAGED
   IN_TRANSIT
   MAINTENANCE
   LOST
+  RETIRED
 }
 
 enum BookingStatus {

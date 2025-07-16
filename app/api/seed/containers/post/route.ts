@@ -1,3 +1,4 @@
+// app/api/containers/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { prismaClient } from "@/app/lib/db";
@@ -22,12 +23,36 @@ const CreateContainerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const json = await request.json();
-    const data = CreateContainerSchema.parse(json);
+    // 1) pull raw JSON
+    const raw = await request.json();
 
-    // Destructure into locals so TS knows these are string | undefined
+    // 2) strip out any empty strings so .optional() fields become undefined
+    const payload: Record<string, any> = { ...raw };
+    for (const key of [
+      "bicCode",
+      "ownership",
+      "companyOrigin",
+      "manufacturer",
+      "customsApproval",
+      "description",
+      "status",
+      "currentDepot",
+      "lastUsedAt",
+      "cscPlateUrl",
+      "certificationExpiry"
+    ]) {
+      if (payload[key] === "") {
+        delete payload[key];
+      }
+    }
+
+    // 3) now validate
+    const data = CreateContainerSchema.parse(payload);
+
+    // 4) destructure date strings
     const { lastUsedAt, certificationExpiry } = data;
 
+    // 5) persist
     const container = await prismaClient.container.create({
       data: {
         containerNo:          data.containerNo,
@@ -50,6 +75,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(container, { status: 201 });
   } catch (err) {
     if (err instanceof ZodError) {
+      // send back all validation failures
       return NextResponse.json({ errors: err.errors }, { status: 400 });
     }
     console.error(err);
