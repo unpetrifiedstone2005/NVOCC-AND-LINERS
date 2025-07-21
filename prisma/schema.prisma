@@ -415,21 +415,20 @@ model Voyage {
 }
 
 model PortCall {
-  id           String   @id @default(uuid())
-  voyageId     String
-  portCode     String   // UN/LOCODE
-  order        Int      // 1 = first call, 2 = second, …
-  etd          DateTime?// estimated time of departure at this port
-  eta          DateTime?// estimated time of arrival at this port
-  mode         String?  // “SEA”, “RAIL” etc (if multimodal)
-  vesselName   String?  // optional override (if different from Voyage-level)
+  id         String   @id @default(uuid())
+  voyageId   String
+  portCode   String   // UN/LOCODE
+  order      Int      // 1=first, 2=second…
+  eta        DateTime?
+  etd        DateTime?
+  vesselName String?  // only if it differs from the Voyage’s default
 
-  voyage       Voyage   @relation(fields: [voyageId], references: [id], onDelete: Cascade)
+  voyage     Voyage   @relation(fields: [voyageId], references: [id], onDelete: Cascade)
 
   @@index([portCode])
   @@index([voyageId, order])
-  @@index([etd])
   @@index([eta])
+  @@index([etd])
 }
 
 
@@ -803,8 +802,8 @@ model Port {
 
 
 model ContainerType {
-  isoCode       String           @id  // e.g., "40HC-DRY", "40RFR"
-  name             String             @unique              // e.g., "40HC - DRY"
+  isoCode       String           @id   // e.g., "40HC-DRY", "40RFR"
+  name             String
   
   lengthMm         Int
   widthMm          Int

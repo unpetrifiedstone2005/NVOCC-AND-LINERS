@@ -236,7 +236,8 @@
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
-
+    const [typeCount, setTypeCount] = useState<number>(0);
+    const [containerCount, setContainerCount] = useState<number>(0);
     // Container Type Form State
     const [containerTypeForm, setContainerTypeForm] = useState<ContainerType>({
       isoCode: '',
@@ -276,22 +277,45 @@
 
     // Fetch existing container-types from DB
 useEffect(() => {
-  console.log("📦 useEffect: fetching container types");
+  console.log("📦 useEffect: fetching container types & stats");
 
+  // 1) fetch types
   axios
     .get<{ items: ContainerType[] }>("/api/seed/containers/types/get")
     .then(({ data }) => {
-      console.log("✅ API success:", data);
       const types = data.items;
       setContainerTypes(types);
       setDbIsoCodes(types.map(t => t.isoCode));
+      setTypeCount(types.length);
     })
     .catch((err) => {
-      console.log("❌ API error:");
-      console.dir(err); // full error structure
+      console.error("❌ Container-types API error:", err);
       showMessage("error", "Failed to load existing container types");
     });
+
+  // 2) fetch just one container page to read the `total` field
+  axios
+    .get<{
+      containers: Container[];
+      totalPages: number;
+      total: number;
+      currentPage: number;
+    }>("/api/seed/containers/get", { params: { page: 1, limit: 1 } })
+    .then(({ data }) => {
+      // our GET returns a `total` count, so use that
+      setContainerCount(typeof data.total === "number"
+        ? data.total
+        : data.containers.length
+      );
+    })
+    .catch(err => {
+      console.error("❌ Containers-stats API error:", err);
+      showMessage("error", "Failed to load container stats");
+    });
 }, []);
+
+
+
 
     // available types = standard minus DB
     const availableTypes = STANDARD_CONTAINER_TYPES.filter(
@@ -309,6 +333,8 @@ useEffect(() => {
       // 2) update your local state
       setContainerTypes(prev => [...prev, newType]);
       setDbIsoCodes(prev => [...prev, newType.isoCode]);
+
+      setTypeCount(c => c + 1)
 
       // 3) reset the form
       setContainerTypeForm({
@@ -350,6 +376,8 @@ useEffect(() => {
 
     // 2) update UI state
     setContainers(prev => [...prev, newContainer]);
+
+    setContainerCount(c => c + 1)
 
     // 3) clear the form
     setContainerForm({
@@ -445,6 +473,7 @@ useEffect(() => {
 
   // 5) show results
   if (successCount) {
+    setContainerCount(c => c + successCount);
     showMessage(
       "success",
       `Imported ${successCount} containers${failed.length ? `. Failed: ${failed.length}` : ""}`
@@ -519,10 +548,15 @@ const fetchContainers = async (page: number = 1) => {
       { params }
     );
 
+    
+
     // 3) Unpack
     setAllContainers(data.containers);
     setTotalPages(data.totalPages);
     setCurrentPage(data.currentPage);
+    setContainerCount(data.total);
+
+
   } catch (err) {
     console.error("Error fetching containers:", err);
     showMessage("error", "Failed to fetch containers");
@@ -634,22 +668,22 @@ const fetchContainers = async (page: number = 1) => {
 
         {/* Tab Navigation */}
       <div className="px-6 md:px-16 mb-8 ">
-    <div className="grid grid-cols-4 gap-4 mb-8 ">
-      {[
-        { label: 'Container Types', value: 'container-types', icon: <Package className="w-5 h-5" /> },
-        { label: 'Containers',      value: 'containers',       icon: <ContainerIcon className="w-5 h-5" /> },
-        { label: 'Bulk Import',     value: 'bulk-import',      icon: <Upload className="w-5 h-5" /> },
-        { label: 'Container List',  value: 'container-list',   icon: <List className="w-5 h-5" /> },
-      ].map(tab => (
-        <button
-          key={tab.value}
-          onClick={() => setActiveTab(tab.value as any)}
-          className={`px-1 py-2 uppercase text-md font-bold transition shadow border-2 border-black cursor-pointer flex items-center justify-center gap-2 ${
-            activeTab === tab.value
-              ? 'bg-gray-300 text-black rounded-3xl shadow-[13px_13px_0px_rgba(0,0,0,1)]'
-              : 'bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white rounded-lg shadow-[4px_4px_0px_rgba(0,0,0,1)]'
-          }`}
-        >
+      <div className="grid grid-cols-4 gap-4 mb-8 ">
+        {[
+          { label: 'Container Types', value: 'container-types', icon: <Package className="w-5 h-5" /> },
+          { label: 'Containers',      value: 'containers',       icon: <ContainerIcon className="w-5 h-5" /> },
+          { label: 'Bulk Import',     value: 'bulk-import',      icon: <Upload className="w-5 h-5" /> },
+          { label: 'Container List',  value: 'container-list',   icon: <List className="w-5 h-5" /> },
+        ].map(tab => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveTab(tab.value as any)}
+            className={`px-1 py-2 uppercase text-md font-bold transition shadow border-2 border-black cursor-pointer flex items-center justify-center gap-2 ${
+              activeTab === tab.value
+                ? 'bg-gray-300 text-black rounded-3xl shadow-[13px_13px_0px_rgba(0,0,0,1)]'
+                : 'bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white rounded-lg shadow-[4px_4px_0px_rgba(0,0,0,1)]'
+            }`}
+          >
           {tab.icon}
           {tab.label}
         </button>
@@ -660,7 +694,7 @@ const fetchContainers = async (page: number = 1) => {
         {/* Container Types Tab */}
         {activeTab === 'container-types' && (
           <section className=" px-6 md:px-16">
-            <div className=" rounded-3xl border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8" style={cardGradientStyle}>
+            <div className=" rounded-3xl border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 transition-shadow" style={cardGradientStyle}>
               <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
                 <Package className="w-8 h-8 text-cyan-400" /> Create Container Type
               </h2>
@@ -703,10 +737,13 @@ const fetchContainers = async (page: number = 1) => {
                   <input
                     type="text"
                     value={
-                      STANDARD_CONTAINER_TYPES.find(t => t.isoCode === containerTypeForm.isoCode)
-                        ?.group.replace('_', ' ') ||
-                      containerTypeForm.group.replace('_', ' ')
-                    }
+                        // only show the group when an ISO code is picked
+                        containerTypeForm.isoCode
+                          ? STANDARD_CONTAINER_TYPES
+                              .find(t => t.isoCode === containerTypeForm.isoCode)
+                              ?.group.replace('_', ' ')
+                          : ''
+                      }
                     readOnly
                     className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] rounded-lg text-white focus:border-white focus:outline-none cursor-not-allowed"
                   />
@@ -1194,14 +1231,14 @@ const fetchContainers = async (page: number = 1) => {
         {/* Container List Tab */}
         {activeTab === 'container-list' && (
           <section className="px-6 md:px-16">
-            <div className=" rounded-3xl shadow-[0px_30px_0px_rgba(0,0,0,1)] p-8" style={cardGradientStyle}>
+            <div className=" rounded-3xl shadow-[0px_30px_0px_rgba(0,0,0,1)] p-8 border-white border-2" style={cardGradientStyle}>
               <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
                 <List className="w-8 h-8 text-cyan-400" /> Container List
               </h2>
 
               {/* Filters */}
-              <div className="bg-[#2e4972] rounded-lg border border-slate-600 p-6 mb-8" style={cardGradientStyle}>
-                <h3 className="text-lg font-semibold text-[#00FFFF] mb-4">Filters</h3>
+              <div className="bg-[#2e4972] rounded-lg border-10 border-black p-6 mb-8 " style={cardGradientStyle}>
+                <h3 className="text-lg font-semibold text-[#00FFFF] mb-4 ">Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-white">Container Number</label>
@@ -1209,7 +1246,7 @@ const fetchContainers = async (page: number = 1) => {
                       type="text"
                       value={filters.containerNo}
                       onChange={e => handleFilterChange('containerNo', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                       placeholder="Search by container number..."
                     />
                   </div>
@@ -1230,7 +1267,7 @@ const fetchContainers = async (page: number = 1) => {
                     <select
                       value={filters.status}
                       onChange={e => handleFilterChange('status', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     >
                       <option value="">All Statuses</option>
                       {Object.values(ContainerStatus).map(st => (
@@ -1245,7 +1282,7 @@ const fetchContainers = async (page: number = 1) => {
                       type="text"
                       value={filters.currentDepot}
                       onChange={e => handleFilterChange('currentDepot', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#0A1A2F] hover:text-[#00FFFF] hover:bg-[#2D4D8B] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                       placeholder="Search by depot..."
                     />
                   </div>
@@ -1256,7 +1293,7 @@ const fetchContainers = async (page: number = 1) => {
                       type="text"
                       value={filters.ownership}
                       onChange={e => handleFilterChange('ownership', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#0A1A2F] hover:text-[#00FFFF] hover:bg-[#2D4D8B] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] hover:bg-[#2D4D8B] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                       placeholder="Search by owner..."
                     />
                   </div>
@@ -1394,20 +1431,20 @@ const fetchContainers = async (page: number = 1) => {
         )}
 
         {/* Stats Section */}
-        <section className="py-16 px-6 md:px-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto">
-            <div className="bg-[#1A2A4A] rounded-2xl border border-slate-700 shadow-[10px_10px_0px_rgba(0,0,0,1)] text-center px-8 py-6 flex flex-col items-center" style={cardGradientStyle}>
-              <Package className="w-8 h-8 text-cyan-400 mb-2" />
-              <div className="text-3xl font-bold text-cyan-400">{containerTypes.length}</div>
-              <div className="text-slate-100 text-sm mt-1">Container Types</div>
-            </div>
-            <div className="bg-[#1A2A4A] rounded-2xl border border-slate-700 shadow-[10px_10px_0px_rgba(0,0,0,1)] text-center px-8 py-6 flex flex-col items-center" style={cardGradientStyle}>
-              <ContainerIcon className="w-8 h-8 text-cyan-400 mb-2" />
-              <div className="text-3xl font-bold text-cyan-400">{containers.length}</div>
-              <div className="text-slate-100 text-sm mt-1">Containers</div>
-            </div>
-          </div>
-        </section>
+       <section className="py-16 px-6 md:px-16">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+    <div className="bg-[#1A2A4A] rounded-2xl border border-slate-700 shadow-[10px_10px_0px_rgba(0,0,0,1)] text-center px-8 py-6 flex flex-col items-center" style={cardGradientStyle}>
+      <Package className="w-8 h-8 text-cyan-400 mb-2" />
+      <div className="text-3xl font-bold text-cyan-400">{typeCount}</div>
+      <div className="text-slate-100 text-sm mt-1">Container Types</div>
+    </div>
+    <div className="bg-[#1A2A4A] rounded-2xl border border-slate-700 shadow-[10px_10px_0px_rgba(0,0,0,1)] text-center px-8 py-6 flex flex-col items-center" style={cardGradientStyle}>
+      <ContainerIcon className="w-8 h-8 text-cyan-400 mb-2" />
+      <div className="text-3xl font-bold text-cyan-400">{containerCount}</div>
+      <div className="text-slate-100 text-sm mt-1">Containers</div>
+    </div>
+  </div>
+</section>
 
         {/* Edit Container Modal */}
         {isEditModalOpen && selectedContainer && (
@@ -1424,41 +1461,41 @@ const fetchContainers = async (page: number = 1) => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Container Number *</label>
+                  <label className="text-sm font-semibold text-white">Container Number *</label>
                   <input
                     type="text"
                     value={editForm.containerNo || ""}
                     onChange={e => handleEditFormChange("containerNo", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="SCMT1234567"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Container Type ISO Code *</label>
+                  <label className="text-sm font-semibold text-white">Container Type ISO Code *</label>
                   <input
                     type="text"
                     value={editForm.containerTypeIsoCode || ""}
                     onChange={e => handleEditFormChange("containerTypeIsoCode", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="40HC"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">BIC Code</label>
+                  <label className="text-sm font-semibold text-white">BIC Code *</label>
                   <input
                     type="text"
                     value={editForm.bicCode || ""}
                     onChange={e => handleEditFormChange("bicCode", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="SCMT"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Status</label>
+                  <label className="text-sm font-semibold text-white">Status *</label>
                   <select
                     value={editForm.status || ""}
                     onChange={e => handleEditFormChange("status", e.target.value as ContainerStatus)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   >
                     {Object.values(ContainerStatus).map(st => (
                       <option key={st} value={st}>{st.replace('_', ' ')}</option>
@@ -1466,89 +1503,89 @@ const fetchContainers = async (page: number = 1) => {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Ownership</label>
+                  <label className="text-sm font-semibold text-white">Ownership *</label>
                   <input
                     type="text"
                     value={editForm.ownership || ""}
                     onChange={e => handleEditFormChange("ownership", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="SCMT"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Current Depot</label>
+                  <label className="text-sm font-semibold text-white">Current Depot</label>
                   <input
                     type="text"
                     value={editForm.currentDepot || ""}
                     onChange={e => handleEditFormChange("currentDepot", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="Basra Port"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Company Origin</label>
+                  <label className="text-sm font-semibold text-white">Company Origin</label>
                   <input
                     type="text"
                     value={editForm.companyOrigin || ""}
                     onChange={e => handleEditFormChange("companyOrigin", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="Iraq"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Manufacturer</label>
+                  <label className="text-sm font-semibold text-white">Manufacturer</label>
                   <input
                     type="text"
                     value={editForm.manufacturer || ""}
                     onChange={e => handleEditFormChange("manufacturer", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="CIMC"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Customs Approval</label>
+                  <label className="text-sm font-semibold text-white">Customs Approval</label>
                   <input
                     type="text"
                     value={editForm.customsApproval || ""}
                     onChange={e => handleEditFormChange("customsApproval", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="Approved"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">CSC Plate URL</label>
+                  <label className="text-sm font-semibold text-white">CSC Plate URL</label>
                   <input
                     type="url"
                     value={editForm.cscPlateUrl || ""}
                     onChange={e => handleEditFormChange("cscPlateUrl", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="https://example.com/plate.jpg"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Certification Expiry</label>
+                  <label className="text-sm font-semibold text-white">Certification Expiry</label>
                   <input
                     type="datetime-local"
                     value={editForm.certificationExpiry || ""}
                     onChange={e => handleEditFormChange("certificationExpiry", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Last Used At</label>
+                  <label className="text-sm font-semibold text-white">Last Used At</label>
                   <input
                     type="datetime-local"
                     value={editForm.lastUsedAt || ""}
                     onChange={e => handleEditFormChange("lastUsedAt", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   />
                 </div>
                 <div className="md:col-span-2 lg:col-span-3 space-y-2">
-                  <label className="text-sm font-semibold text-slate-300">Description</label>
+                  <label className="text-sm font-semibold text-white">Description</label>
                   <textarea
                     value={editForm.description || ""}
                     onChange={e => handleEditFormChange("description", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-nonew-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     rows={3}
                     placeholder="Container description..."
                   />

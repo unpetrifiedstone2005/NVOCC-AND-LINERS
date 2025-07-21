@@ -1,4 +1,4 @@
-// app/api/containers/route.ts
+// app/api/containers/get/route.ts
 
 import { NextResponse } from "next/server";
 import { prismaClient } from "@/app/lib/db";
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       currentPage: page,
     });
   } catch (error) {
-    console.error("GET /api/containers error", error);
+    console.error("GET /api/seed/containers/get error", error);
     return NextResponse.json(
       { error: "Failed to load containers" },
       { status: 500 }

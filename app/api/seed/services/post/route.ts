@@ -1,13 +1,13 @@
-// File: app/api/services/route.ts
+// File: app/api/services/post/route.ts
 import { NextResponse } from "next/server"
 import { z, ZodError } from "zod"
 import { prismaClient } from "@/app/lib/db"
 
 // 🤖 request‐body validation schema
 const ServiceInput = z.object({
-  code:          z.string().min(1),
-  name:          z.string().min(1),
-  description:   z.string().min(1),
+  code:          z.string(),
+  name:          z.string(),
+  description:   z.string(),
   ratePerUnit:   z
                    .string()
                    .regex(/^\d+(\.\d{1,2})?$/, "must be a decimal, up to 2 places"),
