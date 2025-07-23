@@ -456,6 +456,8 @@ export default function MainLayout({
         <div className={`pt-[96px] pb-6 transition-all duration-300 ${isOpen ? "pl-[300px]" : "pl-[80px]"}`}>
           {children}
         </div>
+        <br/>
+        <br/>
       </div>
 
       {/* Footer */}

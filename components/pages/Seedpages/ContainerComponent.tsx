@@ -945,7 +945,7 @@ const fetchContainers = async (page: number = 1) => {
                   type="text"
                   value={containerForm.ownership}
                   onChange={e => setContainerForm(prev => ({ ...prev, ownership: e.target.value }))}
-                  className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                  className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   placeholder="SCMT"
                   required
                 />
@@ -1246,7 +1246,7 @@ const fetchContainers = async (page: number = 1) => {
                       type="text"
                       value={filters.containerNo}
                       onChange={e => handleFilterChange('containerNo', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                       placeholder="Search by container number..."
                     />
                   </div>
@@ -1257,7 +1257,7 @@ const fetchContainers = async (page: number = 1) => {
                       type="text"
                       value={filters.containerTypeIsoCode}
                       onChange={e => handleFilterChange('containerTypeIsoCode', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                       placeholder="Search by type..."
                     />
                   </div>
@@ -1267,7 +1267,7 @@ const fetchContainers = async (page: number = 1) => {
                     <select
                       value={filters.status}
                       onChange={e => handleFilterChange('status', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     >
                       <option value="">All Statuses</option>
                       {Object.values(ContainerStatus).map(st => (
@@ -1282,7 +1282,7 @@ const fetchContainers = async (page: number = 1) => {
                       type="text"
                       value={filters.currentDepot}
                       onChange={e => handleFilterChange('currentDepot', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#11235d] hover:bg-[#1a307a] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                       placeholder="Search by depot..."
                     />
                   </div>
@@ -1293,7 +1293,7 @@ const fetchContainers = async (page: number = 1) => {
                       type="text"
                       value={filters.ownership}
                       onChange={e => handleFilterChange('ownership', e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] hover:bg-[#2D4D8B] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                      className="w-full px-4 py-3 bg-[#11235d] hover:bg-[#1a307a] hover:text-[#00FFFF]  mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                       placeholder="Search by owner..."
                     />
                   </div>
@@ -1449,7 +1449,7 @@ const fetchContainers = async (page: number = 1) => {
         {/* Edit Container Modal */}
         {isEditModalOpen && selectedContainer && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-[#121c2d] rounded-3xl shadow-[0px_30px_0px_rgba(0,0,0,1)] p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradientStyle}>
+            <div className="bg-[#121c2d] rounded-3xl border-2 border-white shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradientStyle}>
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-3xl font-bold flex items-center gap-3">
                   <Edit3 className="w-8 h-8 text-cyan-400" /> Edit Container: {selectedContainer.containerNo}
@@ -1466,7 +1466,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.containerNo || ""}
                     onChange={e => handleEditFormChange("containerNo", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="SCMT1234567"
                   />
                 </div>
@@ -1476,7 +1476,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.containerTypeIsoCode || ""}
                     onChange={e => handleEditFormChange("containerTypeIsoCode", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="40HC"
                   />
                 </div>
@@ -1486,7 +1486,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.bicCode || ""}
                     onChange={e => handleEditFormChange("bicCode", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="SCMT"
                   />
                 </div>
@@ -1495,7 +1495,7 @@ const fetchContainers = async (page: number = 1) => {
                   <select
                     value={editForm.status || ""}
                     onChange={e => handleEditFormChange("status", e.target.value as ContainerStatus)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   >
                     {Object.values(ContainerStatus).map(st => (
                       <option key={st} value={st}>{st.replace('_', ' ')}</option>
@@ -1508,7 +1508,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.ownership || ""}
                     onChange={e => handleEditFormChange("ownership", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="SCMT"
                   />
                 </div>
@@ -1518,7 +1518,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.currentDepot || ""}
                     onChange={e => handleEditFormChange("currentDepot", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="Basra Port"
                   />
                 </div>
@@ -1528,7 +1528,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.companyOrigin || ""}
                     onChange={e => handleEditFormChange("companyOrigin", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="Iraq"
                   />
                 </div>
@@ -1538,7 +1538,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.manufacturer || ""}
                     onChange={e => handleEditFormChange("manufacturer", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="CIMC"
                   />
                 </div>
@@ -1548,7 +1548,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="text"
                     value={editForm.customsApproval || ""}
                     onChange={e => handleEditFormChange("customsApproval", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="Approved"
                   />
                 </div>
@@ -1558,7 +1558,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="url"
                     value={editForm.cscPlateUrl || ""}
                     onChange={e => handleEditFormChange("cscPlateUrl", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     placeholder="https://example.com/plate.jpg"
                   />
                 </div>
@@ -1568,7 +1568,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="datetime-local"
                     value={editForm.certificationExpiry || ""}
                     onChange={e => handleEditFormChange("certificationExpiry", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1577,7 +1577,7 @@ const fetchContainers = async (page: number = 1) => {
                     type="datetime-local"
                     value={editForm.lastUsedAt || ""}
                     onChange={e => handleEditFormChange("lastUsedAt", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   />
                 </div>
                 <div className="md:col-span-2 lg:col-span-3 space-y-2">
@@ -1585,7 +1585,7 @@ const fetchContainers = async (page: number = 1) => {
                   <textarea
                     value={editForm.description || ""}
                     onChange={e => handleEditFormChange("description", e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-nonew-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                    className="w-full px-4 py-3 bg-[#1A2A4A] hover:bg-[#1A2A4A] border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-nonew-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                     rows={3}
                     placeholder="Container description..."
                   />
@@ -1605,7 +1605,7 @@ const fetchContainers = async (page: number = 1) => {
               <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-600">
                 <button
                   onClick={handleCloseEditModal}
-                  className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-6 py-3 rounded-lg font-semibold uppercase text-slate-300 hover:text-white transition-colors shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)]"
+                  className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-6 py-3 rounded-lg font-semibold uppercase text-slate-300 hover:text-white transition-colors shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
                 >
                   Cancel
                 </button>
@@ -1613,7 +1613,7 @@ const fetchContainers = async (page: number = 1) => {
                   <button
                     onClick={handleApplyChanges}
                     disabled={isUpdating}
-                    className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold uppercase text-white flex items-center gap-2 shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+                    className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold uppercase text-white flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
                   >
                     {isUpdating ? (
                       <>

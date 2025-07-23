@@ -22,6 +22,8 @@ import {
   Filter,
   CalendarCheckIcon,
   CalendarSync,
+  FileText,
+  Download,
 } from "lucide-react";
 
 // --- TYPES & INTERFACES ---------------------------------------------------
@@ -59,8 +61,8 @@ interface PortCall {
 // --- STYLES ---------------------------------------------------------------
 const cardGradient = {
   backgroundImage: `
-    linear-gradient(to bottom left, #0A1A2F 0%,#0A1A2F 15%,#22D3EE 100%),
-    linear-gradient(to bottom right, #0A1A2F 0%,#0A1A2F 15%,#22D3EE 100%)
+    linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+    linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
   `,
   backgroundBlendMode: "overlay",
 };
@@ -236,30 +238,111 @@ export function ServiceComponent() {
   }
 
   // BULK IMPORT
-  async function importBulk(e: React.FormEvent) {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      let data = bulkData;
-      if (bulkMode==="file" && uploadedFile) data = await uploadedFile.text();
-      const parsed = JSON.parse(data);
-      await axios.post("/api/seed/serviceschedules/bulk", parsed);
-      showMessage("success",`Imported ${parsed.length} records`);
-      setBulkData(""); setUploadedFile(null);
-      fetchSchedules(1);
-      setActiveTab("schedule-list");
-    } catch {
-      showMessage("error","Failed bulk import");
-    } finally {
-      setIsLoading(false);
+  async function importBulkVoyages(e: React.FormEvent) {
+  e.preventDefault();
+  setIsLoading(true);
+  try {
+    // 1) read the raw JSON
+    let raw = bulkData;
+    if (bulkMode === "file" && uploadedFile) {
+      raw = await uploadedFile.text();
     }
+    const voyagesToImport = JSON.parse(raw) as Array<{
+      serviceCode: string;
+      voyageNumber?: string;
+      departure: string;
+      arrival?: string;
+      portCalls?: Array<{
+        sequence: number;
+        portCode: string;
+        callType?: string;
+        eta?: string;
+        etd?: string;
+        vesselName?: string;
+      }>;
+    }>;
+
+    let voyageCount = 0;
+    let portCallCount = 0;
+
+    // 2) loop and create
+    for (const v of voyagesToImport) {
+      const { data: createdVoyage } = await axios.post<{
+        id: string;
+        serviceCode: string;
+        voyageNumber?: string;
+        departure: string;
+        arrival?: string;
+      }>(
+        "/api/seed/voyages/post",
+        {
+          serviceCode:  v.serviceCode,
+          voyageNumber: v.voyageNumber,
+          departure:    v.departure,
+          arrival:      v.arrival,
+        }
+      );
+      voyageCount++;
+
+      // 3) if there are portCalls, create each one
+      if (Array.isArray(v.portCalls)) {
+        for (const pc of v.portCalls) {
+          await axios.post(
+            "/api/seed/portcalls/post",
+            {
+              voyageId:   createdVoyage.id,
+              portCode:   pc.portCode,
+              order:      pc.sequence,
+              eta:        pc.eta,
+              etd:        pc.etd,
+              mode:       pc.callType,
+              vesselName: pc.vesselName,
+            }
+          );
+          portCallCount++;
+        }
+      }
+    }
+
+    showMessage("success", `Imported ${voyageCount} voyages and ${portCallCount} port calls.`);
+    setBulkData("");
+    setUploadedFile(null);
+    // refresh lists if needed...
+  } catch (err:any) {
+    console.error("bulk import error", err);
+    showMessage("error", "Failed to import voyages/port calls");
+  } finally {
+    setIsLoading(false);
   }
+}
+
 
   // DOWNLOAD SAMPLE
   function downloadSample() {
     const sample = [
-      { code:"WAX", description:"Weekly Atlantic Express", voyages:[ /* … */ ] }
-    ];
+  {
+    "serviceCode": "WAX",
+    "voyageNumber": "22N",
+    "departure": "2025-07-20T01:24:00Z",
+    "arrival":   "2025-07-25T07:12:00Z",
+    "portCalls": [
+      {
+        "sequence": 1,
+        "portCode": "CNSHA",
+        "callType": "POL",
+        "eta": "2025-07-20T01:24:00Z",
+        "etd": "2025-07-20T18:00:00Z"
+      },
+      {
+        "sequence": 2,
+        "portCode": "SGSIN",
+        "callType": "VIA",
+        "eta": "2025-07-22T08:00:00Z",
+        "etd": "2025-07-22T20:00:00Z"
+      }
+    ]
+  }
+];
     const blob = new Blob([JSON.stringify(sample,null,2)],{type:"application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -411,7 +494,7 @@ useEffect(() => {
       >
         {/* Code */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Code *</label>
+          <label className="text-sm font-semibold">Service Code *</label>
           <input
             type="text"
             value={serviceForm.code}
@@ -630,7 +713,7 @@ useEffect(() => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="bg-[#600f9e] hover:bg-[#491174] px-8 py-4 rounded-lg flex items-center gap-3 uppercase font-semibold shadow-[10px_10px_0_rgba(0,0,0,1)]"
+                  className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
                 >
                   {isLoading?<Settings className="animate-spin w-5 h-5"/>:<Plus className="w-5 h-5"/>}
                   Create
@@ -642,169 +725,370 @@ useEffect(() => {
       )} 
 
       {/* BULK IMPORT */}
-      {activeTab==="bulk-import" && (
-        <section className="px-6 md:px-16 mb-16">
-          <div className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]" style={cardGradient}>
-            <h2 className="text-3xl font-bold flex items-center gap-3 mb-6">
-              <Upload className="text-cyan-400 w-8 h-8"/> Bulk Import Schedules
-            </h2>
-            <div className="flex gap-4 mb-6">
-              <button
-                onClick={()=>setBulkMode("textarea")}
-                className={`px-6 py-3 rounded-lg ${bulkMode==="textarea"?"bg-[#600f9e]":"bg-[#2D4D8B]"}`}
-              >Paste JSON</button>
-              <button
-                onClick={()=>setBulkMode("file")}
-                className={`px-6 py-3 rounded-lg ${bulkMode==="file"?"bg-[#600f9e]":"bg-[#2D4D8B]"}`}
-              >Upload File</button>
+      {activeTab === "bulk-import" && (
+  <section className="px-6 md:px-16">
+    <div
+      className="rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 border-2 border-white"
+      style={cardGradient}
+    >
+      <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+        <Upload className="w-8 h-8 text-cyan-400" /> Bulk Import Voyages
+      </h2>
+
+      {/* Mode Buttons */}
+      <div className="flex gap-4 mb-6">
+        <button
+          type="button"
+          onClick={() => setBulkMode("file")}
+          className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
+            bulkMode === "file"
+              ? "bg-[#600f9e] text-white"
+              : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
+          }`}
+          style={bulkMode === "file" ? cardGradient : {}}
+        >
+          <Upload className="w-5 h-5" /> Upload JSON File
+        </button>
+        <button
+          type="button"
+          onClick={() => setBulkMode("textarea")}
+          className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
+            bulkMode === "textarea"
+              ? "bg-[#600f9e] text-white"
+              : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
+          }`}
+          style={bulkMode === "textarea" ? cardGradient : {}}
+        >
+          <FileText className="w-5 h-5" /> Paste JSON Data
+        </button>
+      </div>
+
+      {/* Download Sample */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={downloadSample}
+          className="bg-[#2a72dc] hover:bg-[#00FFFF] hover:text-black px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all"
+        >
+          <Download className="w-5 h-5" /> Download Sample JSON
+        </button>
+        <p className="text-md text-slate-200 mt-5">
+          Grab a sample payload to see the shape we expect.
+        </p>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={importBulkVoyages} className="space-y-6">
+        {bulkMode === "file" ? (
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-200">
+              Select JSON File *
+            </label>
+            <div className="border-2 border-dashed border-white rounded-lg p-8 text-center hover:border-cyan-400 transition-colors">
+              <input
+                id="voyage-file"
+                type="file"
+                accept=".json"
+                required
+                className="hidden"
+                onChange={e => setUploadedFile(e.target.files?.[0] ?? null)}
+              />
+              <label htmlFor="voyage-file" className="cursor-pointer flex flex-col items-center gap-4">
+                <Upload className="w-16 h-16 text-slate-400" />
+                <p className="text-lg font-semibold text-white">Click to upload JSON file</p>
+                <p className="text-sm text-slate-400">or drag and drop</p>
+              </label>
             </div>
-            <button
-              onClick={downloadSample}
-              className="mb-6 bg-[#2a72dc] px-6 py-3 rounded-lg flex items-center gap-2"
-            ><Upload className="w-5 h-5"/> Download Sample</button>
-            <form onSubmit={importBulk} className="space-y-6">
-              {bulkMode==="textarea" ? (
-                <textarea
-                  className="w-full h-48 bg-[#2D4D8B] border border-slate-600 rounded-lg text-white font-mono p-4"
-                  value={bulkData}
-                  onChange={e=>setBulkData(e.target.value)}
-                  placeholder="[{…}, {…}]"
-                />
-              ) : (
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={e=>setUploadedFile(e.target.files?.[0]||null)}
-                  className="w-full bg-[#2D4D8B] border border-slate-600 rounded-lg p-3"
-                />
-              )}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="bg-[#600f9e] hover:bg-[#491174] px-8 py-4 rounded-lg flex items-center gap-3 uppercase font-semibold shadow-[10px_10px_0_rgba(0,0,0,1)]"
-              >
-                {isLoading?<Settings className="animate-spin w-5 h-5"/>:<Upload className="w-5 h-5"/>}
-                Import
-              </button>
-            </form>
+            <p className="text-xs font-bold text-white">
+              File must be an array of voyages with `portCalls` arrays.
+            </p>
           </div>
-        </section>
-      )}
+        ) : (
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-white">
+              JSON Data *
+            </label>
+            <textarea
+              className="w-full px-4 py-3 bg-[#0A1A2F] border border-white/80 rounded-lg text-white font-mono text-sm placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+              rows={25}
+              placeholder={`[
+  {
+    "serviceCode": "WAX",
+    "voyageNumber": "22N",
+    "departure": "2025-07-20T01:24:00Z",
+    "arrival":   "2025-07-25T07:12:00Z",
+    "portCalls": [
+      {
+        "sequence": 1,
+        "portCode": "CNSHA",
+        "callType": "POL",
+        "eta": "2025-07-20T01:24:00Z",
+        "etd": "2025-07-20T18:00:00Z"
+      },
+      {
+        "sequence": 2,
+        "portCode": "SGSIN",
+        "callType": "VIA",
+        "eta": "2025-07-22T08:00:00Z",
+        "etd": "2025-07-22T20:00:00Z"
+      }
+    ]
+  }
+]`}
+              value={bulkData}
+              onChange={e => setBulkData(e.target.value)}
+              required
+            />
+            <p className="text-md font-bold text-white">
+              Paste an array of voyage-objects, each with its `portCalls`.
+            </p>
+
+            <div className="bg-[#1A2A4A] rounded-lg p-4 border border-slate-600 mt-4" style={cardGradient}>
+              <h4 className="text-lg font-semibold text-cyan-400 mb-3">JSON Format:</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 font-bold text-white">
+                <div>• serviceCode (required)</div>
+                <div>• voyageNumber (optional)</div>
+                <div>• departure (required)</div>
+                <div>• arrival (optional)</div>
+                <div className="col-span-full mt-2">• portCalls (array of stops):</div>
+                <div>  – sequence (required)</div>
+                <div>  – portCode  (required)</div>
+                <div>  – callType  (required)</div>
+                <div>  – eta, etd (optional)</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-center">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
+          >
+            {isLoading ? (
+              <><Settings className="w-5 h-5 animate-spin" /> Importing…</>
+            ) : (
+              <><Upload className="w-5 h-5" /> Import Voyages</>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+)}
+
 
       {/* SCHEDULE LIST */}
-      {activeTab==="schedule-list" && (
-        <section className="px-6 md:px-16 mb-16">
-          <div className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]" style={cardGradient}>
-            <h2 className="text-3xl font-bold flex items-center gap-3 mb-6">
-              <List className="text-cyan-400 w-8 h-8"/> Service Schedules
-            </h2>
-            {/* Filters */}
-            <div className="bg-[#2D4D8B] rounded-lg p-6 mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input
-                type="text"
-                placeholder="Code..."
-                value={filters.code}
-                onChange={e=>setFilters(prev=>({...prev,code:e.target.value}))}
-                className="px-4 py-2 bg-[#11235d] border border-slate-600 rounded-lg text-white"
-              />
-              <input
-                type="text"
-                placeholder="Description..."
-                value={filters.description}
-                onChange={e=>setFilters(prev=>({...prev,description:e.target.value}))}
-                className="px-4 py-2 bg-[#11235d] border border-slate-600 rounded-lg text-white"
-              />
-              <div className="flex gap-2">
-                <button onClick={applyFilters} className="bg-[#600f9e] py-2 px-6 rounded-lg flex items-center gap-2">
-                  <Search className="w-4 h-4"/> Apply
-                </button>
-                <button onClick={clearFilters} className="bg-[#2a72dc] py-2 px-6 rounded-lg flex items-center gap-2">
-                  <Filter className="w-4 h-4"/> Clear
-                </button>
-              </div>
-            </div>
-
-            {isLoadingList ? (
-              <div className="flex justify-center py-12">
-                <Settings className="animate-spin w-8 h-8"/>
-              </div>
-            ) : allSchedules.length === 0 ? (
-              <div className="text-center py-12 text-slate-400">No schedules found</div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                  {allSchedules.map(s => (
-                    <div key={s.code} className="rounded-lg p-6 shadow-[8px_8px_0_rgba(0,0,0,1)] hover:shadow-[12px_12px_0_rgba(0,0,0,1)]">
-                      <div className="flex justify-between mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-cyan-400">{s.code}</h3>
-                          {s.description && <p className="text-sm text-slate-300">{s.description}</p>}
-                        </div>
-                        <div className="bg-blue-900/30 text-blue-400 px-2 py-1 text-xs rounded">
-                          {s.voyages?.length||0} Voyages
-                        </div>
-                      </div>
-                      {/* show first 2 voyages */}
-                      {s.voyages && s.voyages.slice(0,2).map((v,i)=>(
-                        <div key={i} className="bg-[#11235d] rounded-lg p-3 mb-2">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Navigation className="w-4 h-4 text-yellow-400"/>
-                            <span className="font-mono font-bold">{v.voyageNumber}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-slate-400">
-                            <ChevronLeft className="w-3 h-3"/>
-                            <span>{new Date(v.departure).toLocaleDateString()}</span>
-                            {v.arrival && <>
-                              <span>→</span>
-                              <span>{new Date(v.arrival).toLocaleDateString()}</span>
-                            </>}
-                          </div>
-                        </div>
-                      ))}
-                      {s.voyages && s.voyages.length>2 && (
-                        <div className="text-xs text-slate-400 text-center">+{s.voyages.length-2} more</div>
-                      )}
-                      <div className="flex gap-2 mt-4">
-                        <button
-                          onClick={()=>openEdit(s)}
-                          className="flex-1 bg-[#600f9e] py-2 rounded-lg text-xs"
-                        >
-                          <Edit3 className="inline w-4 h-4"/> Edit
-                        </button>
-                        <button
-                          onClick={()=>openVoyages(s)}
-                          className="flex-1 bg-[#2a72dc] py-2 rounded-lg text-xs"
-                        >
-                          <Ship className="inline w-4 h-4"/> Voyages
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Pagination */}
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={()=>setCurrentPage(p=>p-1)}
-                    disabled={currentPage<=1}
-                    className="bg-[#2a72dc] px-6 py-2 rounded-lg disabled:opacity-50"
-                  ><ChevronLeft className="w-4 h-4"/> Prev</button>
-                  <span>Page {currentPage} of {totalPages}</span>
-                  <button
-                    onClick={()=>setCurrentPage(p=>p+1)}
-                    disabled={currentPage>=totalPages}
-                    className="bg-[#2a72dc] px-6 py-2 rounded-lg disabled:opacity-50"
-                  >Next <ChevronRight className="w-4 h-4"/></button>
-                </div>
-              </>
-            )}
+      {activeTab === "schedule-list" && (
+  <section className="px-6 md:px-16 mb-16">
+    <div className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]" style={cardGradient}>
+      <h2 className="text-3xl font-bold flex items-center gap-3 mb-6">
+        <List className="text-cyan-400 w-8 h-8"/> Service Schedules
+      </h2>
+      {/* Filters */}
+      <div
+        className="bg-[#2e4972] rounded-lg border-10 border-black p-6 mb-8 grid grid-cols-1 md:grid-cols-3 gap-10"
+        style={cardGradient}
+      >
+        <input
+          type="text"
+          placeholder="Code..."
+          value={filters.code}
+          onChange={e=>setFilters(prev=>({...prev,code:e.target.value}))}
+          className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+        />
+        <input
+          type="text"
+          placeholder="Description..."
+          value={filters.description}
+          onChange={e=>setFilters(prev=>({...prev,description:e.target.value}))}
+          className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+        />
+         <div className="flex gap-5 items-center mt-2 justify-end">
+            <button
+              onClick={applyFilters}
+              className="inline-flex justify-center items-center gap-2 h-10 px-8 bg-[#600f9e] hover:bg-[#491174] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+            >
+              <Search className="w-5 h-5" />
+              <span>Apply</span>
+            </button>
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center justify-center gap-2 h-10 px-8 bg-[#2a72dc] hover:bg-[#1e5bb8] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+            >
+              <Filter className="w-5 h-5" />
+              <span>Clear</span>
+            </button>
           </div>
-        </section>
+      </div>
+
+      {isLoadingList ? (
+        <div className="flex justify-center py-12">
+          <Settings className="animate-spin w-8 h-8"/>
+        </div>
+      ) : allSchedules.length === 0 ? (
+        <div className="text-center py-12 text-slate-400">No schedules found</div>
+      ) : (
+        <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+  {allSchedules.map(s => {
+    const voyagesForSchedule = allVoyages.filter(v => v.serviceCode === s.code);
+    return (
+      <div
+        key={s.code}
+        className="
+          group
+          bg-[#121c2d]
+          rounded-lg
+          p-6
+          shadow-[12px_12px_0_rgba(0,0,0,1)]
+          hover:shadow-[20px_20px_0_rgba(0,0,0,1)]
+          transition-shadow
+          border-1 border-slate-400
+          hover:border-cyan-400
+          transition-colors duration-150
+        "
+        style={cardGradient}
+      >
+        <div className="flex justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-cyan-400">{s.code}</h3>
+            {s.description && <p className="text-sm text-slate-300">{s.description}</p>}
+          </div>
+          <div className="bg-blue-900/30 text-blue-400 px-2 py-1 text-xs rounded">
+            {voyagesForSchedule.length} Voyages
+          </div>
+        </div>
+
+        {/* first 2 voyages */}
+        {voyagesForSchedule.slice(0, 2).map((v, i) => (
+          <div key={i} className="bg-[#11235d] rounded-lg p-3 mb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Navigation className="w-4 h-4 text-yellow-400" />
+              <span className="font-mono font-bold">{v.voyageNumber}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <ChevronLeft className="w-3 h-3" />
+              <span>{new Date(v.departure).toLocaleDateString()}</span>
+              {v.arrival && (
+                <>
+                  <span>→</span>
+                  <span>{new Date(v.arrival).toLocaleDateString()}</span>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {voyagesForSchedule.length > 2 && (
+          <div className="text-xs text-slate-400 text-center">
+            +{voyagesForSchedule.length - 2} more
+          </div>
+        )}
+
+        {/* action buttons only visible on hover */}
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity mt-4 flex gap-4">
+          <button
+            onClick={() => openEdit(s)}
+            className="flex-1 bg-[#600f9e] py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+          >
+            <Edit3 className="inline w-4 h-4" /> Edit
+          </button>
+          <button
+            onClick={() => openVoyages(s)}
+            className="flex-2 bg-[#2a72dc]  py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+          >
+            <Ship className="inline w-4 h-4" /> Voyages
+          </button>
+        </div>
+      </div>
+    );
+  })}
+</div>
+
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setCurrentPage(p => p - 1)}
+              disabled={currentPage <= 1}
+              className="bg-[#2a72dc] px-6 py-2 rounded-lg disabled:opacity-50"
+            >
+              <ChevronLeft className="w-4 h-4"/> Prev
+            </button>
+            <span>Page {currentPage} of {totalPages}</span>
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={currentPage >= totalPages}
+              className="bg-[#2a72dc] px-6 py-2 rounded-lg disabled:opacity-50"
+            >
+              Next <ChevronRight className="w-4 h-4"/>
+            </button>
+          </div>
+        </>
       )}
+    </div>
+  </section>
+)}
+
+{/* VOYAGES MODAL */}
+{voyageModalOpen && selectedSchedule && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div className="rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
+      <header className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold flex items-center gap-2">
+          <Ship/> Voyages for {selectedSchedule.code}
+        </h3>
+        <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
+      </header>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {allVoyages.filter(v => v.serviceCode === selectedSchedule.code).length === 0 ? (
+          <div className="col-span-full text-center py-8 text-slate-400">
+            No voyages scheduled
+          </div>
+        ) : (
+          allVoyages
+            .filter(v => v.serviceCode === selectedSchedule.code)
+            .map((v, i) => (
+              <div key={i} className="bg-[#2D4D8B] rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <h4 className="font-bold text-cyan-400">{v.voyageNumber}</h4>
+                  <button
+                    onClick={() => openPortCalls(v)}
+                    className="bg-[#2a72dc] px-3 py-1 rounded text-xs flex items-center gap-1"
+                  >
+                    <Anchor className="w-3 h-3"/> Port Calls
+                  </button>
+                </div>
+                <div className="space-y-2 text-sm text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <ChevronLeft className="w-4 h-4 text-green-400"/>
+                    <span>Depart: {new Date(v.departure).toLocaleString()}</span>
+                  </div>
+                  {v.arrival && (
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-red-400"/>
+                      <span>Arrive: {new Date(v.arrival).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+        )}
+      </div>
+      <div className="mt-6 flex justify-end">
+        <button onClick={closeVoyages} className="bg-[#2a72dc] py-2 px-4 rounded-lg">Close</button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       {/* EDIT SCHEDULE MODAL */}
       {editModalOpen && selectedSchedule && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="rounded-3xl p-8 max-w-md w-full" style={cardGradient}>
+          <div className="bg-[#121c2d] border-white shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-md w-full" style={cardGradient}>
             <header className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold flex items-center gap-2">
                 <Edit3/> Edit {selectedSchedule.code}
@@ -838,54 +1122,56 @@ useEffect(() => {
       )}
 
       {/* VOYAGES MODAL */}
-      {voyageModalOpen && selectedSchedule && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
-            <header className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Ship/> Voyages for {selectedSchedule.code}
-              </h3>
-              <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
-            </header>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(selectedSchedule.voyages ?? []).length === 0 ? (
-                <div className="col-span-full text-center py-8 text-slate-400">
-                  No voyages scheduled
-                </div>
-              ) : (
-                (selectedSchedule.voyages ?? []).map((v,i)=>(
-                  <div key={i} className="bg-[#2D4D8B] rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <h4 className="font-bold text-cyan-400">{v.voyageNumber}</h4>
-                      <button
-                        onClick={()=>openPortCalls(v)}
-                        className="bg-[#2a72dc] px-3 py-1 rounded text-xs flex items-center gap-1"
-                      >
-                        <Anchor className="w-3 h-3"/> Port Calls
-                      </button>
-                    </div>
-                    <div className="space-y-2 text-sm text-slate-300">
-                      <div className="flex items-center gap-2">
-                        <ChevronLeft className="w-4 h-4 text-green-400"/>
-                        <span>Depart: {new Date(v.departure).toLocaleString()}</span>
-                      </div>
-                      {v.arrival && (
-                        <div className="flex items-center gap-2">
-                          <ChevronRight className="w-4 h-4 text-red-400"/>
-                          <span>Arrive: {new Date(v.arrival).toLocaleString()}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button onClick={closeVoyages} className="bg-[#2a72dc] py-2 px-4 rounded-lg">Close</button>
-            </div>
+     {voyageModalOpen && selectedSchedule && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div className="bg-[#121c2d] border-white shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
+      <header className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold flex items-center gap-2">
+          <Ship/> Voyages for {selectedSchedule.code}
+        </h3>
+        <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
+      </header>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {allVoyages.filter(v => v.serviceCode === selectedSchedule.code).length === 0 ? (
+          <div className="col-span-full text-center py-8 text-slate-400">
+            No voyages scheduled
           </div>
-        </div>
-      )}
+        ) : (
+          allVoyages
+            .filter(v => v.serviceCode === selectedSchedule.code)
+            .map((v, i) => (
+              <div key={i} className="bg-[#1d4595] rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <h4 className="font-bold text-cyan-400">{v.voyageNumber}</h4>
+                  <button
+                    onClick={() => openPortCalls(v)}
+                    className="bg-[#2a72dc] px-3 py-1 rounded text-xs flex items-center gap-1"
+                  >
+                    <Anchor className="w-3 h-3"/> Port Calls
+                  </button>
+                </div>
+                <div className="space-y-2 text-sm text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <ChevronLeft className="w-4 h-4 text-green-400"/>
+                    <span>Depart: {new Date(v.departure).toLocaleString()}</span>
+                  </div>
+                  {v.arrival && (
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-red-400"/>
+                      <span>Arrive: {new Date(v.arrival).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+        )}
+      </div>
+      <div className="mt-6 flex justify-end">
+        <button onClick={closeVoyages} className="bg-[#2a72dc] py-2 px-4 rounded-lg">Close</button>
+      </div>
+    </div>
+  </div>
+)}  
 
       {/* PORT CALLS MODAL */}
       {portCallsModalOpen && selectedVoyage && (
