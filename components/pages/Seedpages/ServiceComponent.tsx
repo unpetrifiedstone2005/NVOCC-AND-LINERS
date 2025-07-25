@@ -26,8 +26,8 @@ import {
   Download,
 } from "lucide-react";
 
-// --- TYPES & INTERFACES ---------------------------------------------------
 interface ServiceSchedule {
+  id: string;             
   code: string;
   description?: string;
   voyages?: Voyage[];
@@ -40,11 +40,12 @@ interface ServiceForm {
 
 interface Voyage {
   id?: string;
-  serviceCode: string;
+  serviceId: string;
   voyageNumber?: string;
   departure: string;
   arrival?: string;
   portCalls?: PortCall[];
+  service?: { id: string; code: string; description?: string };
 }
 
 interface PortCall {
@@ -58,7 +59,6 @@ interface PortCall {
   vesselName?: string;
 }
 
-// --- STYLES ---------------------------------------------------------------
 const cardGradient = {
   backgroundImage: `
     linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
@@ -67,9 +67,7 @@ const cardGradient = {
   backgroundBlendMode: "overlay",
 };
 
-// --- COMPONENT ------------------------------------------------------------
 export function ServiceComponent() {
-  // Tabs
   const [activeTab, setActiveTab] = useState<
     "create-schedule" |
     "create-voyage" |
@@ -78,14 +76,13 @@ export function ServiceComponent() {
     "schedule-list"
   >("create-schedule");
 
-  // Forms & data
   const [serviceForm, setServiceForm] = useState<ServiceForm>({
     code: "",
     description: ""
   });
 
   const [voyageForm, setVoyageForm] = useState<Voyage>({
-    serviceCode: "",
+    serviceId: "",
     voyageNumber: "",
     departure: new Date().toISOString().slice(0,16),
     arrival: "",
@@ -123,58 +120,48 @@ export function ServiceComponent() {
   const [editForm, setEditForm] = useState<ServiceSchedule>({} as ServiceSchedule);
   const [selectedPortCalls, setSelectedPortCalls] = useState<PortCall[]>([]);
 
-  // Loading & messages
   const [isLoading, setIsLoading]       = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isUpdating, setIsUpdating]     = useState(false);
   const [message, setMessage]           = useState<{ type:"success"|"error"; text:string }|null>(null);
 
-  // --- HELPERS -------------------------------------------------------------
   const showMessage = (type:"success"|"error", text:string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
   };
 
-
-  // FETCH SCHEDULES
   async function fetchSchedules(page = 1) {
-  setIsLoadingList(true);
-  try {
-    const { data } = await axios.get<{
-      items:       ServiceSchedule[];
-      total:       number;
-      totalPages:  number;
-      currentPage: number;
-    }>(
-      "/api/seed/serviceschedules/get",
-      { params: { page, code: filters.code, description: filters.description } }
-    );
-
-    console.log("API → fetchSchedules:", data);
-    setAllSchedules(data.items);
-    setTotalPages(data.totalPages);
-  } catch (err: any) {
-    console.error("fetchSchedules error:", err);
-    showMessage("error", "Failed to fetch schedules");
-  } finally {
-    setIsLoadingList(false);
+    setIsLoadingList(true);
+    try {
+      const { data } = await axios.get<{
+        items:       ServiceSchedule[];
+        total:       number;
+        totalPages:  number;
+        currentPage: number;
+      }>(
+        "/api/seed/serviceschedules/get",
+        { params: { page, code: filters.code, description: filters.description } }
+      );
+      setAllSchedules(data.items);
+      setTotalPages(data.totalPages);
+    } catch (err: any) {
+      showMessage("error", "Failed to fetch schedules");
+    } finally {
+      setIsLoadingList(false);
+    }
   }
-}
 
-
-  // CREATE SCHEDULE
-   async function createSchedule(e: React.FormEvent) {
-    e.preventDefault()
-    setIsLoading(true)
+  async function createSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    setIsLoading(true);
     try {
       const { data: created } = await axios.post<ServiceSchedule>(
         "/api/seed/serviceschedules/post",
         serviceForm
-      )
-      showMessage("success", `Created schedule ${created.code}!`)
-      setServiceForm({ code: "", description: "" })
-      // 2) Immediately reload ALL schedules for your dropdown
-      fetchSchedules(1)
+      );
+      showMessage("success", `Created schedule ${created.code}!`);
+      setServiceForm({ code: "", description: "" });
+      fetchSchedules(1);
     } catch (err:any) {
       const pd = err.response?.data || {};
       if (Array.isArray(pd.error)) {
@@ -189,13 +176,12 @@ export function ServiceComponent() {
     }
   }
 
-  // CREATE VOYAGE
   async function createVoyage(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
     try {
       const payload = {
-        serviceCode:  voyageForm.serviceCode,
+        serviceId: voyageForm.serviceId,
         voyageNumber: voyageForm.voyageNumber,
         departure:    new Date(voyageForm.departure).toISOString(),
         arrival:      voyageForm.arrival ? new Date(voyageForm.arrival).toISOString() : undefined,
@@ -205,7 +191,12 @@ export function ServiceComponent() {
         payload
       );
       showMessage("success", `Voyage ${created.voyageNumber} created!`);
-      setVoyageForm({ serviceCode:"", voyageNumber:"", departure:new Date().toISOString().slice(0,16), arrival:"" });
+      setVoyageForm({
+        serviceId: "",
+        voyageNumber: "",
+        departure: new Date().toISOString().slice(0, 16),
+        arrival: "",
+      });
       fetchVoyages();
     } catch (err:any) {
       console.error("createVoyage error:", err.response?.data ?? err);
@@ -222,7 +213,6 @@ export function ServiceComponent() {
     }
   }
 
-  // CREATE PORT CALL
   async function createPortCall(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
@@ -237,143 +227,133 @@ export function ServiceComponent() {
     }
   }
 
-  // BULK IMPORT
   async function importBulkVoyages(e: React.FormEvent) {
-  e.preventDefault();
-  setIsLoading(true);
-  try {
-    // 1) read the raw JSON
-    let raw = bulkData;
-    if (bulkMode === "file" && uploadedFile) {
-      raw = await uploadedFile.text();
-    }
-    const voyagesToImport = JSON.parse(raw) as Array<{
-      serviceCode: string;
-      voyageNumber?: string;
-      departure: string;
-      arrival?: string;
-      portCalls?: Array<{
-        sequence: number;
-        portCode: string;
-        callType?: string;
-        eta?: string;
-        etd?: string;
-        vesselName?: string;
-      }>;
-    }>;
-
-    let voyageCount = 0;
-    let portCallCount = 0;
-
-    // 2) loop and create
-    for (const v of voyagesToImport) {
-      const { data: createdVoyage } = await axios.post<{
-        id: string;
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      let raw = bulkData;
+      if (bulkMode === "file" && uploadedFile) {
+        raw = await uploadedFile.text();
+      }
+      const voyagesToImport = JSON.parse(raw) as Array<{
         serviceCode: string;
         voyageNumber?: string;
         departure: string;
         arrival?: string;
-      }>(
-        "/api/seed/voyages/post",
-        {
-          serviceCode:  v.serviceCode,
-          voyageNumber: v.voyageNumber,
-          departure:    v.departure,
-          arrival:      v.arrival,
-        }
-      );
-      voyageCount++;
+        portCalls?: Array<{
+          sequence: number;
+          portCode: string;
+          callType?: string;
+          eta?: string;
+          etd?: string;
+          vesselName?: string;
+        }>;
+      }>;
 
-      // 3) if there are portCalls, create each one
-      if (Array.isArray(v.portCalls)) {
-        for (const pc of v.portCalls) {
-          await axios.post(
-            "/api/seed/portcalls/post",
-            {
-              voyageId:   createdVoyage.id,
-              portCode:   pc.portCode,
-              order:      pc.sequence,
-              eta:        pc.eta,
-              etd:        pc.etd,
-              mode:       pc.callType,
-              vesselName: pc.vesselName,
-            }
-          );
-          portCallCount++;
+      let voyageCount = 0;
+      let portCallCount = 0;
+
+      for (const v of voyagesToImport) {
+        const { data: createdVoyage } = await axios.post<{
+          id: string;
+          serviceCode: string;
+          voyageNumber?: string;
+          departure: string;
+          arrival?: string;
+        }>(
+          "/api/seed/voyages/post",
+          {
+            serviceCode:  v.serviceCode,
+            voyageNumber: v.voyageNumber,
+            departure:    v.departure,
+            arrival:      v.arrival,
+          }
+        );
+        voyageCount++;
+
+        if (Array.isArray(v.portCalls)) {
+          for (const pc of v.portCalls) {
+            await axios.post(
+              "/api/seed/portcalls/post",
+              {
+                voyageId:   createdVoyage.id,
+                portCode:   pc.portCode,
+                order:      pc.sequence,
+                eta:        pc.eta,
+                etd:        pc.etd,
+                mode:       pc.callType,
+                vesselName: pc.vesselName,
+              }
+            );
+            portCallCount++;
+          }
         }
       }
+
+      showMessage("success", `Imported ${voyageCount} voyages and ${portCallCount} port calls.`);
+      setBulkData("");
+      setUploadedFile(null);
+    } catch (err:any) {
+      showMessage("error", "Failed to import voyages/port calls");
+    } finally {
+      setIsLoading(false);
     }
-
-    showMessage("success", `Imported ${voyageCount} voyages and ${portCallCount} port calls.`);
-    setBulkData("");
-    setUploadedFile(null);
-    // refresh lists if needed...
-  } catch (err:any) {
-    console.error("bulk import error", err);
-    showMessage("error", "Failed to import voyages/port calls");
-  } finally {
-    setIsLoading(false);
   }
-}
 
-
-  // DOWNLOAD SAMPLE
   function downloadSample() {
     const sample = [
-  {
-    "serviceCode": "WAX",
-    "voyageNumber": "22N",
-    "departure": "2025-07-20T01:24:00Z",
-    "arrival":   "2025-07-25T07:12:00Z",
-    "portCalls": [
       {
-        "sequence": 1,
-        "portCode": "CNSHA",
-        "callType": "POL",
-        "eta": "2025-07-20T01:24:00Z",
-        "etd": "2025-07-20T18:00:00Z"
-      },
-      {
-        "sequence": 2,
-        "portCode": "SGSIN",
-        "callType": "VIA",
-        "eta": "2025-07-22T08:00:00Z",
-        "etd": "2025-07-22T20:00:00Z"
+        "serviceCode": "WAX",
+        "voyageNumber": "22N",
+        "departure": "2025-07-20T01:24:00Z",
+        "arrival":   "2025-07-25T07:12:00Z",
+        "portCalls": [
+          {
+            "sequence": 1,
+            "portCode": "CNSHA",
+            "callType": "POL",
+            "eta": "2025-07-20T01:24:00Z",
+            "etd": "2025-07-20T18:00:00Z"
+          },
+          {
+            "sequence": 2,
+            "portCode": "SGSIN",
+            "callType": "VIA",
+            "eta": "2025-07-22T08:00:00Z",
+            "etd": "2025-07-22T20:00:00Z"
+          }
+        ]
       }
-    ]
-  }
-];
+    ];
     const blob = new Blob([JSON.stringify(sample,null,2)],{type:"application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href=url; a.download="schedule-sample.json"; a.click();
   }
 
-  // FETCH VOYAGES
-  async function fetchVoyages() {
+ async function fetchVoyages() {
   try {
     const { data } = await axios.get<{
       voyages: Voyage[];
       total: number;
       totalPages: number;
       currentPage: number;
-    }>("/api/seed/voyages/get");
-
-    console.log("API → fetchVoyages:", data);
+    }>("/api/seed/voyages/get", { params: { includeService: true } }); // optional param for backend
     setAllVoyages(data.voyages);
   } catch (err: any) {
-    console.error("fetchVoyages error:", err);
     showMessage("error", "Could not load voyages");
   }
 }
 
-  // APPLY EDIT
   async function applyEdit() {
     setIsUpdating(true);
     try {
       await axios.patch(
-        `/api/seed/serviceschedules/${selectedSchedule!.code}/patch`,
-        { description: editForm.description }
+        `/api/seed/serviceschedules/${selectedSchedule!.id}/patch`,
+        { 
+          code: editForm.code,
+          description: editForm.description 
+        }
       );
       showMessage("success","Schedule updated");
       setEditModalOpen(false);
@@ -385,7 +365,6 @@ export function ServiceComponent() {
     }
   }
 
-  // MODALS & FILTERS
   function applyFilters() { fetchSchedules(1) }
   function clearFilters() {
     setFilters({ code:"", description:"", voyageNumber:"" });
@@ -406,24 +385,16 @@ export function ServiceComponent() {
     setSelectedPortCalls([]);
   }
 
-    // INITIAL LOAD & TAB CHANGE
-// on-mount: grab both schedules (for dropdown) and voyages
-useEffect(() => {
-  fetchSchedules(1)
-  fetchVoyages()
-}, [])
+  useEffect(() => {
+    fetchSchedules(1)
+    fetchVoyages()
+  }, [])
 
-useEffect(() => {
-  console.log("allVoyages state:", allVoyages);
-}, [allVoyages]);
-
-// when you actually land on “schedule-list”, re-fetch that page
-useEffect(() => {
-  if (activeTab === "schedule-list") {
-    fetchSchedules(currentPage)
-  }
-}, [activeTab, currentPage])
-
+  useEffect(() => {
+    if (activeTab === "schedule-list") {
+      fetchSchedules(currentPage)
+    }
+  }, [activeTab, currentPage])
 
   // === RENDER ===
   return (
@@ -561,14 +532,14 @@ useEffect(() => {
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Service Schedule *</label>
                 <select
-                  value={voyageForm.serviceCode}
-                  onChange={e=>setVoyageForm(prev=>({...prev,serviceCode:e.target.value}))}
+                  value={voyageForm.serviceId}
+                  onChange={e=>setVoyageForm(prev=>({...prev,serviceId:e.target.value}))}
                   required
                   className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
                 >
                   <option value="">Select Schedule</option>
                   {(allSchedules ?? []).map(s=>(
-                    <option key={s.code} value={s.code}>
+                    <option key={s.id} value={s.id}>
                       {s.code} – {s.description}
                     </option>
                   ))}
@@ -599,11 +570,12 @@ useEffect(() => {
               </div>
               {/* Arrival */}
               <div className="space-y-2">
-                <label className="text-sm mt-2 font-semibold">Arrival (ETA)</label>
+                <label className="text-sm mt-2 font-semibold">Arrival (ETA) *</label>
                 <input
                   type="datetime-local"
                   value={voyageForm.arrival||""}
                   onChange={e=>setVoyageForm(prev=>({...prev,arrival:e.target.value}))}
+                  required
                   className="w-full px-4 py-3 bg-[#11235d] hover:text-[#00FFFF] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                 />
               </div>
@@ -643,7 +615,7 @@ useEffect(() => {
                   <option value="">Select Voyage</option>
                   {(allVoyages ?? []).map(v=>(
                     <option key={v.id} value={v.id}>
-                      {v.serviceCode} {v.voyageNumber} – {new Date(v.departure).toLocaleDateString()}
+                      {v.service?.code} {v.voyageNumber} – {new Date(v.departure).toLocaleDateString()}
                     </option>
                   ))}
                 </select>
@@ -933,7 +905,7 @@ useEffect(() => {
         <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
   {allSchedules.map(s => {
-    const voyagesForSchedule = allVoyages.filter(v => v.serviceCode === s.code);
+    const voyagesForSchedule = allVoyages.filter(v => v.service?.code === s.code);
     return (
       <div
         key={s.code}
@@ -953,22 +925,22 @@ useEffect(() => {
       >
         <div className="flex justify-between mb-4">
           <div>
-            <h3 className="text-xl font-bold text-cyan-400">{s.code}</h3>
-            {s.description && <p className="text-sm text-slate-300">{s.description}</p>}
+            <h3 className="text-xl font-bold text-[#00FFFF]">{s.code}</h3>
+            {s.description && <p className="text-sm text-white">{s.description}</p>}
           </div>
-          <div className="bg-blue-900/30 text-blue-400 px-2 py-1 text-xs rounded">
+          <div className="text-[#00FFFF] px-2 py-1 font-semibold text-sm rounded">
             {voyagesForSchedule.length} Voyages
           </div>
         </div>
 
         {/* first 2 voyages */}
         {voyagesForSchedule.slice(0, 2).map((v, i) => (
-          <div key={i} className="bg-[#11235d] rounded-lg p-3 mb-2">
+          <div key={i} className="p-3 mb-2">
             <div className="flex items-center gap-2 mb-1">
               <Navigation className="w-4 h-4 text-yellow-400" />
-              <span className="font-mono font-bold">{v.voyageNumber}</span>
+              <span className="font-mono text-md font-bold">{v.voyageNumber}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
+            <div className="flex items-center gap-2 text-sm text-white">
               <ChevronLeft className="w-3 h-3" />
               <span>{new Date(v.departure).toLocaleDateString()}</span>
               {v.arrival && (
@@ -1043,13 +1015,13 @@ useEffect(() => {
         <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {allVoyages.filter(v => v.serviceCode === selectedSchedule.code).length === 0 ? (
+        {allVoyages.filter(v => v.service?.code === selectedSchedule.code).length === 0 ? (
           <div className="col-span-full text-center py-8 text-slate-400">
             No voyages scheduled
           </div>
         ) : (
           allVoyages
-            .filter(v => v.serviceCode === selectedSchedule.code)
+            .filter(v => v.service?.code === selectedSchedule.code)
             .map((v, i) => (
               <div key={i} className="bg-[#2D4D8B] rounded-lg p-4">
                 <div className="flex justify-between items-start mb-3">
@@ -1097,6 +1069,16 @@ useEffect(() => {
             </header>
             <form className="space-y-6">
               <div className="space-y-2">
+                <label className="text-sm font-semibold">Service Code</label>
+                <input
+                  type="text"
+                  value={editForm.code || ""}
+                  onChange={e=>setEditForm(prev=>({...prev, code: e.target.value.toUpperCase()}))}
+                  className="w-full px-4 py-3 bg-[#2D4D8B] border border-slate-600 rounded-lg text-white"
+                  placeholder="WAX"
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-semibold">Description</label>
                 <input
                   type="text"
@@ -1124,7 +1106,7 @@ useEffect(() => {
       {/* VOYAGES MODAL */}
      {voyageModalOpen && selectedSchedule && (
   <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="bg-[#121c2d] border-white shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
+    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
       <header className="flex justify-between items-center mb-6">
         <h3 className="text-2xl font-bold flex items-center gap-2">
           <Ship/> Voyages for {selectedSchedule.code}
@@ -1132,42 +1114,46 @@ useEffect(() => {
         <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {allVoyages.filter(v => v.serviceCode === selectedSchedule.code).length === 0 ? (
+        {allVoyages.filter(v => v.service?.code === selectedSchedule.code).length === 0 ? (
           <div className="col-span-full text-center py-8 text-slate-400">
             No voyages scheduled
           </div>
         ) : (
           allVoyages
-            .filter(v => v.serviceCode === selectedSchedule.code)
+            .filter(v => v.service?.code === selectedSchedule.code)
             .map((v, i) => (
-              <div key={i} className="bg-[#1d4595] rounded-lg p-4">
+              <div 
+                key={i} 
+                className="bg-[#1d4595] border-6 border-black rounded-lg p-4 cursor-pointer hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow hover:border-cyan-400 group"
+                onClick={() => openPortCalls(v)}
+              >
                 <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-bold text-cyan-400">{v.voyageNumber}</h4>
-                  <button
-                    onClick={() => openPortCalls(v)}
-                    className="bg-[#2a72dc] px-3 py-1 rounded text-xs flex items-center gap-1"
-                  >
-                    <Anchor className="w-3 h-3"/> Port Calls
-                  </button>
+                  <h4 className="font-bold text-white text-lg">{v.voyageNumber}</h4>
                 </div>
-                <div className="space-y-2 text-sm text-slate-300">
+                <div className="space-y-2 text-md text-white">
                   <div className="flex items-center gap-2">
-                    <ChevronLeft className="w-4 h-4 text-green-400"/>
+                    <ChevronLeft className="w-6 h-6 text-green-400"/>
                     <span>Depart: {new Date(v.departure).toLocaleString()}</span>
                   </div>
                   {v.arrival && (
                     <div className="flex items-center gap-2">
-                      <ChevronRight className="w-4 h-4 text-red-400"/>
+                      <ChevronRight className="w-6 h-6 text-red-400"/>
                       <span>Arrive: {new Date(v.arrival).toLocaleString()}</span>
                     </div>
                   )}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold">
+                    <Anchor className="w-3 h-3" /> Click to view port calls
+                  </div>
                 </div>
               </div>
             ))
         )}
       </div>
       <div className="mt-6 flex justify-end">
-        <button onClick={closeVoyages} className="bg-[#2a72dc] py-2 px-4 rounded-lg">Close</button>
+        <button onClick={closeVoyages} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">CLOSE</button>
       </div>
     </div>
   </div>
@@ -1179,7 +1165,7 @@ useEffect(() => {
           <div className="rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
             <header className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Anchor/> Port Calls – {selectedVoyage.serviceCode} {selectedVoyage.voyageNumber}
+                <Anchor/> Port Calls – {selectedVoyage.service?.code} {selectedVoyage.voyageNumber}
               </h3>
               <button onClick={closePortCalls}><X className="w-6 h-6"/></button>
             </header>

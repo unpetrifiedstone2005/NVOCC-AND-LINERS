@@ -1,13 +1,12 @@
-// app/api/voyages/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { z, ZodError }              from "zod";
-import { prismaClient }             from "@/app/lib/db";
+import { z, ZodError } from "zod";
+import { prismaClient } from "@/app/lib/db";
 
 const CreateVoyageSchema = z.object({
-  serviceCode:  z.string().min(1),
+  serviceId: z.string().uuid(), // ✅ Now expects serviceId
   voyageNumber: z.string().optional(),
-  departure:    z.string().datetime(),
-  arrival:      z.string().datetime().optional(),
+  departure: z.string().datetime(),
+  arrival: z.string().datetime().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -24,24 +23,29 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
-  // ensure service exists
+  // ✅ ensure service exists using serviceId
   const svc = await prismaClient.serviceSchedule.findUnique({
-    where: { code: input.serviceCode }
+    where: { id: input.serviceId }
   });
+
   if (!svc) {
     return NextResponse.json(
-      { error: `serviceCode "${input.serviceCode}" not found` },
+      { error: `serviceId "${input.serviceId}" not found` },
       { status: 400 }
     );
   }
 
+  // ✅ create voyage with FK only
   const voyage = await prismaClient.voyage.create({
     data: {
-      serviceCode:  input.serviceCode,
+      serviceId: input.serviceId,
       voyageNumber: input.voyageNumber,
-      departure:    new Date(input.departure),
-      arrival:      input.arrival ? new Date(input.arrival) : undefined,
-    }
+      departure: new Date(input.departure),
+      arrival: input.arrival ? new Date(input.arrival) : undefined,
+    },
+    include: {
+      service: true, // ✅ include service to return code
+    },
   });
 
   return NextResponse.json(voyage, { status: 201 });

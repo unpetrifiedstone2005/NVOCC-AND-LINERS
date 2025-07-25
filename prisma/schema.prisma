@@ -390,7 +390,8 @@ model QuotationContainerService {
 /// 2. Carrier Schedule & Voyages
 /// ─────────────────────────────────────────────────────────
 model ServiceSchedule {
-  code        String     @id
+  id          String     @id @default(uuid())
+  code        String     @unique
   description String?
   voyages     Voyage[]
   tariffs     Tariff[]
@@ -400,16 +401,19 @@ model ServiceSchedule {
 
 model Voyage {
   id           String           @id @default(uuid())
-  serviceCode  String
+  
+  serviceId    String           // 🔹 use UUID FK instead of serviceCode
+  
   voyageNumber String?          // “245N”, “006W” …
   departure    DateTime         // first port’s ETD
   arrival      DateTime?        // last port’s ETA
-  portCalls    PortCall[]
-  
-  quotationRoutings QuotationRouting[] @relation("VoyageToQuotationRouting")
-  service      ServiceSchedule  @relation(fields: [serviceCode], references: [code], onDelete: Cascade)
 
-  @@index([serviceCode])
+  portCalls    PortCall[]
+  quotationRoutings QuotationRouting[] @relation("VoyageToQuotationRouting")
+
+  service      ServiceSchedule  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])          // 🔹 update index to serviceId
   @@index([departure])
   @@index([arrival])
 }
@@ -435,21 +439,21 @@ model PortCall {
 model QuotationRouting {
   id            String           @id @default(uuid())
   quotationId   String
-  pol           String           // should match Quotation.startLocation
-  pod           String           // should match Quotation.endLocation
-  serviceCode   String
+  pol           String
+  pod           String
+  serviceId     String
   voyageId      String
-  importHaulage DeliveryType     // e.g. TERMINAL or DOOR
-  commodity     String           // e.g., "FAK" or "DG"
+  importHaulage DeliveryType
+  commodity     String
 
-
-  // relations
   quotation     Quotation        @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   voyage        Voyage           @relation("VoyageToQuotationRouting", fields: [voyageId], references: [id], onDelete: Cascade)
-  service       ServiceSchedule  @relation("ServiceToQuotationRouting", fields: [serviceCode], references: [code], onDelete: Cascade)
+  service       ServiceSchedule  @relation("ServiceToQuotationRouting", fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@index([quotationId])
+  @@index([serviceId])
 }
+
 
 model Booking {
   id                  String                  @id @default(uuid())
@@ -822,7 +826,7 @@ model ContainerType {
 }
 
 model Tariff {
-  serviceCode    String            // e.g. "WAX"
+  serviceId      String            // UUID FK to ServiceSchedule
   pol            String            // port-of-loading UN/LOCODE
   pod            String            // port-of-discharge UN/LOCODE
   commodity      String            // e.g. "FAK"
@@ -832,10 +836,11 @@ model Tariff {
   validFrom      DateTime
   validTo        DateTime?
 
-  service        ServiceSchedule   @relation(fields: [serviceCode], references: [code], onDelete: Cascade)
+  service        ServiceSchedule   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
-  @@id([serviceCode, pol, pod, commodity, group, validFrom])
+  @@id([serviceId, pol, pod, commodity, group, validFrom])
 }
+
 
 
 model SurchargeDef {
