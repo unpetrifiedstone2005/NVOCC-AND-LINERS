@@ -404,7 +404,7 @@ model Voyage {
   
   serviceId    String           // 🔹 use UUID FK instead of serviceCode
   
-  voyageNumber String?          // “245N”, “006W” …
+  voyageNumber String?          @unique// “245N”, “006W” …
   departure    DateTime         // first port’s ETD
   arrival      DateTime?        // last port’s ETA
 

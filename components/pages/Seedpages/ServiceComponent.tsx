@@ -24,10 +24,12 @@ import {
   CalendarSync,
   FileText,
   Download,
+  SearchIcon,
 } from "lucide-react";
 
+// Types based on your models
 interface ServiceSchedule {
-  id: string;             
+  id: string;
   code: string;
   description?: string;
   voyages?: Voyage[];
@@ -130,6 +132,19 @@ export function ServiceComponent() {
     setTimeout(() => setMessage(null), 5000);
   };
 
+  // === NEW State for Voyage Modal Pagination & Search ===
+  const [voyageSearch, setVoyageSearch] = useState("");
+  const [voyagePage, setVoyagePage] = useState(1);
+  const voyagesPerPage = 6;
+
+  // === NEW State for Edit Voyage Modal ===
+  const [editVoyageModal, setEditVoyageModal] = useState(false);
+  const [voyageEditForm, setVoyageEditForm] = useState<Voyage|null>(null);
+
+  // === NEW State for Edit Port Call Modal ===
+  const [editPortCallModal, setEditPortCallModal] = useState(false);
+  const [portCallEditForm, setPortCallEditForm] = useState<PortCall|null>(null);
+
   async function fetchSchedules(page = 1) {
     setIsLoadingList(true);
     try {
@@ -148,6 +163,20 @@ export function ServiceComponent() {
       showMessage("error", "Failed to fetch schedules");
     } finally {
       setIsLoadingList(false);
+    }
+  }
+
+  async function fetchVoyages() {
+    try {
+      const { data } = await axios.get<{
+        voyages: Voyage[];
+        total: number;
+        totalPages: number;
+        currentPage: number;
+      }>("/api/seed/voyages/get", { params: { includeService: true } });
+      setAllVoyages(data.voyages);
+    } catch (err: any) {
+      showMessage("error", "Could not load voyages");
     }
   }
 
@@ -177,44 +206,42 @@ export function ServiceComponent() {
   }
 
   async function createVoyage(e: React.FormEvent) {
-  e.preventDefault();
-  setIsLoading(true);
-  try {
-    // ✅ send serviceCode instead of serviceId
-    const selectedService = allSchedules.find(s => s.id === voyageForm.serviceId);
-    if (!selectedService) throw new Error("Invalid service selected");
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const selectedService = allSchedules.find(s => s.id === voyageForm.serviceId);
+      if (!selectedService) throw new Error("Invalid service selected");
 
-    const payload = {
-      serviceCode: selectedService.code,  
-      voyageNumber: voyageForm.voyageNumber,
-      departure: new Date(voyageForm.departure).toISOString(),
-      arrival: voyageForm.arrival ? new Date(voyageForm.arrival).toISOString() : undefined,
-    };
+      const payload = {
+        serviceCode: selectedService.code,
+        voyageNumber: voyageForm.voyageNumber,
+        departure: new Date(voyageForm.departure).toISOString(),
+        arrival: voyageForm.arrival ? new Date(voyageForm.arrival).toISOString() : undefined,
+      };
 
-    const { data: created } = await axios.post("/api/seed/voyages/post", payload);
-    showMessage("success", `Voyage ${created.voyageNumber} created!`);
-    setVoyageForm({
-      serviceId: "",
-      voyageNumber: "",
-      departure: new Date().toISOString().slice(0, 16),
-      arrival: "",
-    });
-    fetchVoyages();
-  } catch (err:any) {
-    console.error("createVoyage error:", err.response?.data ?? err);
-    const pd = err.response?.data || {};
-    if (Array.isArray(pd.error)) {
-      showMessage("error", pd.error.map((z:any)=>z.message).join("; "));
-    } else if (Array.isArray(pd.errors)) {
-      showMessage("error", pd.errors.map((e:any)=>e.message).join("; "));
-    } else {
-      showMessage("error", pd.error || "Failed to create voyage");
+      const { data: created } = await axios.post("/api/seed/voyages/post", payload);
+      showMessage("success", `Voyage ${created.voyageNumber} created!`);
+      setVoyageForm({
+        serviceId: "",
+        voyageNumber: "",
+        departure: new Date().toISOString().slice(0, 16),
+        arrival: "",
+      });
+      fetchVoyages();
+    } catch (err:any) {
+      console.error("createVoyage error:", err.response?.data ?? err);
+      const pd = err.response?.data || {};
+      if (Array.isArray(pd.error)) {
+        showMessage("error", pd.error.map((z:any)=>z.message).join("; "));
+      } else if (Array.isArray(pd.errors)) {
+        showMessage("error", pd.errors.map((e:any)=>e.message).join("; "));
+      } else {
+        showMessage("error", pd.error || "Failed to create voyage");
+      }
+    } finally {
+      setIsLoading(false);
     }
-  } finally {
-    setIsLoading(false);
   }
-}
-
 
   async function createPortCall(e: React.FormEvent) {
     e.preventDefault();
@@ -334,20 +361,6 @@ export function ServiceComponent() {
     a.href=url; a.download="schedule-sample.json"; a.click();
   }
 
- async function fetchVoyages() {
-  try {
-    const { data } = await axios.get<{
-      voyages: Voyage[];
-      total: number;
-      totalPages: number;
-      currentPage: number;
-    }>("/api/seed/voyages/get", { params: { includeService: true } }); // optional param for backend
-    setAllVoyages(data.voyages);
-  } catch (err: any) {
-    showMessage("error", "Could not load voyages");
-  }
-}
-
   async function applyEdit() {
     setIsUpdating(true);
     try {
@@ -373,20 +386,73 @@ export function ServiceComponent() {
     setFilters({ code:"", description:"", voyageNumber:"" });
     fetchSchedules(1);
   }
+
   function openEdit(s:ServiceSchedule) { setSelectedSchedule(s); setEditForm(s); setEditModalOpen(true) }
   function closeEdit() { setEditModalOpen(false); setSelectedSchedule(null) }
-  function openVoyages(s:ServiceSchedule) { setSelectedSchedule(s); setVoyageModalOpen(true) }
+  function openVoyages(s:ServiceSchedule) { 
+    setSelectedSchedule(s); 
+    setVoyageModalOpen(true);
+    setVoyageSearch("");
+    setVoyagePage(1);
+  }
   function closeVoyages() { setVoyageModalOpen(false); setSelectedSchedule(null) }
+
+  // === NEW: Edit Voyage functions ===
+  function openEditVoyage(v:Voyage) { setVoyageEditForm(v); setEditVoyageModal(true); }
+  async function saveEditVoyage() {
+    if (!voyageEditForm?.id) return;
+    await axios.patch(`/api/seed/voyages/${voyageEditForm.id}/patch`, voyageEditForm);
+    showMessage("success","Voyage updated");
+    setEditVoyageModal(false);
+    fetchVoyages();
+  }
+
   function openPortCalls(v:Voyage) {
     setSelectedVoyage(v);
-    setSelectedPortCalls(v.portCalls||[]);
+    setSelectedPortCalls(v.portCalls || []);
     setPortCallsModalOpen(true);
   }
-  function closePortCalls() {
-    setPortCallsModalOpen(false);
-    setSelectedVoyage(null);
-    setSelectedPortCalls([]);
+  function closePortCalls() { setPortCallsModalOpen(false); setSelectedVoyage(null) }
+
+  // === NEW: Edit Port Call functions ===
+  function openEditPortCall(pc:PortCall) { setPortCallEditForm(pc); setEditPortCallModal(true); }
+ async function saveEditPortCall() {
+  if (!portCallEditForm?.id) return;
+
+  setIsLoading(true);
+  try {
+    await axios.patch(
+      `/api/seed/portcalls/${portCallEditForm.id}/patch`,
+      portCallEditForm
+    );
+    showMessage("success", "Port call updated");
+    setEditPortCallModal(false);
+    fetchVoyages();
+    if (selectedVoyage) openPortCalls(selectedVoyage);
+  } catch (err: any) {
+    // Grab the payload from your Next.js handler
+    const pd = err.response?.data || {};
+    // Zod‑style fieldErrors come back under `.errors`
+    if (pd.errors && typeof pd.errors === "object") {
+      // flatten them into one string
+      const msgs = Object.values(pd.errors)
+        .flat()
+        .join("; ");
+      showMessage("error", msgs);
+    }
+    // or a single .error message
+    else if (pd.error) {
+      showMessage("error", pd.error);
+    }
+    // fallback
+    else {
+      showMessage("error", "Failed to update port call");
+    }
+  } finally {
+    setIsLoading(false);
   }
+}
+
 
   useEffect(() => {
     fetchSchedules(1)
@@ -399,23 +465,30 @@ export function ServiceComponent() {
     }
   }, [activeTab, currentPage])
 
+  // === Pagination logic for Voyage Modal ===
+  const voyagesForSchedule = allVoyages
+    .filter(v => v.service?.code === selectedSchedule?.code)
+    .filter(v => v.voyageNumber?.toLowerCase().includes(voyageSearch.toLowerCase()));
+  const totalVoyagePages = Math.ceil(voyagesForSchedule.length / voyagesPerPage);
+  const paginatedVoyages = voyagesForSchedule.slice((voyagePage-1)*voyagesPerPage, voyagePage*voyagesPerPage);
+
   // === RENDER ===
   return (
     <div className="w-full max-w-[1600px] mx-auto min-h-screen text-white uppercase">
       {/* HEADER */}
       <header className="py-1 px-6 md:px-16">
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-4">
-              <div className="rounded-full bg-[#1A2A4A] p-3" style={cardGradient}>
-                <CalendarCheckIcon height={50} width={50} className="text-[#00FFFF]" />
-              </div>
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-4">
+            <div className="rounded-full bg-[#1A2A4A] p-3" style={cardGradient}>
+              <CalendarCheckIcon height={50} width={50} className="text-[#00FFFF]" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-extrabold mb-2">
-              SCMT Data Seeding
-              <span className="block text-cyan-400 mt-2">Service Schedules & Voyages</span>
-            </h1>
           </div>
-        </header>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-2">
+            SCMT Data Seeding
+            <span className="block text-cyan-400 mt-2">Service Schedules & Voyages</span>
+          </h1>
+        </div>
+      </header>
 
       {/* MESSAGE */}
       {message && (
@@ -454,74 +527,68 @@ export function ServiceComponent() {
 
       {/* CREATE SCHEDULE */}
       {activeTab === "create-schedule" && (
-  <section className="px-6 md:px-16 mb-16">
-    <div
-      className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]"
-      style={cardGradient}
-    >
-      <h2 className="text-3xl font-bold flex items-center gap-3 mb-8">
-        <CalendarSync className="text-cyan-400 w-8 h-8" /> Create Service Schedule
-      </h2>
-      <form
-        onSubmit={createSchedule}
-        className="grid grid-cols-1 md:grid-cols-2 gap-6"
-      >
-        {/* Code */}
-        <div className="space-y-2">
-          <label className="text-sm font-semibold">Service Code *</label>
-          <input
-            type="text"
-            value={serviceForm.code}
-            onChange={e =>
-              setServiceForm(prev => ({
-                ...prev,
-                code: e.target.value.toUpperCase(),
-              }))
-            }
-            placeholder="WAX"
-            maxLength={10}
-            required
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
-          />
-        </div>
-
-        {/* Description */}
-        <div className="space-y-2">
-          <label className="text-sm font-semibold">Description</label>
-          <input
-            type="text"
-            value={serviceForm.description}
-            onChange={e =>
-              setServiceForm(prev => ({
-                ...prev,
-                description: e.target.value,
-              }))
-            }
-            placeholder="Weekly Atlantic Express"
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
-          />
-        </div>
-
-        {/* Submit Button spans both columns */}
-        <div className="md:col-span-2 flex justify-center mt-6">
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
+        <section className="px-6 md:px-16 mb-16">
+          <div
+            className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]"
+            style={cardGradient}
           >
-            {isLoading ? (
-              <Settings className="animate-spin w-5 h-5" />
-            ) : (
-              <Plus className="w-5 h-5" />
-            )}
-            Create
-          </button>
-        </div>
-      </form>
-    </div>
-  </section>
-)}
-
+            <h2 className="text-3xl font-bold flex items-center gap-3 mb-8">
+              <CalendarSync className="text-cyan-400 w-8 h-8" /> Create Service Schedule
+            </h2>
+            <form
+              onSubmit={createSchedule}
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Service Code *</label>
+                <input
+                  type="text"
+                  value={serviceForm.code}
+                  onChange={e =>
+                    setServiceForm(prev => ({
+                      ...prev,
+                      code: e.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="WAX"
+                  maxLength={10}
+                  required
+                  className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Description</label>
+                <input
+                  type="text"
+                  value={serviceForm.description}
+                  onChange={e =>
+                    setServiceForm(prev => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Weekly Atlantic Express"
+                  className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
+                />
+              </div>
+              <div className="md:col-span-2 flex justify-center mt-6">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
+                >
+                  {isLoading ? (
+                    <Settings className="animate-spin w-5 h-5" />
+                  ) : (
+                    <Plus className="w-5 h-5" />
+                  )}
+                  Create
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      )}
 
       {/* CREATE VOYAGE */}
       {activeTab==="create-voyage" && (
@@ -531,7 +598,6 @@ export function ServiceComponent() {
               <Navigation className="text-cyan-400 w-8 h-8"/> Create Voyage
             </h2>
             <form onSubmit={createVoyage} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Service Code */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Service Schedule *</label>
                 <select
@@ -548,7 +614,6 @@ export function ServiceComponent() {
                   ))}
                 </select>
               </div>
-              {/* Voyage Number */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Voyage Number *</label>
                 <input
@@ -560,7 +625,6 @@ export function ServiceComponent() {
                   className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
                 />
               </div>
-              {/* Departure */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Departure (ETD) *</label>
                 <input
@@ -571,7 +635,6 @@ export function ServiceComponent() {
                   className="w-full px-4 py-3 bg-[#11235d] hover:text-[#00FFFF] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                 />
               </div>
-              {/* Arrival */}
               <div className="space-y-2">
                 <label className="text-sm mt-2 font-semibold">Arrival (ETA) *</label>
                 <input
@@ -582,7 +645,6 @@ export function ServiceComponent() {
                   className="w-full px-4 py-3 bg-[#11235d] hover:text-[#00FFFF] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                 />
               </div>
-              {/* Submit */}
               <div className="md:col-span-2 flex justify-center mt-6">
                 <button
                   type="submit"
@@ -606,7 +668,6 @@ export function ServiceComponent() {
               <Anchor className="text-cyan-400 w-8 h-8"/> Create Port Call
             </h2>
             <form onSubmit={createPortCall} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Voyage */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Voyage *</label>
                 <select
@@ -623,7 +684,6 @@ export function ServiceComponent() {
                   ))}
                 </select>
               </div>
-              {/* Port Code */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Port Code *</label>
                 <input
@@ -636,7 +696,6 @@ export function ServiceComponent() {
                   className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
                 />
               </div>
-              {/* Order */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Call Order *</label>
                 <input
@@ -648,31 +707,27 @@ export function ServiceComponent() {
                 />
               </div>
               <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* ETA */}
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">ETA *</label>
-            <input
-              type="datetime-local"
-              value={portCallForm.eta || ""}
-              onChange={e => setPortCallForm(prev => ({ ...prev, eta: e.target.value }))}
-              required
-              className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] hover:bg-[#1A2A4A] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] mt-3 hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-            />
-          </div>
-          {/* ETD */}
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">ETD *</label>
-            <input
-              type="datetime-local"
-              value={portCallForm.etd || ""}
-              onChange={e => setPortCallForm(prev => ({ ...prev, etd: e.target.value }))}
-              required
-              className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] hover:bg-[#1A2A4A] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] mt-3  hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-            />
-          </div>
-        </div>
-
-              {/* Vessel */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">ETA *</label>
+                  <input
+                    type="datetime-local"
+                    value={portCallForm.eta || ""}
+                    onChange={e => setPortCallForm(prev => ({ ...prev, eta: e.target.value }))}
+                    required
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] hover:bg-[#1A2A4A] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] mt-3 hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">ETD *</label>
+                  <input
+                    type="datetime-local"
+                    value={portCallForm.etd || ""}
+                    onChange={e => setPortCallForm(prev => ({ ...prev, etd: e.target.value }))}
+                    required
+                    className="w-full px-4 py-3 bg-[#1d4595] hover:text-[#00FFFF] hover:bg-[#1A2A4A] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] mt-3  hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                  />
+                </div>
+              </div>
               <div className="space-y-2 lg:col-span-3">
                 <label className="text-sm font-semibold">Vessel Name</label>
                 <input
@@ -683,7 +738,6 @@ export function ServiceComponent() {
                   className="w-full px-4 py-3 bg-[#11235d] hover:text-[#00FFFF] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[12px_10px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                 />
               </div>
-              {/* Submit */}
               <div className="md:col-span-2 lg:col-span-3 flex justify-center mt-6">
                 <button
                   type="submit"
@@ -697,676 +751,639 @@ export function ServiceComponent() {
             </form>
           </div>
         </section>
-      )} 
+      )}
 
       {/* BULK IMPORT */}
       {activeTab === "bulk-import" && (
-  <section className="px-6 md:px-16">
-    <div
-      className="rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 border-2 border-white"
-      style={cardGradient}
-    >
-      <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
-        <Upload className="w-8 h-8 text-cyan-400" /> Bulk Import Voyages
-      </h2>
-
-      {/* Mode Buttons */}
-      <div className="flex gap-4 mb-6">
-        <button
-          type="button"
-          onClick={() => setBulkMode("file")}
-          className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
-            bulkMode === "file"
-              ? "bg-[#600f9e] text-white"
-              : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
-          }`}
-          style={bulkMode === "file" ? cardGradient : {}}
-        >
-          <Upload className="w-5 h-5" /> Upload JSON File
-        </button>
-        <button
-          type="button"
-          onClick={() => setBulkMode("textarea")}
-          className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
-            bulkMode === "textarea"
-              ? "bg-[#600f9e] text-white"
-              : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
-          }`}
-          style={bulkMode === "textarea" ? cardGradient : {}}
-        >
-          <FileText className="w-5 h-5" /> Paste JSON Data
-        </button>
-      </div>
-
-      {/* Download Sample */}
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={downloadSample}
-          className="bg-[#2a72dc] hover:bg-[#00FFFF] hover:text-black px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all"
-        >
-          <Download className="w-5 h-5" /> Download Sample JSON
-        </button>
-        <p className="text-md text-slate-200 mt-5">
-          Grab a sample payload to see the shape we expect.
-        </p>
-      </div>
-
-      {/* Form */}
-      <form onSubmit={importBulkVoyages} className="space-y-6">
-        {bulkMode === "file" ? (
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-200">
-              Select JSON File *
-            </label>
-            <div className="border-2 border-dashed border-white rounded-lg p-8 text-center hover:border-cyan-400 transition-colors">
-              <input
-                id="voyage-file"
-                type="file"
-                accept=".json"
-                required
-                className="hidden"
-                onChange={e => setUploadedFile(e.target.files?.[0] ?? null)}
-              />
-              <label htmlFor="voyage-file" className="cursor-pointer flex flex-col items-center gap-4">
-                <Upload className="w-16 h-16 text-slate-400" />
-                <p className="text-lg font-semibold text-white">Click to upload JSON file</p>
-                <p className="text-sm text-slate-400">or drag and drop</p>
-              </label>
-            </div>
-            <p className="text-xs font-bold text-white">
-              File must be an array of voyages with `portCalls` arrays.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-white">
-              JSON Data *
-            </label>
-            <textarea
-              className="w-full px-4 py-3 bg-[#0A1A2F] border border-white/80 rounded-lg text-white font-mono text-sm placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
-              rows={25}
-              placeholder={`[
-  {
-    "serviceCode": "WAX",
-    "voyageNumber": "22N",
-    "departure": "2025-07-20T01:24:00Z",
-    "arrival":   "2025-07-25T07:12:00Z",
-    "portCalls": [
-      {
-        "sequence": 1,
-        "portCode": "CNSHA",
-        "callType": "POL",
-        "eta": "2025-07-20T01:24:00Z",
-        "etd": "2025-07-20T18:00:00Z"
-      },
-      {
-        "sequence": 2,
-        "portCode": "SGSIN",
-        "callType": "VIA",
-        "eta": "2025-07-22T08:00:00Z",
-        "etd": "2025-07-22T20:00:00Z"
-      }
-    ]
-  }
-]`}
-              value={bulkData}
-              onChange={e => setBulkData(e.target.value)}
-              required
-            />
-            <p className="text-md font-bold text-white">
-              Paste an array of voyage-objects, each with its `portCalls`.
-            </p>
-
-            <div className="bg-[#1A2A4A] rounded-lg p-4 border border-slate-600 mt-4" style={cardGradient}>
-              <h4 className="text-lg font-semibold text-cyan-400 mb-3">JSON Format:</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 font-bold text-white">
-                <div>• serviceCode (required)</div>
-                <div>• voyageNumber (optional)</div>
-                <div>• departure (required)</div>
-                <div>• arrival (optional)</div>
-                <div className="col-span-full mt-2">• portCalls (array of stops):</div>
-                <div>  – sequence (required)</div>
-                <div>  – portCode  (required)</div>
-                <div>  – callType  (required)</div>
-                <div>  – eta, etd (optional)</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex justify-center">
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
+        <section className="px-6 md:px-16">
+          <div
+            className="rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 border-2 border-white"
+            style={cardGradient}
           >
-            {isLoading ? (
-              <><Settings className="w-5 h-5 animate-spin" /> Importing…</>
-            ) : (
-              <><Upload className="w-5 h-5" /> Import Voyages</>
-            )}
-          </button>
-        </div>
-      </form>
-    </div>
-  </section>
-)}
+            <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+              <Upload className="w-8 h-8 text-cyan-400" /> Bulk Import Voyages
+            </h2>
 
+            {/* Mode Buttons */}
+            <div className="flex gap-4 mb-6">
+              <button
+                type="button"
+                onClick={() => setBulkMode("file")}
+                className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
+                  bulkMode === "file"
+                    ? "bg-[#600f9e] text-white"
+                    : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
+                }`}
+                style={bulkMode === "file" ? cardGradient : {}}
+              >
+                <Upload className="w-5 h-5" /> Upload JSON File
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkMode("textarea")}
+                className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
+                  bulkMode === "textarea"
+                    ? "bg-[#600f9e] text-white"
+                    : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
+                }`}
+                style={bulkMode === "textarea" ? cardGradient : {}}
+              >
+                <FileText className="w-5 h-5" /> Paste JSON Data
+              </button>
+            </div>
+
+            {/* Download Sample */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={downloadSample}
+                className="bg-[#2a72dc] hover:bg-[#00FFFF] hover:text-black px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all"
+              >
+                <Download className="w-5 h-5" /> Download Sample JSON
+              </button>
+              <p className="text-md text-slate-200 mt-5">
+                Grab a sample payload to see the shape we expect.
+              </p>
+            </div>
+
+            <form onSubmit={importBulkVoyages} className="space-y-6">
+              {bulkMode === "file" ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-200">
+                    Select JSON File *
+                  </label>
+                  <div className="border-2 border-dashed border-white rounded-lg p-8 text-center hover:border-cyan-400 transition-colors">
+                    <input
+                      id="voyage-file"
+                      type="file"
+                      accept=".json"
+                      required
+                      className="hidden"
+                      onChange={e => setUploadedFile(e.target.files?.[0] ?? null)}
+                    />
+                    <label htmlFor="voyage-file" className="cursor-pointer flex flex-col items-center gap-4">
+                      <Upload className="w-16 h-16 text-slate-400" />
+                      <p className="text-lg font-semibold text-white">Click to upload JSON file</p>
+                      <p className="text-sm text-slate-400">or drag and drop</p>
+                    </label>
+                  </div>
+                  <p className="text-xs font-bold text-white">
+                    File must be an array of voyages with `portCalls` arrays.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-white">
+                    JSON Data *
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-3 bg-[#0A1A2F] border border-white/80 rounded-lg text-white font-mono text-sm placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+                    rows={25}
+                    placeholder={`[
+                          {
+                            "serviceCode": "WAX",
+                            "voyageNumber": "22N",
+                            "departure": "2025-07-20T01:24:00Z",
+                            "arrival":   "2025-07-25T07:12:00Z",
+                            "portCalls": [
+                              {
+                                "sequence": 1,
+                                "portCode": "CNSHA",
+                                "callType": "POL",
+                                "eta": "2025-07-20T01:24:00Z",
+                                "etd": "2025-07-20T18:00:00Z"
+                              },
+                              {
+                                "sequence": 2,
+                                "portCode": "SGSIN",
+                                "callType": "VIA",
+                                "eta": "2025-07-22T08:00:00Z",
+                                "etd": "2025-07-22T20:00:00Z"
+                              }
+                            ]
+                          }
+                        ]`}
+                    value={bulkData}
+                    onChange={e => setBulkData(e.target.value)}
+                    required
+                  />
+                  <p className="text-md font-bold text-white">
+                    Paste an array of voyage-objects, each with its `portCalls`.
+                  </p>
+
+                  <div className="bg-[#1A2A4A] rounded-lg p-4 border border-slate-600 mt-4" style={cardGradient}>
+                    <h4 className="text-lg font-semibold text-cyan-400 mb-3">JSON Format:</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 font-bold text-white">
+                      <div>• serviceCode (required)</div>
+                      <div>• voyageNumber (optional)</div>
+                      <div>• departure (required)</div>
+                      <div>• arrival (optional)</div>
+                      <div className="col-span-full mt-2">• portCalls (array of stops):</div>
+                      <div>  – sequence (required)</div>
+                      <div>  – portCode  (required)</div>
+                      <div>  – callType  (required)</div>
+                      <div>  – eta, etd (optional)</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-center">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
+                >
+                  {isLoading ? (
+                    <><Settings className="w-5 h-5 animate-spin" /> Importing…</>
+                  ) : (
+                    <><Upload className="w-5 h-5" /> Import Voyages</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      )}
 
       {/* SCHEDULE LIST */}
       {activeTab === "schedule-list" && (
-  <section className="px-6 md:px-16 mb-16">
-    <div className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]" style={cardGradient}>
-      <h2 className="text-3xl font-bold flex items-center gap-3 mb-6">
-        <List className="text-cyan-400 w-8 h-8"/> Service Schedules
-      </h2>
-      {/* Filters */}
-      <div
-        className="bg-[#2e4972] rounded-lg border-10 border-black p-6 mb-8 grid grid-cols-1 md:grid-cols-3 gap-10"
-        style={cardGradient}
-      >
-        <input
-          type="text"
-          placeholder="Code..."
-          value={filters.code}
-          onChange={e=>setFilters(prev=>({...prev,code:e.target.value}))}
-          className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-        />
-        <input
-          type="text"
-          placeholder="Description..."
-          value={filters.description}
-          onChange={e=>setFilters(prev=>({...prev,description:e.target.value}))}
-          className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-        />
-         <div className="flex gap-5 items-center mt-2 justify-end">
-            <button
-              onClick={applyFilters}
-              className="inline-flex justify-center items-center gap-2 h-10 px-8 bg-[#600f9e] hover:bg-[#491174] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+        <section className="px-6 md:px-16 mb-16">
+          <div className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]" style={cardGradient}>
+            <h2 className="text-3xl font-bold flex items-center gap-3 mb-6">
+              <List className="text-cyan-400 w-8 h-8"/> Service Schedules
+            </h2>
+            <div
+              className="bg-[#2e4972] rounded-lg border-10 border-black p-6 mb-8 grid grid-cols-1 md:grid-cols-3 gap-10"
+              style={cardGradient}
             >
-              <Search className="w-5 h-5" />
-              <span>Apply</span>
-            </button>
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center justify-center gap-2 h-10 px-8 bg-[#2a72dc] hover:bg-[#1e5bb8] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
-            >
-              <Filter className="w-5 h-5" />
-              <span>Clear</span>
-            </button>
-          </div>
-      </div>
-
-      {isLoadingList ? (
-        <div className="flex justify-center py-12">
-          <Settings className="animate-spin w-8 h-8"/>
-        </div>
-      ) : allSchedules.length === 0 ? (
-        <div className="text-center py-12 text-slate-400">No schedules found</div>
-      ) : (
-        <>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-  {allSchedules.map(s => {
-    const voyagesForSchedule = allVoyages.filter(v => v.service?.code === s.code);
-    return (
-      <div
-        key={s.code}
-        className="
-          group
-          bg-[#121c2d]
-          rounded-lg
-          p-6
-          shadow-[12px_12px_0_rgba(0,0,0,1)]
-          hover:shadow-[20px_20px_0_rgba(0,0,0,1)]
-          transition-shadow
-          border-1 border-slate-400
-          hover:border-cyan-400
-          transition-colors duration-150
-        "
-        style={cardGradient}
-      >
-        <div className="flex justify-between mb-4">
-          <div>
-            <h3 className="text-xl font-bold text-[#00FFFF]">{s.code}</h3>
-            {s.description && <p className="text-sm text-white">{s.description}</p>}
-          </div>
-          <div className="text-[#00FFFF] px-2 py-1 font-semibold text-sm rounded">
-            {voyagesForSchedule.length} Voyages
-          </div>
-        </div>
-
-        {/* first 2 voyages */}
-        {voyagesForSchedule.slice(0, 2).map((v, i) => (
-          <div key={i} className="p-3 mb-2">
-            <div className="flex items-center gap-2 mb-1">
-              <Navigation className="w-4 h-4 text-yellow-400" />
-              <span className="font-mono text-md font-bold">{v.voyageNumber}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-white">
-              <ChevronLeft className="w-3 h-3" />
-              <span>{new Date(v.departure).toLocaleDateString()}</span>
-              {v.arrival && (
-                <>
-                  <span>→</span>
-                  <span>{new Date(v.arrival).toLocaleDateString()}</span>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {voyagesForSchedule.length > 2 && (
-          <div className="text-xs text-slate-400 text-center">
-            +{voyagesForSchedule.length - 2} more
-          </div>
-        )}
-
-        {/* action buttons only visible on hover */}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity mt-4 flex gap-4">
-          <button
-            onClick={() => openEdit(s)}
-            className="flex-1 bg-[#600f9e] hover:bg-[#491174] py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
-          >
-            <Edit3 className="inline w-4 h-4" /> Edit
-          </button>
-          <button
-            onClick={() => openVoyages(s)}
-            className="flex-2 bg-[#2a72dc] hover:bg-[#1e5bb8]  py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
-          >
-            <Ship className="inline w-4 h-4" /> Voyages
-          </button>
-        </div>
-      </div>
-    );
-  })}
-</div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setCurrentPage(p => p - 1)}
-              disabled={currentPage <= 1}
-              className="bg-[#2a72dc] px-6 py-2 rounded-lg disabled:opacity-50"
-            >
-              <ChevronLeft className="w-4 h-4"/> Prev
-            </button>
-            <span>Page {currentPage} of {totalPages}</span>
-            <button
-              onClick={() => setCurrentPage(p => p + 1)}
-              disabled={currentPage >= totalPages}
-              className="bg-[#2a72dc] px-6 py-2 rounded-lg disabled:opacity-50"
-            >
-              Next <ChevronRight className="w-4 h-4"/>
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  </section>
-)}
-
-{/* ENHANCED VOYAGES MODAL WITH PAGINATION */}
-{voyageModalOpen && selectedSchedule && (
-  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col" style={cardGradient}>
-      <header className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold flex items-center gap-2">
-          <Ship/> Voyages for {selectedSchedule.code}
-        </h3>
-        <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
-      </header>
-
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by voyage number..."
-            value={voyageSearch}
-            onChange={e => setVoyageSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-[#2D4D8B] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] rounded-lg text-white placeholder-white/80 focus:border-cyan-400 focus:outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Voyages Grid - Scrollable */}
-      <div className="flex-1 overflow-y-auto mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-2">
-          {filteredAndPaginatedVoyages.length === 0 ? (
-            <div className="col-span-full text-center py-8 text-slate-400">
-              {voyageSearch ? `No voyages found matching "${voyageSearch}"` : "No voyages scheduled"}
-            </div>
-          ) : (
-            filteredAndPaginatedVoyages.map((v, i) => (
-              <div 
-                key={i} 
-                className="bg-[#1d4595] border-4 border-black rounded-lg p-4 hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow hover:border-cyan-400 group relative"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-bold text-white text-lg">{v.voyageNumber}</h4>
-                  <button
-                    onClick={() => openEditVoyage(v)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#600f9e] hover:bg-[#491174] px-2 py-1 rounded text-xs flex items-center gap-1"
-                  >
-                    <Edit3 className="w-3 h-3" /> Edit
-                  </button>
-                </div>
-                <div className="space-y-2 text-md text-white">
-                  <div className="flex items-center gap-2">
-                    <ChevronLeft className="w-6 h-6 text-green-400"/>
-                    <span>Depart: {new Date(v.departure).toLocaleString()}</span>
-                  </div>
-                  {v.arrival && (
-                    <div className="flex items-center gap-2">
-                      <ChevronRight className="w-6 h-6 text-red-400"/>
-                      <span>Arrive: {new Date(v.arrival).toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-cyan-400">
-                  <button
-                    onClick={() => openPortCalls(v)}
-                    className="w-full flex items-center justify-center gap-2 text-cyan-400 text-sm font-semibold hover:text-white transition-colors"
-                  >
-                    <Anchor className="w-4 h-4" /> View Port Calls
-                  </button>
-                </div>
+              <input
+                type="text"
+                placeholder="Code..."
+                value={filters.code}
+                onChange={e=>setFilters(prev=>({...prev,code:e.target.value}))}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Description..."
+                value={filters.description}
+                onChange={e=>setFilters(prev=>({...prev,description:e.target.value}))}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+              <div className="flex gap-5 items-center mt-2 justify-end">
+                <button
+                  onClick={applyFilters}
+                  className="inline-flex justify-center items-center gap-2 h-10 px-8 bg-[#600f9e] hover:bg-[#491174] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+                >
+                  <Search className="w-5 h-5" />
+                  <span>Apply</span>
+                </button>
+                <button
+                  onClick={clearFilters}
+                  className="inline-flex items-center justify-center gap-2 h-10 px-8 bg-[#2a72dc] hover:bg-[#1e5bb8] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+                >
+                  <Filter className="w-5 h-5" />
+                  <span>Clear</span>
+                </button>
               </div>
-            ))
-          )}
-        </div>
-      </div>
+            </div>
 
-      {/* Pagination Controls */}
-      {totalVoyagePages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-600 pt-4">
-          <button
-            onClick={() => setVoyagePage(p => Math.max(1, p - 1))}
-            disabled={voyagePage <= 1}
-            className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
-          >
-            <ChevronLeft className="w-4 h-4"/> Prev
-          </button>
-          <span className="text-slate-300">
-            Page {voyagePage} of {totalVoyagePages} ({filteredVoyages.length} voyages)
-          </span>
-          <button
-            onClick={() => setVoyagePage(p => Math.min(totalVoyagePages, p + 1))}
-            disabled={voyagePage >= totalVoyagePages}
-            className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
-          >
-            Next <ChevronRight className="w-4 h-4"/>
-          </button>
-        </div>
-      )}
-
-      {/* Close Button */}
-      <div className="mt-4 flex justify-end">
-        <button onClick={closeVoyages} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-6 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">CLOSE</button>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* EDIT VOYAGE MODAL */}
-{editVoyageModalOpen && selectedVoyage && (
-  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-md w-full" style={cardGradient}>
-      <header className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold flex items-center gap-2">
-          <Edit3/> Edit Voyage {selectedVoyage.voyageNumber}
-        </h3>
-        <button onClick={closeEditVoyage}><X className="w-6 h-6"/></button>
-      </header>
-      <form className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-sm font-semibold">Voyage Number</label>
-          <input
-            type="text"
-            value={editVoyageForm.voyageNumber || ""}
-            onChange={e=>setEditVoyageForm(prev=>({...prev, voyageNumber: e.target.value.toUpperCase()}))}
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-            placeholder="VOY001"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-semibold">Departure Date & Time</label>
-          <input
-            type="datetime-local"
-            value={editVoyageForm.departure || ""}
-            onChange={e=>setEditVoyageForm(prev=>({...prev, departure: e.target.value}))}
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-semibold">Arrival Date & Time</label>
-          <input
-            type="datetime-local"
-            value={editVoyageForm.arrival || ""}
-            onChange={e=>setEditVoyageForm(prev=>({...prev, arrival: e.target.value}))}
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
-          />
-        </div>
-      </form>
-      <div className="flex justify-end gap-4 mt-6">
-        <button onClick={closeEditVoyage} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Cancel</button>
-        <button
-          onClick={applyEditVoyage}
-          disabled={isUpdatingVoyage}
-          className="bg-[#600f9e] hover:bg-[#491174] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50"
-        >
-          {isUpdatingVoyage ? <Settings className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
-          Save
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* ENHANCED PORT CALLS MODAL WITH EDITING */}
-{portCallsModalOpen && selectedVoyage && (
-  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
-      <header className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold flex items-center gap-2">
-          <Anchor/> Port Calls – {selectedVoyage.service?.code} {selectedVoyage.voyageNumber}
-        </h3>
-        <button onClick={closePortCalls}><X className="w-6 h-6"/></button>
-      </header>
-      <div className="space-y-3">
-        {selectedPortCalls.length === 0 ? (
-          <div className="text-center py-8 text-slate-400">No port calls defined</div>
-        ) : (
-          selectedPortCalls.sort((a,b)=>a.order-b.order).map((pc,i)=>(
-            <div key={i} className="bg-[#2D4D8B] rounded-lg p-4 group hover:bg-[#1d4595] transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center text-sm font-bold">
-                    {pc.order}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-cyan-400">{pc.portCode}</h4>
-                    <div className="text-sm text-slate-300 space-y-1">
-                      {pc.eta && (
-                        <div className="flex items-center gap-2">
-                          <ChevronLeft className="w-3 h-3 text-green-400"/>
-                          <span>ETA: {new Date(pc.eta).toLocaleString()}</span>
+            {isLoadingList ? (
+              <div className="flex justify-center py-12">
+                <Settings className="animate-spin w-8 h-8"/>
+              </div>
+            ) : allSchedules.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">No schedules found</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {allSchedules.map(s => {
+                    const voyagesForSchedule = allVoyages.filter(v => v.service?.code === s.code);
+                    return (
+                      <div
+                        key={s.code}
+                        className="
+                          group
+                          bg-[#121c2d]
+                          rounded-lg
+                          p-6
+                          shadow-[12px_12px_0_rgba(0,0,0,1)]
+                          hover:shadow-[20px_20px_0_rgba(0,0,0,1)]
+                          transition-shadow
+                          border-1 border-slate-400
+                          hover:border-cyan-400
+                          transition-colors duration-150
+                        "
+                        style={cardGradient}
+                      >
+                        <div className="flex justify-between mb-4">
+                          <div>
+                            <h3 className="text-xl font-bold text-[#00FFFF]">{s.code}</h3>
+                            {s.description && <p className="text-sm text-white">{s.description}</p>}
+                          </div>
+                          <div className="text-[#00FFFF] px-2 py-1 font-semibold text-sm rounded">
+                            {voyagesForSchedule.length} Voyages
+                          </div>
                         </div>
-                      )}
-                      {pc.etd && (
-                        <div className="flex items-center gap-2">
-                          <ChevronRight className="w-3 h-3 text-red-400"/>
-                          <span>ETD: {new Date(pc.etd).toLocaleString()}</span>
+
+                        {voyagesForSchedule.slice(0, 2).map((v, i) => (
+                          <div key={i} className="p-3 mb-2">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Navigation className="w-4 h-4 text-yellow-400" />
+                              <span className="font-mono text-md font-bold">{v.voyageNumber}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-white">
+                              <ChevronLeft className="w-3 h-3" />
+                              <span>{new Date(v.departure).toLocaleDateString()}</span>
+                              {v.arrival && (
+                                <>
+                                  <span>→</span>
+                                  <span>{new Date(v.arrival).toLocaleDateString()}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        {voyagesForSchedule.length > 2 && (
+                          <div className="text-xs text-slate-400 text-center">
+                            +{voyagesForSchedule.length - 2} more
+                          </div>
+                        )}
+
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity mt-4 flex gap-4">
+                          <button
+                            onClick={() => openEdit(s)}
+                            className="uppercase font-bold flex-1 bg-[#600f9e] hover:bg-[#491174] py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                          >
+                            <Edit3 className="inline w-4 h-4" /> Edit
+                          </button>
+                          <button
+                            onClick={() => openVoyages(s)}
+                            className="uppercase font-bold flex-2 bg-[#2a72dc] hover:bg-[#1e5bb8]  py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                          >
+                            <Ship className="inline w-4 h-4" /> Voyages
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right text-sm">
-                    {pc.mode && (
-                      <div className="bg-blue-900/30 text-blue-400 px-2 py-1 rounded text-xs mb-1">
-                        {pc.mode}
                       </div>
-                    )}
-                    {pc.vesselName && <div className="text-slate-400 text-xs">{pc.vesselName}</div>}
-                  </div>
-                  <button
-                    onClick={() => openEditPortCall(pc)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#600f9e] hover:bg-[#491174] px-3 py-1 rounded text-xs flex items-center gap-1"
-                  >
-                    <Edit3 className="w-3 h-3" /> Edit
-                  </button>
+                    );
+                  })}
                 </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-      <div className="mt-6 flex justify-end">
-        <button onClick={closePortCalls} className="bg-[#2a72dc] hover:bg-[#1e5bb8] py-2 px-6 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Close</button>
-      </div>
-    </div>
-  </div>
-)}
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
-{/* EDIT PORT CALL MODAL */}
-{editPortCallModalOpen && selectedPortCall && (
+      
+
+      {editModalOpen && selectedSchedule && (
   <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-lg w-full" style={cardGradient}>
+    <div
+      className="bg-[#121c2d] border-2 border-white shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-md w-full"
+      style={cardGradient}
+    >
       <header className="flex justify-between items-center mb-6">
         <h3 className="text-2xl font-bold flex items-center gap-2">
-          <Edit3/> Edit Port Call - {selectedPortCall.portCode}
+          <Edit3 /> Edit Service Schedule
         </h3>
-        <button onClick={closeEditPortCall}><X className="w-6 h-6"/></button>
-      </header>
-      <form className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">Port Code</label>
-            <input
-              type="text"
-              value={editPortCallForm.portCode || ""}
-              onChange={e=>setEditPortCallForm(prev=>({...prev, portCode: e.target.value.toUpperCase()}))}
-              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-              placeholder="NYC"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">Order</label>
-            <input
-              type="number"
-              value={editPortCallForm.order || ""}
-              onChange={e=>setEditPortCallForm(prev=>({...prev, order: parseInt(e.target.value)}))}
-              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-              placeholder="1"
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-semibold">ETA (Estimated Time of Arrival)</label>
-          <input
-            type="datetime-local"
-            value={editPortCallForm.eta || ""}
-            onChange={e=>setEditPortCallForm(prev=>({...prev, eta: e.target.value}))}
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-semibold">ETD (Estimated Time of Departure)</label>
-          <input
-            type="datetime-local"
-            value={editPortCallForm.etd || ""}
-            onChange={e=>setEditPortCallForm(prev=>({...prev, etd: e.target.value}))}
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">Mode</label>
-            <input
-              type="text"
-              value={editPortCallForm.mode || ""}
-              onChange={e=>setEditPortCallForm(prev=>({...prev, mode: e.target.value}))}
-              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-              placeholder="LOAD/DISCHARGE"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">Vessel Name</label>
-            <input
-              type="text"
-              value={editPortCallForm.vesselName || ""}
-              onChange={e=>setEditPortCallForm(prev=>({...prev, vesselName: e.target.value}))}
-              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-              placeholder="MV Example"
-            />
-          </div>
-        </div>
-      </form>
-      <div className="flex justify-end gap-4 mt-6">
-        <button onClick={closeEditPortCall} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Cancel</button>
-        <button
-          onClick={applyEditPortCall}
-          disabled={isUpdatingPortCall}
-          className="bg-[#600f9e] hover:bg-[#491174] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50"
-        >
-          {isUpdatingPortCall ? <Settings className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
-          Save
+        <button onClick={closeEdit}>
+          <X className="w-6 h-6 text-white hover:text-[#00FFFF]" />
         </button>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* EDIT SCHEDULE MODAL */}
-{editModalOpen && selectedSchedule && (
-  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-md w-full" style={cardGradient}>
-      <header className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold flex items-center gap-2">
-          <Edit3/> Edit {selectedSchedule.code}
-        </h3>
-        <button onClick={closeEdit}><X className="w-6 h-6"/></button>
       </header>
-      <form className="space-y-6">
-        <div className="space-y-2">
+
+      <form onSubmit={e=>{
+        e.preventDefault();
+        applyEdit();
+      }} className="space-y-4">
+        <div className="space-y-1">
           <label className="text-sm font-semibold">Service Code</label>
           <input
             type="text"
-            value={editForm.code || ""}
-            onChange={e=>setEditForm(prev=>({...prev, code: e.target.value.toUpperCase()}))}
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+            value={editForm.code}
+            onChange={e =>
+              setEditForm(prev => ({
+                ...prev,
+                code: e.target.value.toUpperCase(),
+              }))
+            }
             placeholder="WAX"
+            required
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-2 focus:border-white focus:outline-none"
           />
         </div>
-        <div className="space-y-2">
+
+        <div className="space-y-1">
           <label className="text-sm font-semibold">Description</label>
           <input
             type="text"
-            value={editForm.description||""}
-            onChange={e=>setEditForm(prev=>({...prev,description:e.target.value}))}
-            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+            value={editForm.description || ""}
+            onChange={e =>
+              setEditForm(prev => ({
+                ...prev,
+                description: e.target.value,
+              }))
+            }
+            placeholder="Weekly Atlantic Express"
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-2 focus:border-white focus:outline-none"
           />
         </div>
+
+        <div className="flex justify-end gap-4 mt-6">
+          <button
+            type="button"
+            onClick={closeEdit}
+            className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-4 py-2 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isUpdating}
+            className="bg-[#600f9e] hover:bg-[#491174] shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
+          >
+            {isUpdating ? (
+              <Settings className="animate-spin w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save
+          </button>
+        </div>
       </form>
-      <div className="flex justify-end gap-4 mt-4">
-        <button onClick={closeEdit} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Cancel</button>
-        <button
-          onClick={applyEdit}
-          disabled={isUpdating}
-          className="bg-[#600f9e] hover:bg-[#491174] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50"
-        >
-          {isUpdating ? <Settings className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
-          Save
-        </button>
-      </div>
     </div>
   </div>
 )}
+
+      {/* VOYAGE MODAL WITH SEARCH & PAGINATION */}
+      {voyageModalOpen && selectedSchedule && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121c2d]  rounded-3xl p-8 max-w-5xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
+           <header className="flex items-center justify-between mb-6 gap-4">
+            <h3 className="text-2xl font-bold flex items-center gap-2">
+              <Ship /> Voyages for {selectedSchedule.code}
+            </h3>
+
+            {/* search field with icon */}
+            <div className="relative flex-shrink-0">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search…"
+                value={voyageSearch}
+                onChange={e => { setVoyageSearch(e.target.value); setVoyagePage(1); }}
+                className="w-md pl-10 pr-4 px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] transition-shadow border border-black border-4 rounded-lg text-white text-sm focus:outline-none"
+              />
+            </div>
+
+            <button onClick={closeVoyages} className="flex-shrink-0">
+              <X className="w-6 h-6 text-white hover:text-[#00FFFF]" />
+            </button>
+          </header>
+            {paginatedVoyages.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">No voyages</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+                {paginatedVoyages.map(v => (
+              <div
+                key={v.id}
+                className="
+                  group
+                  bg-[#245f64]
+                  rounded-lg
+                  p-6
+                  shadow-[12px_12px_0_rgba(0,0,0,1)]
+                  hover:shadow-[20px_20px_0_rgba(0,0,0,1)]
+                  transition-shadow
+                  border border-slate-400
+                  hover:border-cyan-400
+                "
+                 style={cardGradient}
+              >
+                <div className="flex justify-between mb-4">
+                  <div>
+                    <h4 className="text-xl font-bold text-[#00FFFF] mb-2">{v.voyageNumber}</h4>
+                    <div className="text-md text-white font-semibold">
+                      Depart: {new Date(v.departure).toLocaleDateString()}
+                    </div>
+                    {v.arrival && (
+                      <div className="text-md text-white font-semibold">
+                        Arrive: {new Date(v.arrival).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-4 mt-4">
+                  <button
+                    onClick={() => openEditVoyage(v)}
+                    className="uppercase font-semibold flex-1 bg-[#600f9e] hover:bg-[#491174] py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                  >
+                    <Edit3 className="inline w-4 h-4" /> Edit
+                  </button>
+                  <button
+                    onClick={() => openPortCalls(v)}
+                    className="uppercase font-semibold flex-2 bg-[#2a72dc] hover:bg-[#1e5bb8] py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                  >
+                    <Anchor className="inline w-4 h-4" /> Port Calls
+                  </button>
+                </div>
+              </div>
+            ))}
+
+              </div>
+            )}
+
+            {totalVoyagePages > 1 && (
+              <div className="flex justify-between mt-4">
+                <button
+                  disabled={voyagePage <= 1}
+                  onClick={() => setVoyagePage(p => p - 1)}
+                  className="bg-[#2a72dc] px-4 py-2 rounded-lg"
+                >
+                  Prev
+                </button>
+                <span>Page {voyagePage} of {totalVoyagePages}</span>
+                <button
+                  disabled={voyagePage >= totalVoyagePages}
+                  onClick={() => setVoyagePage(p => p + 1)}
+                  className="bg-[#2a72dc] px-4 py-2 rounded-lg"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* EDIT VOYAGE MODAL */}
+      {editVoyageModal && voyageEditForm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121c2d] border-4 border-white rounded-3xl p-6 max-w-md w-full shadow-[25px_25px_0px_rgba(0,0,0,1)]" style={cardGradient}>
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Edit3 /> Edit Voyage
+            </h3>
+            <div className="space-y-6">
+              <label className="text-sm font-semibold">Voyage Number</label>
+              <input
+                type="text"
+                value={voyageEditForm.voyageNumber || ""}
+                onChange={e => setVoyageEditForm({ ...voyageEditForm, voyageNumber: e.target.value })}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold ">ETA</label>
+              <input
+                type="datetime-local"
+                value={voyageEditForm.departure.slice(0,16)}
+                onChange={e => setVoyageEditForm({ ...voyageEditForm, departure: e.target.value })}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold">ETD</label>
+              <input
+                type="datetime-local"
+                value={voyageEditForm.arrival?.slice(0,16) || ""}
+                onChange={e => setVoyageEditForm({ ...voyageEditForm, arrival: e.target.value })}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+            </div>
+            <div className="flex justify-end gap-4 mt-4">
+              <button
+                onClick={() => setEditVoyageModal(false)}
+                className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-4 py-2 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEditVoyage}
+                className="bg-[#600f9e] hover:bg-[#491174] shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PORT CALLS MODAL */}
+      {portCallsModalOpen && selectedVoyage && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
+            <header className="flex justify-between mb-6">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Anchor /> Port Calls – {selectedVoyage.voyageNumber}
+              </h3>
+              <button onClick={closePortCalls}>
+                <X className="w-6 h-6" />
+              </button>
+            </header>
+            {selectedPortCalls.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">No port calls defined</div>
+            ) : (
+                selectedPortCalls
+                    .sort((a,b)=>a.order-b.order)
+                    .map((pc,i)=>(
+                      <div key={i} className="relative flex items-center group" >
+                        {/* Number badge floating to the left */}
+                        <div className="absolute -left-6 z-10">
+                          <div className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center text-lg font-extrabold shadow-[4px_4px_0_rgba(0,0,0,1)] group-hover:bg-cyan-400 transition-colors">
+                            {pc.order}
+                          </div>
+                        </div>
+
+                        {/* Main card */}
+                        <div className="bg-[#121c2d] border border-2 border-slate-400
+                  hover:border-cyan-400 rounded-lg p-4 mb-3 flex justify-between items-center w-full pl-8 transition-colors" style={cardGradient}>
+                          <div>
+                            <div className="font-bold text-cyan-400 text-lg">{pc.portCode}</div>
+                            {pc.eta && <div className="text-sm">ETA: {new Date(pc.eta).toLocaleString()}</div>}
+                            {pc.etd && <div className="text-sm">ETD: {new Date(pc.etd).toLocaleString()}</div>}
+                          </div>
+                          <button
+                            onClick={() => openEditPortCall(pc)}
+                            className=" uppercase font-semibold opacity-0 group-hover:opacity-100 transition-opacity bg-[#600f9e] hover:bg-[#491174] px-3 py-1 rounded text-sm flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3 h-3" /> Edit
+                          </button>
+                        </div>
+                      </div>
+                  ))
+                )}
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PORT CALL MODAL */}
+      {editPortCallModal && portCallEditForm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121c2d] rounded-3xl p-6 max-w-md w-full " style={cardGradient}>
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Edit3 /> Edit Port Call
+            </h3>
+            <div className="space-y-5">
+              <label className="text-sm font-semibold ">PORT CODE</label>
+              <input
+                type="text"
+                value={portCallEditForm.portCode}
+                onChange={e => setPortCallEditForm({ ...portCallEditForm, portCode: e.target.value.toUpperCase() })}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold ">CALL ORDER</label>
+              <input
+                type="number"
+                value={portCallEditForm.order}
+                onChange={e => setPortCallEditForm({ ...portCallEditForm, order: parseInt(e.target.value) })}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold ">ETA</label>
+              <input
+                type="datetime-local"
+                value={portCallEditForm.eta?.slice(0,16) || ""}
+                onChange={e => setPortCallEditForm({ ...portCallEditForm, eta: e.target.value })}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold ">ETD</label>
+              <input
+                type="datetime-local"
+                value={portCallEditForm.etd?.slice(0,16) || ""}
+                onChange={e => setPortCallEditForm({ ...portCallEditForm, etd: e.target.value })}
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold ">VESSEL NAME</label>
+              <input
+                type="text"
+                value={portCallEditForm.vesselName || ""}
+                onChange={e => setPortCallEditForm({ ...portCallEditForm, vesselName: e.target.value })}
+                placeholder="Vessel Name"
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+            </div>
+
+
+            <div className="flex justify-end gap-4 mt-4">
+              <button
+                onClick={() => setEditPortCallModal(false)}
+                className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-4 py-2 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEditPortCall}
+                className="bg-[#600f9e] hover:bg-[#491174] shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
