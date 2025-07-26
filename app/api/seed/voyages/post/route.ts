@@ -3,10 +3,18 @@ import { z, ZodError } from "zod";
 import { prismaClient } from "@/app/lib/db";
 
 const CreateVoyageSchema = z.object({
-  serviceId: z.string().uuid(), // ✅ Now expects serviceId
+  serviceCode: z.string().min(1),
   voyageNumber: z.string().optional(),
   departure: z.string().datetime(),
   arrival: z.string().datetime().optional(),
+  portCalls: z.array(z.object({
+    sequence: z.number(),
+    portCode: z.string().min(1),
+    callType: z.string().optional(),
+    eta: z.string().datetime().optional(),
+    etd: z.string().datetime().optional(),
+    vesselName: z.string().optional()
+  })).optional()
 });
 
 export async function POST(req: NextRequest) {
@@ -15,37 +23,42 @@ export async function POST(req: NextRequest) {
     input = CreateVoyageSchema.parse(await req.json());
   } catch (err) {
     if (err instanceof ZodError) {
-      return NextResponse.json(
-        { errors: err.flatten().fieldErrors },
-        { status: 422 }
-      );
+      return NextResponse.json({ errors: err.flatten().fieldErrors }, { status: 422 });
     }
     throw err;
   }
 
-  // ✅ ensure service exists using serviceId
+  // ✅ find service by code
   const svc = await prismaClient.serviceSchedule.findUnique({
-    where: { id: input.serviceId }
+    where: { code: input.serviceCode }
   });
 
   if (!svc) {
     return NextResponse.json(
-      { error: `serviceId "${input.serviceId}" not found` },
+      { error: `serviceCode "${input.serviceCode}" not found` },
       { status: 400 }
     );
   }
 
-  // ✅ create voyage with FK only
+  // ✅ create voyage
   const voyage = await prismaClient.voyage.create({
     data: {
-      serviceId: input.serviceId,
+      serviceId: svc.id,
       voyageNumber: input.voyageNumber,
       departure: new Date(input.departure),
       arrival: input.arrival ? new Date(input.arrival) : undefined,
+      portCalls: input.portCalls ? {
+        create: input.portCalls.map(pc => ({
+          portCode: pc.portCode,
+          order: pc.sequence,
+          eta: pc.eta ? new Date(pc.eta) : null,
+          etd: pc.etd ? new Date(pc.etd) : null,
+          mode: pc.callType || undefined,
+          vesselName: pc.vesselName || undefined,
+        }))
+      } : undefined
     },
-    include: {
-      service: true, // ✅ include service to return code
-    },
+    include: { service: true, portCalls: true }
   });
 
   return NextResponse.json(voyage, { status: 201 });

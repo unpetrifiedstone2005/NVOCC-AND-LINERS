@@ -177,41 +177,44 @@ export function ServiceComponent() {
   }
 
   async function createVoyage(e: React.FormEvent) {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      const payload = {
-        serviceId: voyageForm.serviceId,
-        voyageNumber: voyageForm.voyageNumber,
-        departure:    new Date(voyageForm.departure).toISOString(),
-        arrival:      voyageForm.arrival ? new Date(voyageForm.arrival).toISOString() : undefined,
-      };
-      const { data: created } = await axios.post<Voyage>(
-        "/api/seed/voyages/post",
-        payload
-      );
-      showMessage("success", `Voyage ${created.voyageNumber} created!`);
-      setVoyageForm({
-        serviceId: "",
-        voyageNumber: "",
-        departure: new Date().toISOString().slice(0, 16),
-        arrival: "",
-      });
-      fetchVoyages();
-    } catch (err:any) {
-      console.error("createVoyage error:", err.response?.data ?? err);
-      const pd = err.response?.data || {};
-      if (Array.isArray(pd.error)) {
-        showMessage("error", pd.error.map((z:any)=>z.message).join("; "));
-      } else if (Array.isArray(pd.errors)) {
-        showMessage("error", pd.errors.map((e:any)=>e.message).join("; "));
-      } else {
-        showMessage("error", pd.error || "Failed to create voyage");
-      }
-    } finally {
-      setIsLoading(false);
+  e.preventDefault();
+  setIsLoading(true);
+  try {
+    // ✅ send serviceCode instead of serviceId
+    const selectedService = allSchedules.find(s => s.id === voyageForm.serviceId);
+    if (!selectedService) throw new Error("Invalid service selected");
+
+    const payload = {
+      serviceCode: selectedService.code,  
+      voyageNumber: voyageForm.voyageNumber,
+      departure: new Date(voyageForm.departure).toISOString(),
+      arrival: voyageForm.arrival ? new Date(voyageForm.arrival).toISOString() : undefined,
+    };
+
+    const { data: created } = await axios.post("/api/seed/voyages/post", payload);
+    showMessage("success", `Voyage ${created.voyageNumber} created!`);
+    setVoyageForm({
+      serviceId: "",
+      voyageNumber: "",
+      departure: new Date().toISOString().slice(0, 16),
+      arrival: "",
+    });
+    fetchVoyages();
+  } catch (err:any) {
+    console.error("createVoyage error:", err.response?.data ?? err);
+    const pd = err.response?.data || {};
+    if (Array.isArray(pd.error)) {
+      showMessage("error", pd.error.map((z:any)=>z.message).join("; "));
+    } else if (Array.isArray(pd.errors)) {
+      showMessage("error", pd.errors.map((e:any)=>e.message).join("; "));
+    } else {
+      showMessage("error", pd.error || "Failed to create voyage");
     }
+  } finally {
+    setIsLoading(false);
   }
+}
+
 
   async function createPortCall(e: React.FormEvent) {
     e.preventDefault();
@@ -963,13 +966,13 @@ export function ServiceComponent() {
         <div className="opacity-0 group-hover:opacity-100 transition-opacity mt-4 flex gap-4">
           <button
             onClick={() => openEdit(s)}
-            className="flex-1 bg-[#600f9e] py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+            className="flex-1 bg-[#600f9e] hover:bg-[#491174] py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
           >
             <Edit3 className="inline w-4 h-4" /> Edit
           </button>
           <button
             onClick={() => openVoyages(s)}
-            className="flex-2 bg-[#2a72dc]  py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+            className="flex-2 bg-[#2a72dc] hover:bg-[#1e5bb8]  py-2 rounded-lg text-xs shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
           >
             <Ship className="inline w-4 h-4" /> Voyages
           </button>
@@ -978,7 +981,6 @@ export function ServiceComponent() {
     );
   })}
 </div>
-
 
           {/* Pagination */}
           <div className="flex items-center justify-between">
@@ -1004,131 +1006,52 @@ export function ServiceComponent() {
   </section>
 )}
 
-{/* VOYAGES MODAL */}
+{/* ENHANCED VOYAGES MODAL WITH PAGINATION */}
 {voyageModalOpen && selectedSchedule && (
   <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
+    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col" style={cardGradient}>
       <header className="flex justify-between items-center mb-6">
         <h3 className="text-2xl font-bold flex items-center gap-2">
           <Ship/> Voyages for {selectedSchedule.code}
         </h3>
         <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {allVoyages.filter(v => v.service?.code === selectedSchedule.code).length === 0 ? (
-          <div className="col-span-full text-center py-8 text-slate-400">
-            No voyages scheduled
-          </div>
-        ) : (
-          allVoyages
-            .filter(v => v.service?.code === selectedSchedule.code)
-            .map((v, i) => (
-              <div key={i} className="bg-[#2D4D8B] rounded-lg p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-bold text-cyan-400">{v.voyageNumber}</h4>
-                  <button
-                    onClick={() => openPortCalls(v)}
-                    className="bg-[#2a72dc] px-3 py-1 rounded text-xs flex items-center gap-1"
-                  >
-                    <Anchor className="w-3 h-3"/> Port Calls
-                  </button>
-                </div>
-                <div className="space-y-2 text-sm text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <ChevronLeft className="w-4 h-4 text-green-400"/>
-                    <span>Depart: {new Date(v.departure).toLocaleString()}</span>
-                  </div>
-                  {v.arrival && (
-                    <div className="flex items-center gap-2">
-                      <ChevronRight className="w-4 h-4 text-red-400"/>
-                      <span>Arrive: {new Date(v.arrival).toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
-        )}
-      </div>
-      <div className="mt-6 flex justify-end">
-        <button onClick={closeVoyages} className="bg-[#2a72dc] py-2 px-4 rounded-lg">Close</button>
-      </div>
-    </div>
-  </div>
-)}
 
-
-      {/* EDIT SCHEDULE MODAL */}
-      {editModalOpen && selectedSchedule && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="bg-[#121c2d] border-white shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-md w-full" style={cardGradient}>
-            <header className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Edit3/> Edit {selectedSchedule.code}
-              </h3>
-              <button onClick={closeEdit}><X className="w-6 h-6"/></button>
-            </header>
-            <form className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Service Code</label>
-                <input
-                  type="text"
-                  value={editForm.code || ""}
-                  onChange={e=>setEditForm(prev=>({...prev, code: e.target.value.toUpperCase()}))}
-                  className="w-full px-4 py-3 bg-[#2D4D8B] border border-slate-600 rounded-lg text-white"
-                  placeholder="WAX"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Description</label>
-                <input
-                  type="text"
-                  value={editForm.description||""}
-                  onChange={e=>setEditForm(prev=>({...prev,description:e.target.value}))}
-                  className="w-full px-4 py-3 bg-[#2D4D8B] border border-slate-600 rounded-lg text-white"
-                />
-              </div>
-            </form>
-            <div className="flex justify-end gap-4 mt-4">
-              <button onClick={closeEdit} className="bg-[#2D4D8B] py-2 px-4 rounded-lg">Cancel</button>
-              <button
-                onClick={applyEdit}
-                disabled={isUpdating}
-                className="bg-[#600f9e] py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50"
-              >
-                {isUpdating ? <Settings className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
-                Save
-              </button>
-            </div>
-          </div>
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by voyage number..."
+            value={voyageSearch}
+            onChange={e => setVoyageSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-[#2D4D8B] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] rounded-lg text-white placeholder-white/80 focus:border-cyan-400 focus:outline-none"
+          />
         </div>
-      )}
+      </div>
 
-      {/* VOYAGES MODAL */}
-     {voyageModalOpen && selectedSchedule && (
-  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
-      <header className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold flex items-center gap-2">
-          <Ship/> Voyages for {selectedSchedule.code}
-        </h3>
-        <button onClick={closeVoyages}><X className="w-6 h-6"/></button>
-      </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {allVoyages.filter(v => v.service?.code === selectedSchedule.code).length === 0 ? (
-          <div className="col-span-full text-center py-8 text-slate-400">
-            No voyages scheduled
-          </div>
-        ) : (
-          allVoyages
-            .filter(v => v.service?.code === selectedSchedule.code)
-            .map((v, i) => (
+      {/* Voyages Grid - Scrollable */}
+      <div className="flex-1 overflow-y-auto mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-2">
+          {filteredAndPaginatedVoyages.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-slate-400">
+              {voyageSearch ? `No voyages found matching "${voyageSearch}"` : "No voyages scheduled"}
+            </div>
+          ) : (
+            filteredAndPaginatedVoyages.map((v, i) => (
               <div 
                 key={i} 
-                className="bg-[#1d4595] border-6 border-black rounded-lg p-4 cursor-pointer hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow hover:border-cyan-400 group"
-                onClick={() => openPortCalls(v)}
+                className="bg-[#1d4595] border-4 border-black rounded-lg p-4 hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow hover:border-cyan-400 group relative"
               >
                 <div className="flex justify-between items-start mb-3">
                   <h4 className="font-bold text-white text-lg">{v.voyageNumber}</h4>
+                  <button
+                    onClick={() => openEditVoyage(v)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#600f9e] hover:bg-[#491174] px-2 py-1 rounded text-xs flex items-center gap-1"
+                  >
+                    <Edit3 className="w-3 h-3" /> Edit
+                  </button>
                 </div>
                 <div className="space-y-2 text-md text-white">
                   <div className="flex items-center gap-2">
@@ -1143,78 +1066,307 @@ export function ServiceComponent() {
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold">
-                    <Anchor className="w-3 h-3" /> Click to view port calls
-                  </div>
+                <div className="mt-4 pt-3 border-t border-cyan-400">
+                  <button
+                    onClick={() => openPortCalls(v)}
+                    className="w-full flex items-center justify-center gap-2 text-cyan-400 text-sm font-semibold hover:text-white transition-colors"
+                  >
+                    <Anchor className="w-4 h-4" /> View Port Calls
+                  </button>
                 </div>
               </div>
             ))
-        )}
+          )}
+        </div>
       </div>
-      <div className="mt-6 flex justify-end">
-        <button onClick={closeVoyages} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">CLOSE</button>
+
+      {/* Pagination Controls */}
+      {totalVoyagePages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-600 pt-4">
+          <button
+            onClick={() => setVoyagePage(p => Math.max(1, p - 1))}
+            disabled={voyagePage <= 1}
+            className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
+          >
+            <ChevronLeft className="w-4 h-4"/> Prev
+          </button>
+          <span className="text-slate-300">
+            Page {voyagePage} of {totalVoyagePages} ({filteredVoyages.length} voyages)
+          </span>
+          <button
+            onClick={() => setVoyagePage(p => Math.min(totalVoyagePages, p + 1))}
+            disabled={voyagePage >= totalVoyagePages}
+            className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
+          >
+            Next <ChevronRight className="w-4 h-4"/>
+          </button>
+        </div>
+      )}
+
+      {/* Close Button */}
+      <div className="mt-4 flex justify-end">
+        <button onClick={closeVoyages} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-6 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">CLOSE</button>
       </div>
     </div>
   </div>
-)}  
+)}
 
-      {/* PORT CALLS MODAL */}
-      {portCallsModalOpen && selectedVoyage && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
-            <header className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Anchor/> Port Calls – {selectedVoyage.service?.code} {selectedVoyage.voyageNumber}
-              </h3>
-              <button onClick={closePortCalls}><X className="w-6 h-6"/></button>
-            </header>
-            <div className="space-y-3">
-              {selectedPortCalls.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">No port calls defined</div>
-              ) : (
-                selectedPortCalls.sort((a,b)=>a.order-b.order).map((pc,i)=>(
-                  <div key={i} className="bg-[#2D4D8B] rounded-lg p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center text-sm font-bold">
-                        {pc.order}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-cyan-400">{pc.portCode}</h4>
-                        <div className="text-sm text-slate-300 space-y-1">
-                          {pc.eta && (
-                            <div className="flex items-center gap-2">
-                              <ChevronLeft className="w-3 h-3 text-green-400"/>
-                              <span>ETA: {new Date(pc.eta).toLocaleString()}</span>
-                            </div>
-                          )}
-                          {pc.etd && (
-                            <div className="flex items-center gap-2">
-                              <ChevronRight className="w-3 h-3 text-red-400"/>
-                              <span>ETD: {new Date(pc.etd).toLocaleString()}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right text-sm">
-                      {pc.mode && (
-                        <div className="bg-blue-900/30 text-blue-400 px-2 py-1 rounded text-xs mb-1">
-                          {pc.mode}
+{/* EDIT VOYAGE MODAL */}
+{editVoyageModalOpen && selectedVoyage && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-md w-full" style={cardGradient}>
+      <header className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold flex items-center gap-2">
+          <Edit3/> Edit Voyage {selectedVoyage.voyageNumber}
+        </h3>
+        <button onClick={closeEditVoyage}><X className="w-6 h-6"/></button>
+      </header>
+      <form className="space-y-6">
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Voyage Number</label>
+          <input
+            type="text"
+            value={editVoyageForm.voyageNumber || ""}
+            onChange={e=>setEditVoyageForm(prev=>({...prev, voyageNumber: e.target.value.toUpperCase()}))}
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+            placeholder="VOY001"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Departure Date & Time</label>
+          <input
+            type="datetime-local"
+            value={editVoyageForm.departure || ""}
+            onChange={e=>setEditVoyageForm(prev=>({...prev, departure: e.target.value}))}
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Arrival Date & Time</label>
+          <input
+            type="datetime-local"
+            value={editVoyageForm.arrival || ""}
+            onChange={e=>setEditVoyageForm(prev=>({...prev, arrival: e.target.value}))}
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
+          />
+        </div>
+      </form>
+      <div className="flex justify-end gap-4 mt-6">
+        <button onClick={closeEditVoyage} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Cancel</button>
+        <button
+          onClick={applyEditVoyage}
+          disabled={isUpdatingVoyage}
+          className="bg-[#600f9e] hover:bg-[#491174] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50"
+        >
+          {isUpdatingVoyage ? <Settings className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* ENHANCED PORT CALLS MODAL WITH EDITING */}
+{portCallsModalOpen && selectedVoyage && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
+      <header className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold flex items-center gap-2">
+          <Anchor/> Port Calls – {selectedVoyage.service?.code} {selectedVoyage.voyageNumber}
+        </h3>
+        <button onClick={closePortCalls}><X className="w-6 h-6"/></button>
+      </header>
+      <div className="space-y-3">
+        {selectedPortCalls.length === 0 ? (
+          <div className="text-center py-8 text-slate-400">No port calls defined</div>
+        ) : (
+          selectedPortCalls.sort((a,b)=>a.order-b.order).map((pc,i)=>(
+            <div key={i} className="bg-[#2D4D8B] rounded-lg p-4 group hover:bg-[#1d4595] transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center text-sm font-bold">
+                    {pc.order}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-cyan-400">{pc.portCode}</h4>
+                    <div className="text-sm text-slate-300 space-y-1">
+                      {pc.eta && (
+                        <div className="flex items-center gap-2">
+                          <ChevronLeft className="w-3 h-3 text-green-400"/>
+                          <span>ETA: {new Date(pc.eta).toLocaleString()}</span>
                         </div>
                       )}
-                      {pc.vesselName && <div className="text-slate-400 text-xs">{pc.vesselName}</div>}
+                      {pc.etd && (
+                        <div className="flex items-center gap-2">
+                          <ChevronRight className="w-3 h-3 text-red-400"/>
+                          <span>ETD: {new Date(pc.etd).toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))
-              )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right text-sm">
+                    {pc.mode && (
+                      <div className="bg-blue-900/30 text-blue-400 px-2 py-1 rounded text-xs mb-1">
+                        {pc.mode}
+                      </div>
+                    )}
+                    {pc.vesselName && <div className="text-slate-400 text-xs">{pc.vesselName}</div>}
+                  </div>
+                  <button
+                    onClick={() => openEditPortCall(pc)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#600f9e] hover:bg-[#491174] px-3 py-1 rounded text-xs flex items-center gap-1"
+                  >
+                    <Edit3 className="w-3 h-3" /> Edit
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="mt-6 flex justify-end">
-              <button onClick={closePortCalls} className="bg-[#2a72dc] py-2 px-4 rounded-lg">Close</button>
-            </div>
+          ))
+        )}
+      </div>
+      <div className="mt-6 flex justify-end">
+        <button onClick={closePortCalls} className="bg-[#2a72dc] hover:bg-[#1e5bb8] py-2 px-6 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Close</button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* EDIT PORT CALL MODAL */}
+{editPortCallModalOpen && selectedPortCall && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-lg w-full" style={cardGradient}>
+      <header className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold flex items-center gap-2">
+          <Edit3/> Edit Port Call - {selectedPortCall.portCode}
+        </h3>
+        <button onClick={closeEditPortCall}><X className="w-6 h-6"/></button>
+      </header>
+      <form className="space-y-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Port Code</label>
+            <input
+              type="text"
+              value={editPortCallForm.portCode || ""}
+              onChange={e=>setEditPortCallForm(prev=>({...prev, portCode: e.target.value.toUpperCase()}))}
+              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              placeholder="NYC"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Order</label>
+            <input
+              type="number"
+              value={editPortCallForm.order || ""}
+              onChange={e=>setEditPortCallForm(prev=>({...prev, order: parseInt(e.target.value)}))}
+              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              placeholder="1"
+            />
           </div>
         </div>
-      )}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">ETA (Estimated Time of Arrival)</label>
+          <input
+            type="datetime-local"
+            value={editPortCallForm.eta || ""}
+            onChange={e=>setEditPortCallForm(prev=>({...prev, eta: e.target.value}))}
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">ETD (Estimated Time of Departure)</label>
+          <input
+            type="datetime-local"
+            value={editPortCallForm.etd || ""}
+            onChange={e=>setEditPortCallForm(prev=>({...prev, etd: e.target.value}))}
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Mode</label>
+            <input
+              type="text"
+              value={editPortCallForm.mode || ""}
+              onChange={e=>setEditPortCallForm(prev=>({...prev, mode: e.target.value}))}
+              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              placeholder="LOAD/DISCHARGE"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Vessel Name</label>
+            <input
+              type="text"
+              value={editPortCallForm.vesselName || ""}
+              onChange={e=>setEditPortCallForm(prev=>({...prev, vesselName: e.target.value}))}
+              className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              placeholder="MV Example"
+            />
+          </div>
+        </div>
+      </form>
+      <div className="flex justify-end gap-4 mt-6">
+        <button onClick={closeEditPortCall} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Cancel</button>
+        <button
+          onClick={applyEditPortCall}
+          disabled={isUpdatingPortCall}
+          className="bg-[#600f9e] hover:bg-[#491174] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50"
+        >
+          {isUpdatingPortCall ? <Settings className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* EDIT SCHEDULE MODAL */}
+{editModalOpen && selectedSchedule && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div className="bg-[#121c2d] border-white border-2 shadow-[30px_30px_0px_rgba(0,0,0,1)] rounded-3xl p-8 max-w-md w-full" style={cardGradient}>
+      <header className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold flex items-center gap-2">
+          <Edit3/> Edit {selectedSchedule.code}
+        </h3>
+        <button onClick={closeEdit}><X className="w-6 h-6"/></button>
+      </header>
+      <form className="space-y-6">
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Service Code</label>
+          <input
+            type="text"
+            value={editForm.code || ""}
+            onChange={e=>setEditForm(prev=>({...prev, code: e.target.value.toUpperCase()}))}
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+            placeholder="WAX"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Description</label>
+          <input
+            type="text"
+            value={editForm.description||""}
+            onChange={e=>setEditForm(prev=>({...prev,description:e.target.value}))}
+            className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+          />
+        </div>
+      </form>
+      <div className="flex justify-end gap-4 mt-4">
+        <button onClick={closeEdit} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] py-2 px-4 rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow">Cancel</button>
+        <button
+          onClick={applyEdit}
+          disabled={isUpdating}
+          className="bg-[#600f9e] hover:bg-[#491174] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50"
+        >
+          {isUpdating ? <Settings className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>}
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
