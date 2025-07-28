@@ -1,4 +1,5 @@
-// app/api/voyages/[voyageId]/portcalls/[portCallId]/route.ts
+// app/api/seed/serviceschedules/[scheduleId]/voyages/[voyageId]/portcalls/[portCallId]/patch/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
@@ -14,11 +15,19 @@ const PatchPortCallSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { voyageId: string; portCallId: string } }
+  { params }: { params: { scheduleId: string; voyageId: string; portcallId: string } }
 ) {
-  const { voyageId, portCallId } = params;
+
+  console.log("PATCH handler params:", await params);
+  const { scheduleId, voyageId, portcallId } = await params;
+
+  // UUID check for all three (optional, but good practice)
   const uuid = /^[0-9a-fA-F\-]{36}$/;
-  if (!uuid.test(voyageId) || !uuid.test(portCallId)) {
+  if (
+    !uuid.test(scheduleId) ||
+    !uuid.test(voyageId)   ||
+    !uuid.test(portcallId)
+  ) {
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
 
@@ -35,16 +44,16 @@ export async function PATCH(
     throw err;
   }
 
-  // ensure port call exists under that voyage
+  // Ensure port call exists for this voyage (and optionally this schedule)
   const existing = await prismaClient.portCall.findFirst({
-    where: { id: portCallId, voyageId }
+    where: { id: portcallId, voyageId }
   });
   if (!existing) {
     return NextResponse.json({ error: "PortCall not found" }, { status: 404 });
   }
 
   const updated = await prismaClient.portCall.update({
-    where: { id: portCallId },
+    where: { id: portcallId },
     data: {
       ...(updates.portCode   !== undefined && { portCode:   updates.portCode }),
       ...(updates.order      !== undefined && { order:      updates.order }),

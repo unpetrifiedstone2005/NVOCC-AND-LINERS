@@ -1,4 +1,3 @@
-// app/api/voyages/[voyageId]/portcalls/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
@@ -28,11 +27,13 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { voyageId: string } }
 ) {
-  const { voyageId } = params;
+  const { voyageId } = await params;
+  // 1️⃣ Validate voyageId format
   if (!/^[0-9a-fA-F\-]{36}$/.test(voyageId)) {
     return NextResponse.json({ error: "Invalid voyageId" }, { status: 400 });
   }
 
+  // 2️⃣ Parse & validate body
   let input;
   try {
     input = CreatePortCallSchema.parse(await req.json());
@@ -46,6 +47,7 @@ export async function POST(
     throw err;
   }
 
+  // 3️⃣ Fetch the voyage
   const voyage = await prismaClient.voyage.findUnique({
     where: { id: voyageId }
   });
@@ -53,13 +55,26 @@ export async function POST(
     return NextResponse.json({ error: "Voyage not found" }, { status: 404 });
   }
 
+  // 4️⃣ Enforce port‑call within voyage window
+  const etaDate = new Date(input.eta);
+  const etdDate = new Date(input.etd);
+  if (etaDate < voyage.departure || etdDate > voyage.arrival) {
+    return NextResponse.json(
+      {
+        error: `Port‑call times must be between voyage departure (${voyage.departure.toISOString()}) and arrival (${voyage.arrival.toISOString()})`
+      },
+      { status: 422 }
+    );
+  }
+
+  // 5️⃣ All good—create the port call
   const portCall = await prismaClient.portCall.create({
     data: {
       voyageId,
       portCode: input.portCode,
       order:    input.order,
-      eta:      input.eta ? new Date(input.eta) : undefined,
-      etd:      input.etd ? new Date(input.etd) : undefined,
+      eta:      etaDate,
+      etd:      etdDate,
     }
   });
 

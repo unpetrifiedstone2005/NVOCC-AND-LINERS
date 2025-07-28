@@ -401,21 +401,21 @@ model ServiceSchedule {
 
 model Voyage {
   id           String           @id @default(uuid())
-  
-  serviceId    String           // 🔹 use UUID FK instead of serviceCode
-  
-  voyageNumber String?          @unique// “245N”, “006W” …
-  departure    DateTime         // first port’s ETD
-  arrival      DateTime?        // last port’s ETA
+  serviceId    String
+  voyageNumber String           // no @unique here
+  departure    DateTime
+  arrival      DateTime
+  vesselName   String
 
   portCalls    PortCall[]
   quotationRoutings QuotationRouting[] @relation("VoyageToQuotationRouting")
 
   service      ServiceSchedule  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
-  @@index([serviceId])          // 🔹 update index to serviceId
+  @@index([serviceId])
   @@index([departure])
   @@index([arrival])
+  @@unique([serviceId, voyageNumber])
 }
 
 model PortCall {
@@ -425,7 +425,7 @@ model PortCall {
   order      Int      // 1=first, 2=second…
   eta        DateTime?
   etd        DateTime?
-  vesselName String?  // only if it differs from the Voyage’s default
+
 
   voyage     Voyage   @relation(fields: [voyageId], references: [id], onDelete: Cascade)
 

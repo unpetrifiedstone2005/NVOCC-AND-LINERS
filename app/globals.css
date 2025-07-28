@@ -127,7 +127,32 @@ background-image: repeating-linear-gradient(
 
 
 
+/* Match bg-[#2D4D8B] + text-white + border-black/4 + shadow */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: inset 0 0 0px 1000px #2D4D8B !important;
+  box-shadow: inset 0 0 0px 1000px #2D4D8B !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  border-color: #000000 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
 
+/* Hover state too (you can't truly hover the autofill, but this guards focus) */
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: inset 0 0 0px 1000px #0A1A2F !important; /* hover:bg-[#0A1A2F] */
+  box-shadow: inset 0 0 0px 1000px #0A1A2F !important;
+}
+
+/* Firefox autofill */
+input:-moz-autofill,
+textarea:-moz-autofill,
+select:-moz-autofill {
+  box-shadow: inset 0 0 0px 1000px #2D4D8B !important;
+  -moz-text-fill-color: #FFFFFF !important;
+}
 
 
 input[type="number"] {

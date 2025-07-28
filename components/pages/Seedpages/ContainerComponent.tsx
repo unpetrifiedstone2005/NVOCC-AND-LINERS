@@ -1391,8 +1391,8 @@ const fetchContainers = async (page: number = 1) => {
                           )}
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold">
+                        <div className="mt-4 pt-3 border-t border-[#00FFFF] opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-2 text-[#00FFFF] text-xs font-semibold">
                             <Edit3 className="w-3 h-3" /> Click to edit
                           </div>
                         </div>
