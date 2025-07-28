@@ -629,18 +629,15 @@ async function createPortCall(e: React.FormEvent) {
   // === NEW: Edit Port Call functions ===
   function openEditPortCall(pc:PortCall) { setPortCallEditForm(pc); setEditPortCallModal(true); }
 async function saveEditPortCall() {
-  // Check for portCallEditForm.id before proceeding
+  // Guard clause for missing ID
   if (!portCallEditForm?.id) {
-    console.error("❌ [saveEditPortCall] No portCallEditForm.id!", { portCallEditForm });
     showMessage("error", "No Port Call ID provided. Cannot update.");
     return;
   }
 
-  const voyageId = selectedVoyage?.id;
+  const voyageId   = selectedVoyage?.id;
   const scheduleId = selectedVoyage?.service?.id ?? selectedSchedule?.id;
-
   if (!voyageId || !scheduleId) {
-    console.error("❌ [saveEditPortCall] No voyageId or scheduleId!", { voyageId, scheduleId, selectedVoyage, selectedSchedule });
     showMessage("error", "Unable to determine parent schedule or voyage");
     return;
   }
@@ -654,23 +651,20 @@ async function saveEditPortCall() {
 
   setIsLoading(true);
   try {
-    // Prepare sanitized patch data with only valid fields
+    // Build up only the patch fields you actually want to send
     const patchData: { [key: string]: any } = {};
 
     if (portCallEditForm.portCode && portCallEditForm.portCode.trim() !== "") {
       patchData.portCode = portCallEditForm.portCode.trim().toUpperCase();
     }
-
     if (
       Number.isInteger(portCallEditForm.order) &&
       portCallEditForm.order >= 1
     ) {
       patchData.order = portCallEditForm.order;
     }
-
     const etaISO = toISOStringSafe(portCallEditForm.eta);
     if (etaISO) patchData.eta = etaISO;
-
     const etdISO = toISOStringSafe(portCallEditForm.etd);
     if (etdISO) patchData.etd = etdISO;
 
@@ -680,16 +674,6 @@ async function saveEditPortCall() {
       return;
     }
 
-    // Log for debugging before making the request
-    console.log("🟢 [saveEditPortCall] PATCH REQUEST", {
-      url: `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${portCallEditForm.id}/patch`,
-      patchData,
-      portCallEditForm,
-      voyageId,
-      scheduleId,
-    });
-
-    // PATCH request
     await axios.patch(
       `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${portCallEditForm.id}/patch`,
       patchData
@@ -698,47 +682,34 @@ async function saveEditPortCall() {
     showMessage("success", "Port call updated");
     setEditPortCallModal(false);
 
-    // Re-fetch updated voyages data
+    // Re-fetch and update UI state
     await fetchVoyages(scheduleId);
-
-    // Update local state with updated voyage & port calls
-    const updatedVoyage = voyages.find((v) => v.id === voyageId);
+    const updatedVoyage = voyages.find(v => v.id === voyageId);
     if (updatedVoyage) {
       setSelectedVoyage(updatedVoyage);
       setSelectedPortCalls(updatedVoyage.portCalls ?? []);
     }
   } catch (error: unknown) {
+    // Properly show backend or Zod validation errors in your UI
     if (axios.isAxiosError(error)) {
-      console.error("🔴 [saveEditPortCall] Backend error:", {
-        response: error.response,
-        config: error.config,
-        portCallEditForm,
-        voyageId,
-        scheduleId,
-      });
-
       const status = error.response?.status;
-      const data = error.response?.data;
+      const data   = error.response?.data;
 
       let msg = data?.error ?? JSON.stringify(data);
-
       if (data?.errors && typeof data.errors === "object") {
         msg = Object.values(data.errors).flat().join("; ");
       }
-
       showMessage("error", `HTTP ${status}: ${msg}`);
     } else if (error instanceof Error) {
       showMessage("error", error.message);
-      console.error(error.message);
     } else {
-      const unknownErr = String(error);
-      showMessage("error", unknownErr);
-      console.error(unknownErr);
+      showMessage("error", String(error));
     }
   } finally {
     setIsLoading(false);
   }
 }
+
 
 
 
@@ -1734,11 +1705,11 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
             <div
               key={i}
               onClick={() => openEditPortCall(pc)}
-              className="relative flex items-center bg-[#121c2d] border border-slate-400 hover:border-cyan-400 rounded-lg p-4 mb-3 transition-colors group cursor-pointer"
+              className="relative flex items-center bg-[#121c2d] border border-slate-400 hover:border-cyan-400 rounded-lg p-4 mb-6 transition-colors group cursor-pointer shadow-[12px_12px_0_rgba(0,0,0,1)] hover:shadow-[20px_20px_0_rgba(0,0,0,1)] transition-shadow"
               style={cardGradient}
             >
               {/* Number badge */}
-              <div className="absolute -left-6 z-10">
+              <div className="absolute -left-6 z-10 ">
                 <div className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center text-lg font-extrabold shadow-[4px_4px_0_rgba(0,0,0,1)] group-hover:bg-cyan-400 transition-colors">
                   {pc.order}
                 </div>
