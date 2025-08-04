@@ -1,10 +1,11 @@
-// File: app/api/surcharges/route.ts
+// File: app/api/seed/surcharges/get/route.ts
 import { NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { prismaClient } from "@/app/lib/db";
 
 // query params schema
 const QuerySchema = z.object({
+  name:        z.string().optional(),
   scope:       z.enum(["ORIGIN","FREIGHT","DESTINATION"]).optional(),
   portCode:    z.string().optional(),
   serviceCode: z.string().optional(),
@@ -19,13 +20,15 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     q = QuerySchema.parse({
+      name:        url.searchParams.get("name")        ?? undefined,
       scope:       url.searchParams.get("scope")      ?? undefined,
       portCode:    url.searchParams.get("portCode")   ?? undefined,
       serviceCode: url.searchParams.get("serviceCode")?? undefined,
       page:        url.searchParams.get("page"),
       limit:       url.searchParams.get("limit"),
-      sortBy:      url.searchParams.get("sortBy")     as any,
-      sortOrder:   url.searchParams.get("sortOrder")  as any,
+      // ← use undefined so defaults apply
+      sortBy:      url.searchParams.get("sortBy")     ?? undefined,
+      sortOrder:   url.searchParams.get("sortOrder")  ?? undefined,
     });
   } catch (e) {
     if (e instanceof ZodError) {
@@ -35,6 +38,10 @@ export async function GET(req: Request) {
   }
 
   const where: any = {};
+  if (q.name) {
+  // case-insensitive “contains” on the surcharge name
+  where.name = { contains: q.name, mode: "insensitive" };
+}
   if (q.scope)       where.scope       = q.scope;
   if (q.portCode)    where.portCode    = q.portCode;
   if (q.serviceCode) where.serviceCode = q.serviceCode;

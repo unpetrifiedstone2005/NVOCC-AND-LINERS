@@ -15,7 +15,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { scheduleId: string; voyageId: string; portcallId: string } }
 ) {
-  const { scheduleId, voyageId, portcallId } = await params;
+  const { scheduleId, voyageId, portcallId } = await  params;
 
   // UUID check for all three
   const uuid = /^[0-9a-fA-F\-]{36}$/;

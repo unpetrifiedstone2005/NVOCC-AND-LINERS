@@ -160,6 +160,15 @@ export function ServiceComponent() {
   const [isUpdating, setIsUpdating]     = useState(false);
   const [message, setMessage]           = useState<{ type:"success"|"error"; text:string }|null>(null);
 
+
+
+  const [portCallsPage, setPortCallsPage] = useState<number>(1);
+  const [portCallsPageSize, setPortCallsPageSize] = useState<number>(10);
+  const [portCallsTotal, setPortCallsTotal] = useState<number>(0);
+  const [portCallsTotalPages, setPortCallsTotalPages] = useState<number>(1);
+  const [isLoadingPortCalls, setIsLoadingPortCalls] = useState<boolean>(false);
+  const [portCallsFilters, setPortCallsFilters] = useState<{ portCode?: string }>({});
+
   const showMessage = (type:"success"|"error", text:string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
@@ -397,81 +406,145 @@ async function createPortCall(e: React.FormEvent) {
 }
 
 
-  async function importBulkVoyages(e: React.FormEvent) {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      let raw = bulkData;
-      if (bulkMode === "file" && uploadedFile) {
-        raw = await uploadedFile.text();
-      }
-      const voyagesToImport = JSON.parse(raw) as Array<{
-        serviceCode: string;
-        voyageNumber?: string;
+async function importBulkVoyages(e: React.FormEvent) {
+  e.preventDefault();
+  setIsLoading(true);
+
+  try {
+    let raw = bulkData;
+    if (bulkMode === "file" && uploadedFile) {
+      raw = await uploadedFile.text();
+    }
+
+    // Parse as array of services, each with voyages array
+    const servicesToImport = JSON.parse(raw) as Array<{
+      serviceCode: string;
+      serviceDescription?: string;
+      voyages: Array<{
+        voyageNumber: string;
         departure: string;
-        arrival?: string;
+        arrival: string;
+        vesselName: string;
         portCalls?: Array<{
-          sequence: number;
+          order: number;
           portCode: string;
-          callType?: string;
           eta?: string;
           etd?: string;
-          vesselName?: string;
         }>;
       }>;
+    }>;
 
-      let voyageCount = 0;
-      let portCallCount = 0;
+    // Cache for schedule IDs (so you don’t duplicate posts)
+    const scheduleCache: Record<string, string> = {};
+    let voyageCount = 0;
+    let portCallCount = 0;
 
-      for (const v of voyagesToImport) {
-        const { data: createdVoyage } = await axios.post<{
-          id: string;
-          serviceCode: string;
-          voyageNumber?: string;
-          departure: string;
-          arrival?: string;
-        }>(
-          "/api/seed/voyages/post",
-          {
-            serviceCode:  v.serviceCode,
-            voyageNumber: v.voyageNumber,
-            departure:    v.departure,
-            arrival:      v.arrival,
-          }
+    for (const service of servicesToImport) {
+      // 1️⃣ Find or create the ServiceSchedule
+      let scheduleId = scheduleCache[service.serviceCode];
+      if (!scheduleId) {
+        let schedule = allSchedules.find(s => s.code === service.serviceCode);
+        if (!schedule) {
+          const { data: created } = await axios.post("/api/seed/serviceschedules/post", {
+            code: service.serviceCode,
+            description: service.serviceDescription ?? "",
+          });
+          scheduleId = created.id;
+          showMessage("success", `Created schedule ${service.serviceCode}`);
+        } else {
+          scheduleId = schedule.id;
+        }
+        scheduleCache[service.serviceCode] = scheduleId;
+      }
+
+      // 2️⃣ Now handle each voyage under this schedule
+      // Get all voyages for this schedule (for finding existing)
+      let voyagesForSchedule: Voyage[] = [];
+      try {
+        const { data } = await axios.get<{ voyages: Voyage[] }>(
+          `/api/seed/serviceschedules/${scheduleId}/voyages/get`
         );
+        voyagesForSchedule = data.voyages;
+      } catch {
+        voyagesForSchedule = [];
+      }
+
+      for (const v of service.voyages) {
+        let voyageId: string | undefined;
+        let voyage = voyagesForSchedule.find(vv => vv.voyageNumber === v.voyageNumber);
+
+        if (!voyage) {
+          // Create if not found
+          const { data: created } = await axios.post<Voyage>(
+            `/api/seed/serviceschedules/${scheduleId}/voyages/post`,
+            {
+              voyageNumber: v.voyageNumber,
+              departure: new Date(v.departure).toISOString(),
+              arrival: new Date(v.arrival).toISOString(),
+              vesselName: v.vesselName,
+            }
+          );
+          voyageId = created.id;
+          showMessage("success", `Created voyage ${v.voyageNumber} on ${service.serviceCode}`);
+        } else {
+          voyageId = voyage.id;
+        }
         voyageCount++;
 
+        // 3️⃣ Port calls for this voyage
         if (Array.isArray(v.portCalls)) {
           for (const pc of v.portCalls) {
-            await axios.post(
-              "/api/seed/portcalls/post",
-              {
-                voyageId:   createdVoyage.id,
-                portCode:   pc.portCode,
-                order:      pc.sequence,
-                eta:        pc.eta,
-                etd:        pc.etd,
-                mode:       pc.callType,
-                vesselName: pc.vesselName,
-              }
-            );
-            portCallCount++;
+            try {
+              await axios.post(
+                `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/post`,
+                {
+                  portCode: pc.portCode,
+                  order: pc.order,
+                  eta: pc.eta ? new Date(pc.eta).toISOString() : undefined,
+                  etd: pc.etd ? new Date(pc.etd).toISOString() : undefined,
+                }
+              );
+              portCallCount++;
+            } catch (err: any) {
+              let msg = `Port call ${pc.portCode} on voyage ${v.voyageNumber}`;
+              if (err.response?.data?.error) msg += `: ${err.response.data.error}`;
+              showMessage("error", msg);
+            }
           }
         }
       }
-
-      showMessage("success", `Imported ${voyageCount} voyages and ${portCallCount} port calls.`);
-      setBulkData("");
-      setUploadedFile(null);
-      // Refresh all data
-
-      await fetchSchedules(currentPage);
-    } catch (err:any) {
-      showMessage("error", "Failed to import voyages/port calls");
-    } finally {
-      setIsLoading(false);
     }
+
+    showMessage(
+      "success",
+      `Imported ${voyageCount} voyages and ${portCallCount} port calls.`
+    );
+    setBulkData("");
+    setUploadedFile(null);
+    await fetchSchedules(1);
+
+  } catch (err: any) {
+    // New: show the full error response!
+    if (axios.isAxiosError(err) && err.response) {
+      const { status, data } = err.response;
+      let msg = `HTTP ${status}`;
+      if (data?.error) msg += `: ${data.error}`;
+      if (data?.errors) msg += `: ${JSON.stringify(data.errors)}`;
+      showMessage("error", msg);
+    } else if (err instanceof Error) {
+      showMessage("error", err.message);
+      console.log(err)
+    } else {
+      showMessage("error", "Failed to import voyages/port calls");
+    }
+  } finally {
+    setIsLoading(false);
   }
+}
+
+
+
+
 
   function downloadSample() {
     const sample = [
@@ -629,7 +702,6 @@ async function createPortCall(e: React.FormEvent) {
   // === NEW: Edit Port Call functions ===
   function openEditPortCall(pc:PortCall) { setPortCallEditForm(pc); setEditPortCallModal(true); }
 async function saveEditPortCall() {
-  // Guard clause for missing ID
   if (!portCallEditForm?.id) {
     showMessage("error", "No Port Call ID provided. Cannot update.");
     return;
@@ -642,7 +714,7 @@ async function saveEditPortCall() {
     return;
   }
 
-  // Helper to safely convert local datetime string to ISO string or undefined
+  // Helper for ISO string
   const toISOStringSafe = (localDateTime: string | undefined) => {
     if (!localDateTime) return undefined;
     const dt = new Date(localDateTime);
@@ -651,16 +723,11 @@ async function saveEditPortCall() {
 
   setIsLoading(true);
   try {
-    // Build up only the patch fields you actually want to send
     const patchData: { [key: string]: any } = {};
-
     if (portCallEditForm.portCode && portCallEditForm.portCode.trim() !== "") {
       patchData.portCode = portCallEditForm.portCode.trim().toUpperCase();
     }
-    if (
-      Number.isInteger(portCallEditForm.order) &&
-      portCallEditForm.order >= 1
-    ) {
+    if (Number.isInteger(portCallEditForm.order) && portCallEditForm.order >= 1) {
       patchData.order = portCallEditForm.order;
     }
     const etaISO = toISOStringSafe(portCallEditForm.eta);
@@ -682,15 +749,10 @@ async function saveEditPortCall() {
     showMessage("success", "Port call updated");
     setEditPortCallModal(false);
 
-    // Re-fetch and update UI state
-    await fetchVoyages(scheduleId);
-    const updatedVoyage = voyages.find(v => v.id === voyageId);
-    if (updatedVoyage) {
-      setSelectedVoyage(updatedVoyage);
-      setSelectedPortCalls(updatedVoyage.portCalls ?? []);
-    }
+    // 👉 This is the key line to add:
+    await fetchPortCalls(scheduleId, voyageId);
+
   } catch (error: unknown) {
-    // Properly show backend or Zod validation errors in your UI
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       const data   = error.response?.data;
@@ -711,7 +773,36 @@ async function saveEditPortCall() {
 }
 
 
-
+async function fetchPortCalls(
+  scheduleId: string,
+  voyageId: string,
+  page: number = 1,
+  pageSize: number = 10,
+  filters: { portCode?: string } = {}
+) {
+  setIsLoadingPortCalls(true);
+  try {
+    const params: Record<string, any> = { page, pageSize, ...filters };
+    const { data } = await axios.get<{
+      portCalls: PortCall[];
+      total: number;
+      totalPages: number;
+    }>(
+      `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/get`,
+      { params }
+    );
+    setSelectedPortCalls(data.portCalls);
+    setPortCallsTotal(data.total);
+    setPortCallsTotalPages(data.totalPages);
+  } catch (err) {
+    setSelectedPortCalls([]);
+    setPortCallsTotal(0);
+    setPortCallsTotalPages(1);
+    // Optional: handle error messaging
+  } finally {
+    setIsLoadingPortCalls(false);
+  }
+}
 
 
 
@@ -1170,156 +1261,162 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
 
       {/* BULK IMPORT */}
       {activeTab === "bulk-import" && (
-        <section className="px-6 md:px-16">
-          <div
-            className="rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 border-2 border-white"
-            style={cardGradient}
-          >
-            <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
-              <Upload className="w-8 h-8 text-cyan-400" /> Bulk Import Voyages
-            </h2>
+  <section className="px-6 md:px-16">
+    <div
+      className="rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 border-2 border-white"
+      style={cardGradient}
+    >
+      <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+        <Upload className="w-8 h-8 text-cyan-400" /> Bulk Import Schedules, Voyages & Port Calls
+      </h2>
 
-            {/* Mode Buttons */}
-            <div className="flex gap-4 mb-6">
-              <button
-                type="button"
-                onClick={() => setBulkMode("file")}
-                className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
-                  bulkMode === "file"
-                    ? "bg-[#600f9e] text-white"
-                    : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
-                }`}
-                style={bulkMode === "file" ? cardGradient : {}}
-              >
-                <Upload className="w-5 h-5" /> Upload JSON File
-              </button>
-              <button
-                type="button"
-                onClick={() => setBulkMode("textarea")}
-                className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
-                  bulkMode === "textarea"
-                    ? "bg-[#600f9e] text-white"
-                    : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
-                }`}
-                style={bulkMode === "textarea" ? cardGradient : {}}
-              >
-                <FileText className="w-5 h-5" /> Paste JSON Data
-              </button>
+      {/* Mode Buttons */}
+      <div className="flex gap-4 mb-6">
+        <button
+          type="button"
+          onClick={() => setBulkMode("file")}
+          className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
+            bulkMode === "file"
+              ? "bg-[#600f9e] text-white"
+              : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
+          }`}
+          style={bulkMode === "file" ? cardGradient : {}}
+        >
+          <Upload className="w-5 h-5" /> Upload JSON File
+        </button>
+        <button
+          type="button"
+          onClick={() => setBulkMode("textarea")}
+          className={`px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all ${
+            bulkMode === "textarea"
+              ? "bg-[#600f9e] text-white"
+              : "bg-[#1A2A4A] text-white hover:bg-[#00FFFF] hover:text-black"
+          }`}
+          style={bulkMode === "textarea" ? cardGradient : {}}
+        >
+          <FileText className="w-5 h-5" /> Paste JSON Data
+        </button>
+      </div>
+
+      {/* Download Sample */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={downloadSample}
+          className="bg-[#2a72dc] hover:bg-[#00FFFF] hover:text-black px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all"
+        >
+          <Download className="w-5 h-5" /> Download Sample JSON
+        </button>
+        <p className="text-md text-slate-200 mt-5">
+          Download a <b>full example</b> covering schedule, voyage, and port call import.
+        </p>
+      </div>
+
+      <form onSubmit={importBulkVoyages} className="space-y-6">
+        {bulkMode === "file" ? (
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-200">
+              Select JSON File *
+            </label>
+            <div className="border-2 border-dashed border-white rounded-lg p-8 text-center hover:border-cyan-400 transition-colors">
+              <input
+                id="voyage-file"
+                type="file"
+                accept=".json"
+                required
+                className="hidden"
+                onChange={e => setUploadedFile(e.target.files?.[0] ?? null)}
+              />
+              <label htmlFor="voyage-file" className="cursor-pointer flex flex-col items-center gap-4">
+                <Upload className="w-16 h-16 text-slate-400" />
+                <p className="text-lg font-semibold text-white">Click to upload JSON file</p>
+                <p className="text-sm text-slate-400">or drag and drop</p>
+              </label>
             </div>
-
-            {/* Download Sample */}
-            <div className="mb-6">
-              <button
-                type="button"
-                onClick={downloadSample}
-                className="bg-[#2a72dc] hover:bg-[#00FFFF] hover:text-black px-6 py-3 rounded-lg font-semibold uppercase flex items-center gap-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all"
-              >
-                <Download className="w-5 h-5" /> Download Sample JSON
-              </button>
-              <p className="text-md text-slate-200 mt-5">
-                Grab a sample payload to see the shape we expect.
-              </p>
-            </div>
-
-            <form onSubmit={importBulkVoyages} className="space-y-6">
-              {bulkMode === "file" ? (
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-200">
-                    Select JSON File *
-                  </label>
-                  <div className="border-2 border-dashed border-white rounded-lg p-8 text-center hover:border-cyan-400 transition-colors">
-                    <input
-                      id="voyage-file"
-                      type="file"
-                      accept=".json"
-                      required
-                      className="hidden"
-                      onChange={e => setUploadedFile(e.target.files?.[0] ?? null)}
-                    />
-                    <label htmlFor="voyage-file" className="cursor-pointer flex flex-col items-center gap-4">
-                      <Upload className="w-16 h-16 text-slate-400" />
-                      <p className="text-lg font-semibold text-white">Click to upload JSON file</p>
-                      <p className="text-sm text-slate-400">or drag and drop</p>
-                    </label>
-                  </div>
-                  <p className="text-xs font-bold text-white">
-                    File must be an array of voyages with `portCalls` arrays.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-white">
-                    JSON Data *
-                  </label>
-                  <textarea
-                    className="w-full px-4 py-3 bg-[#0A1A2F] border border-white/80 rounded-lg text-white font-mono text-sm placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
-                    rows={25}
-                    placeholder={`[
-                          {
-                            "serviceCode": "WAX",
-                            "voyageNumber": "22N",
-                            "departure": "2025-07-20T01:24:00Z",
-                            "arrival":   "2025-07-25T07:12:00Z",
-                            "portCalls": [
-                              {
-                                "sequence": 1,
-                                "portCode": "CNSHA",
-                                "callType": "POL",
-                                "eta": "2025-07-20T01:24:00Z",
-                                "etd": "2025-07-20T18:00:00Z"
-                              },
-                              {
-                                "sequence": 2,
-                                "portCode": "SGSIN",
-                                "callType": "VIA",
-                                "eta": "2025-07-22T08:00:00Z",
-                                "etd": "2025-07-22T20:00:00Z"
-                              }
-                            ]
-                          }
-                        ]`}
-                    value={bulkData}
-                    onChange={e => setBulkData(e.target.value)}
-                    required
-                  />
-                  <p className="text-md font-bold text-white">
-                    Paste an array of voyage-objects, each with its `portCalls`.
-                  </p>
-
-                  <div className="bg-[#1A2A4A] rounded-lg p-4 border border-slate-600 mt-4" style={cardGradient}>
-                    <h4 className="text-lg font-semibold text-cyan-400 mb-3">JSON Format:</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 font-bold text-white">
-                      <div>• serviceCode (required)</div>
-                      <div>• voyageNumber (optional)</div>
-                      <div>• departure (required)</div>
-                      <div>• arrival (optional)</div>
-                      <div className="col-span-full mt-2">• portCalls (array of stops):</div>
-                      <div>  – sequence (required)</div>
-                      <div>  – portCode  (required)</div>
-                      <div>  – callType  (required)</div>
-                      <div>  – eta, etd (optional)</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-center">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
-                >
-                  {isLoading ? (
-                    <><Settings className="w-5 h-5 animate-spin" /> Importing…</>
-                  ) : (
-                    <><Upload className="w-5 h-5" /> Import Voyages</>
-                  )}
-                </button>
-              </div>
-            </form>
+            <p className="text-xs font-bold text-white">
+              File must be an array of <b>schedules</b> with nested voyages and port calls.
+            </p>
           </div>
-        </section>
-      )}
+        ) : (
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-white">
+              JSON Data *
+            </label>
+            <textarea
+              className="w-full px-4 py-3 bg-[#0A1A2F] border border-white/80 rounded-lg text-white font-mono text-sm placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+              rows={24}
+              placeholder={`[
+  {
+    "serviceCode": "WAX",
+    "scheduleDescription": "West Africa Express",
+    "voyages": [
+      {
+        "voyageNumber": "22N",
+        "vesselName": "COSCO AFRICA",
+        "departure": "2025-07-20T01:24:00Z",
+        "arrival": "2025-07-25T07:12:00Z",
+        "portCalls": [
+          {
+            "order": 1,
+            "portCode": "CNSHA",
+            "eta": "2025-07-20T01:24:00Z",
+            "etd": "2025-07-20T18:00:00Z"
+          },
+          {
+            "order": 2,
+            "portCode": "SGSIN",
+            "eta": "2025-07-22T08:00:00Z",
+            "etd": "2025-07-22T20:00:00Z"
+          }
+        ]
+      }
+    ]
+  }
+]`}
+              value={bulkData}
+              onChange={e => setBulkData(e.target.value)}
+              required
+            />
+            <p className="text-md font-bold text-white">
+              Paste an array of <b>schedules</b>, each with `voyages` (and `portCalls` inside).
+            </p>
+            <div className="bg-[#1A2A4A] rounded-lg p-4 border border-slate-600 mt-4" style={cardGradient}>
+              <h4 className="text-lg font-semibold text-cyan-400 mb-3">JSON Format:</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 font-bold text-white">
+                <div>• serviceCode (required)</div>
+                <div>• scheduleDescription (optional)</div>
+                <br/><br/>
+                  <div className="col-span-2 md:col-span-3 mt-3">• voyages (array, required):</div>
+                  <div>— voyageNumber (required)</div>
+                  <div>— vesselName (required)</div>
+                  <div>— departure, arrival (required, optional)</div>
+                <br/>
+                <div className="col-span-2 md:col-span-3 mt-3">• portCalls (array):</div>
+                  <div>— order (required)</div>
+                  <div>— portCode (required)</div>
+                  <div>— eta, etd (optional)</div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="flex justify-center">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[15px_15px_0px_rgba(0,0,0,1)] transition-shadow"
+          >
+            {isLoading ? (
+              <><Settings className="w-5 h-5 animate-spin" /> Importing…</>
+            ) : (
+              <><Upload className="w-5 h-5" /> Import Schedules</>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+)}
+
 
       {/* SCHEDULE LIST */}
       {activeTab === "schedule-list" && (
@@ -1369,7 +1466,7 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
                 <Settings className="animate-spin w-8 h-8"/>
               </div>
             ) : allSchedules.length === 0 ? (
-              <div className="text-center py-12 text-slate-400">No schedules found</div>
+              <div className="text-center py-12 text-white">No schedules found</div>
             ) : (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {allSchedules.map(s => (
@@ -1472,7 +1569,7 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
         {voyageModalOpen && selectedSchedule && (
   <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
     <div
-      className="bg-[#121c2d] rounded-3xl p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto border-2 border-white shadow-[30px_30px_0px_rgba(0,0,0,1)]  "
+      className="bg-[#121c2d] rounded-3xl p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto border-2 border-white shadow-[30px_30px_0_rgba(0,0,0,1)]"
       style={cardGradient}
     >
       <header className="flex items-center justify-between mb-6 gap-4">
@@ -1487,7 +1584,7 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
             value={voyageSearch}
             onChange={e => { setVoyageSearch(e.target.value); setVoyagePage(1); }}
             className="w-md pl-10 pr-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#1A2A4A] shadow-[7px_7px_0_rgba(0,0,0,1)]
-    hover:shadow-[10px_10px_0_rgba(0,0,0,1)] border-4 border-black rounded-lg text-white text-sm focus:outline-none"
+              hover:shadow-[10px_10px_0_rgba(0,0,0,1)] border-4 border-black rounded-lg text-white text-sm focus:outline-none"
           />
         </div>
         <button onClick={closeVoyages}>
@@ -1495,122 +1592,126 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
         </button>
       </header>
 
-      {paginatedVoyages.length === 0 ? (
-        <div className="text-center py-8 text-slate-400">No voyages</div>
+      {isLoadingVoyages ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <Settings className="animate-spin w-8 h-8 text-cyan-400" />
+          <span className="ml-4 text-cyan-200 text-lg font-semibold mt-3">Loading voyages…</span>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
-          {paginatedVoyages.map(v => (
-  <div
-    key={v.id}
-    className="group/voyage bg-[#2e4972] relative p-3 border border-white hover:bg-[#121c2d] hover:border-[#00FFFF] transition-all rounded-lg overflow-hidden shadow-[14px_14px_0_rgba(0,0,0,1)]
-    hover:shadow-[19px_19px_0_rgba(0,0,0,1)] transition-shadow"
-    style={cardGradient}
-  >
-    {/* hover‑only gradient strip */}
-    <div
-      className="absolute inset-0 opacity-0 group-hover/voyage:opacity-100 transition-opacity pointer-events-none"
-      style={{
-        background: 'linear-gradient(90deg, rgba(0,255,255,0.05) 0%, rgba(0,0,0,0.1) 100%)',
-        clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 100%, 0 100%)'
-      }}
-    />
+        <>
+          {paginatedVoyages.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">No voyages</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+              {paginatedVoyages.map(v => (
+                <div
+                  key={v.id}
+                  className="group/voyage bg-[#2e4972] relative p-3 border border-white hover:bg-[#121c2d] hover:border-[#00FFFF] transition-all rounded-lg overflow-hidden shadow-[14px_14px_0_rgba(0,0,0,1)]
+                  hover:shadow-[19px_19px_0_rgba(0,0,0,1)] transition-shadow"
+                  style={cardGradient}
+                >
+                  {/* hover‑only gradient strip */}
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover/voyage:opacity-100 transition-opacity pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(90deg, rgba(0,255,255,0.05) 0%, rgba(0,0,0,0.1) 100%)',
+                      clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 100%, 0 100%)'
+                    }}
+                  />
+                  {/* edit‑voyage clickable area */}
+                  <div
+                    onClick={() => openEditVoyage(v)}
+                    className="relative flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* colored stripe */}
+                      <div className="w-2 h-6 bg-gradient-to-b from-cyan-400 via-yellow-400 to-red-400 opacity-80 group-hover/voyage:opacity-100 transition-opacity" />
+                      <div>
+                        <span className="text-cyan-400 font-mono text-lg font-bold tracking-wider">
+                          {v.voyageNumber}
+                        </span>
+                        <div className="text-md text-white font-mono">
+                          {new Date(v.departure).toLocaleDateString()}
+                          {v.arrival && <> → {new Date(v.arrival).toLocaleDateString()}</>}
+                        </div>
+                      </div>
+                    </div>
+                    {/* port‑calls icon + label */}
+                    <div
+                      className="relative flex flex-col items-end"
+                      onClick={e => {
+                        e.stopPropagation();
+                        openPortCalls(v);
+                      }}
+                    >
+                      <Anchor className="w-5 h-5 text-yellow-400 group-hover/voyage:text-cyan-400 transition-colors cursor-pointer mb-3" />
+                      <span className="mt-1 text-xs font-semibold text-cyan-400 opacity-0 group-hover/voyage:opacity-100 transition-opacity">
+                        Click anchor for Port Calls
+                      </span>
+                    </div>
+                  </div>
+                  {/* subtle glitch overlay */}
+                  <div className="absolute inset-0 opacity-0 group-hover/voyage:opacity-10 transition-opacity pointer-events-none">
+                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-transparent animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-    {/* edit‑voyage clickable area */}
-    <div
-      onClick={() => openEditVoyage(v)}
-      className="relative flex items-center justify-between cursor-pointer"
-    >
-      <div className="flex items-center gap-3">
-        {/* colored stripe */}
-        <div className="w-2 h-6 bg-gradient-to-b from-cyan-400 via-yellow-400 to-red-400 opacity-80 group-hover/voyage:opacity-100 transition-opacity" />
-        <div>
-          <span className="text-cyan-400 font-mono text-lg font-bold tracking-wider">
-            {v.voyageNumber}
-          </span>
-          <div className="text-md text-white font-mono">
-            {new Date(v.departure).toLocaleDateString()}
-            {v.arrival && <> → {new Date(v.arrival).toLocaleDateString()}</>}
-          </div>
-        </div>
-      </div>
-
-      {/* port‑calls icon + label */}
-      <div
-        className="relative flex flex-col items-end"
-        onClick={e => {
-          e.stopPropagation();
-          openPortCalls(v);
-        }}
-      >
-        <Anchor className="w-5 h-5 text-yellow-400 group-hover/voyage:text-cyan-400 transition-colors cursor-pointer mb-3" />
-        <span className="mt-1 text-xs font-semibold text-cyan-400 opacity-0 group-hover/voyage:opacity-100 transition-opacity">
-          Click anchor for Port Calls
-        </span>
-      </div>
-    </div>
-
-    {/* subtle glitch overlay */}
-    <div className="absolute inset-0 opacity-0 group-hover/voyage:opacity-10 transition-opacity pointer-events-none">
-      <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-transparent animate-pulse" />
-    </div>
-  </div>
-))}
-
-
-
-        </div>
-      )}
-
-      {totalVoyagePages > 1 && (
-        <div className="flex justify-between mt-6">
-          <button
-            disabled={voyagePage <= 1}
-            onClick={() => setVoyagePage(p => p - 1)}
-            className="bg-[#2a72dc]
-    hover:bg-[#1e5bb8]
-    disabled:hover:bg-[#2a72dc]      /* cancel the hover color when disabled */
-    rounded-lg
-    font-semibold
-    uppercase
-    shadow-[7px_7px_0_rgba(0,0,0,1)]
-    hover:shadow-[10px_10px_0_rgba(0,0,0,1)]
-    disabled:hover:shadow-[7px_7px_0_rgba(0,0,0,1)] /* cancel the hover shadow when disabled */
-    transition-shadow
-    px-4
-    py-2
-    disabled:opacity-50
-    disabled:cursor-not-allowed "
-          >
-            Prev
-          </button>
-          <span className="text-sm text-white">
-            Page {voyagePage} of {totalVoyagePages}
-          </span>
-          <button
-            disabled={voyagePage >= totalVoyagePages}
-            onClick={() => setVoyagePage(p => p + 1)}
-            className="bg-[#2a72dc]
-    hover:bg-[#1e5bb8]
-    disabled:hover:bg-[#2a72dc]      /* cancel the hover color when disabled */
-    rounded-lg
-    font-semibold
-    uppercase
-    shadow-[7px_7px_0_rgba(0,0,0,1)]
-    hover:shadow-[10px_10px_0_rgba(0,0,0,1)]
-    disabled:hover:shadow-[7px_7px_0_rgba(0,0,0,1)] /* cancel the hover shadow when disabled */
-    transition-shadow
-    px-4
-    py-2
-    disabled:opacity-50
-    disabled:cursor-not-allowed "
-          >
-            Next
-          </button>
-        </div>
+          {totalVoyagePages > 1 && (
+            <div className="flex justify-between mt-6">
+              <button
+                disabled={voyagePage <= 1}
+                onClick={() => setVoyagePage(p => p - 1)}
+                className="bg-[#2a72dc]
+                  hover:bg-[#1e5bb8]
+                  disabled:hover:bg-[#2a72dc]
+                  rounded-lg
+                  font-semibold
+                  uppercase
+                  shadow-[7px_7px_0_rgba(0,0,0,1)]
+                  hover:shadow-[10px_10px_0_rgba(0,0,0,1)]
+                  disabled:hover:shadow-[7px_7px_0_rgba(0,0,0,1)]
+                  transition-shadow
+                  px-4
+                  py-2
+                  disabled:opacity-50
+                  disabled:cursor-not-allowed "
+              >
+                Prev
+              </button>
+              <span className="text-sm text-white">
+                Page {voyagePage} of {totalVoyagePages}
+              </span>
+              <button
+                disabled={voyagePage >= totalVoyagePages}
+                onClick={() => setVoyagePage(p => p + 1)}
+                className="bg-[#2a72dc]
+                  hover:bg-[#1e5bb8]
+                  disabled:hover:bg-[#2a72dc]
+                  rounded-lg
+                  font-semibold
+                  uppercase
+                  shadow-[7px_7px_0_rgba(0,0,0,1)]
+                  hover:shadow-[10px_10px_0_rgba(0,0,0,1)]
+                  disabled:hover:shadow-[7px_7px_0_rgba(0,0,0,1)]
+                  transition-shadow
+                  px-4
+                  py-2
+                  disabled:opacity-50
+                  disabled:cursor-not-allowed "
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   </div>
 )}
+
 
       {/* EDIT VOYAGE MODAL */}
       {editVoyageModal && voyageEditForm && (
@@ -1746,7 +1847,7 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
               <label className="text-sm font-semibold ">PORT CODE</label>
               <input
                 type="text"
-                value={portCallEditForm.portCode}
+                value={portCallEditForm.portCode || ""}
                 onChange={e => setPortCallEditForm({ ...portCallEditForm, portCode: e.target.value.toUpperCase() })}
                 className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
               />

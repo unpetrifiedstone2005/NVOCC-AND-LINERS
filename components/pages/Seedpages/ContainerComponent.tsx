@@ -633,6 +633,9 @@ const fetchContainers = async (page: number = 1) => {
       if (activeTab === "container-list") fetchContainers(currentPage);
     }, [activeTab, currentPage]);
 
+
+
+    
     return (
       <div className="w-full max-w-[1600px] mx-auto min-h-screen text-white uppercase">
 
@@ -704,7 +707,20 @@ const fetchContainers = async (page: number = 1) => {
                   <label className="text-sm font-semibold text-white">ISO Code *</label>
                   <select
                     value={containerTypeForm.isoCode}
-                    onChange={e => setContainerTypeForm(prev => ({ ...prev, isoCode: e.target.value }))}
+                     onChange={(e) => {
+                        const selectedIsoCode = e.target.value;
+                        const selectedTypeName =
+                          STANDARD_CONTAINER_TYPES.find(
+                            (t) => t.isoCode === selectedIsoCode
+                          )?.name || ""; // Find the name or default to an empty string
+
+                        // Update both the isoCode and name in the state, leaving other fields alone.
+                        setContainerTypeForm((prev) => ({
+                          ...prev,
+                          isoCode: selectedIsoCode,
+                          name: selectedTypeName,
+                        }));
+                      }}
                     required
                     className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
                   >
@@ -726,6 +742,7 @@ const fetchContainers = async (page: number = 1) => {
                       STANDARD_CONTAINER_TYPES.find(t => t.isoCode === containerTypeForm.isoCode)?.name ||
                       containerTypeForm.name
                     }
+                    onChange={e => setContainerTypeForm(prev => ({ ...prev, name: e.target.value,}))}
                     readOnly
                     className="w-full px-4 py-3 bg-[#2D4D8B] mt-2 hover:text-[#00FFFF] border-black border-4 rounded-lg text-white placeholder-slate-300 focus:border-white focus:outline-none cursor-not-allowed shadow-[4px_4px_0px_rgba(0,0,0,1)]"
                   />
@@ -903,7 +920,7 @@ const fetchContainers = async (page: number = 1) => {
                   <option value="">Select Container Type</option>
                   {containerTypes.map(type => (
                     <option key={type.isoCode} value={type.isoCode}>
-                      {type.isoCode}
+                      {type.isoCode} - {type.name}
                     </option>
                   ))}
                 </select>
