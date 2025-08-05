@@ -2,22 +2,30 @@
 import { NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { prismaClient } from "@/app/lib/db";
+import { ContainerGroup } from "@prisma/client";
+
+// --- 1. Input schema for one tariff with multiple container rates ---
+const RateInput = z.object({
+  containerType: z.string().min(1),
+  amount:        z.number().min(0),
+});
 
 const TariffInput = z.object({
   serviceCode: z.string(),
   commodity:   z.string(),
   pol:         z.string(),
   pod:         z.string(),
-  group:       z.enum(["DRY_STANDARD","DRY_HC","REEFER","OPEN_TOP"]),
-  ratePerTeu:  z.number().min(0),
+  group:       z.nativeEnum(ContainerGroup),
   validFrom:   z.string().datetime(),
   validTo:     z.string().datetime().optional(),
+  rates:       z.array(RateInput),
 });
 
+// Allow single or bulk
 const BulkOrSingle = z.union([TariffInput, z.array(TariffInput)]);
 
 export async function POST(req: Request) {
-  let payload;
+  let payload: z.infer<typeof BulkOrSingle>;
   try {
     payload = BulkOrSingle.parse(await req.json());
   } catch (err) {
@@ -27,37 +35,55 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  if (Array.isArray(payload)) {
-    // Bulk create (skips duplicates if you add skipDuplicates:true)
-    const created = await prismaClient.tariff.createMany({
-        data: payload.map(t => ({
-            serviceCode: t.serviceCode,
-            commodity:   t.commodity,              // ← add this
-            pol:         t.pol,
-            pod:         t.pod,
-            group:       t.group,
-            ratePerTeu:  t.ratePerTeu,
-            validFrom:   new Date(t.validFrom),
-            validTo:     t.validTo ? new Date(t.validTo) : undefined,
-        })),
-        skipDuplicates: true,
-        });
-    return NextResponse.json({ count: created.count }, { status: 201 });
-  } else {
-    // Single create
-    const t = payload;
-    const created = await prismaClient.tariff.create({
-      data: {
-        serviceCode: t.serviceCode,
-        commodity :t.commodity,
-        pol:         t.pol,
-        pod:         t.pod,
-        group:       t.group,
-        ratePerTeu:  t.ratePerTeu,
-        validFrom:   new Date(t.validFrom),
-        validTo:     t.validTo ? new Date(t.validTo) : undefined,
-      }
+  // Helper to create one tariff + its rates
+  async function createOne(t: z.infer<typeof TariffInput>) {
+    // 1️⃣ find the serviceSchedule by code
+    const svc = await prismaClient.serviceSchedule.findUnique({
+      where: { code: t.serviceCode },
+      select: { id: true }
     });
-    return NextResponse.json({ tariff: created }, { status: 201 });
+    if (!svc) {
+      throw new Error(`Unknown serviceCode: ${t.serviceCode}`);
+    }
+
+    // 2️⃣ create tariff + nested rates
+    return prismaClient.tariff.create({
+      data: {
+        serviceId: svc.id,
+        commodity: t.commodity,
+        pol:       t.pol,
+        pod:       t.pod,
+        group:     t.group,
+        validFrom: new Date(t.validFrom),
+        validTo:   t.validTo ? new Date(t.validTo) : null,
+        rates: {
+          create: t.rates.map(r => ({
+            containerType: r.containerType,
+            amount:        r.amount,
+          }))
+        }
+      },
+      include: { rates: true }
+    });
+  }
+
+  try {
+    if (Array.isArray(payload)) {
+      // Bulk
+      const created = await Promise.all(
+        payload.map(t => createOne(t))
+      );
+      return NextResponse.json({ count: created.length }, { status: 201 });
+    } else {
+      // Single
+      const created = await createOne(payload);
+      return NextResponse.json({ tariff: created }, { status: 201 });
+    }
+  } catch (err: any) {
+    console.error("POST /tariffs error:", err);
+    const msg = err instanceof ZodError
+      ? err.errors
+      : err.message || "Failed to create tariff";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

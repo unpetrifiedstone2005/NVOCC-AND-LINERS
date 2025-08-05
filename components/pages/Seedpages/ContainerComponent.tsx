@@ -707,18 +707,18 @@ const fetchContainers = async (page: number = 1) => {
                   <label className="text-sm font-semibold text-white">ISO Code *</label>
                   <select
                     value={containerTypeForm.isoCode}
-                     onChange={(e) => {
+                     onChange={e => {
                         const selectedIsoCode = e.target.value;
-                        const selectedTypeName =
-                          STANDARD_CONTAINER_TYPES.find(
-                            (t) => t.isoCode === selectedIsoCode
-                          )?.name || ""; // Find the name or default to an empty string
+                        const found = STANDARD_CONTAINER_TYPES.find(t => t.isoCode === selectedIsoCode);
 
-                        // Update both the isoCode and name in the state, leaving other fields alone.
-                        setContainerTypeForm((prev) => ({
+                        if (!found) return; // safety
+
+                        setContainerTypeForm(prev => ({
                           ...prev,
-                          isoCode: selectedIsoCode,
-                          name: selectedTypeName,
+                          isoCode:   found.isoCode,
+                          name:      found.name,
+                          group:     found.group,      // ← grab the group here
+                          teuFactor: found.teuFactor,  // ← and the TEU factor too
                         }));
                       }}
                     required

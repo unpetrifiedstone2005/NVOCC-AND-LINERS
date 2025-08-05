@@ -2,11 +2,26 @@
 
 import { NextResponse } from "next/server";
 import { prismaClient } from "@/app/lib/db";
+import { Prisma, ContainerGroup } from "@prisma/client";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url        = new URL(request.url);
+  const groupParam = url.searchParams.get("group") ?? undefined;
+
+  // Build an *optional* where clause
+  // - if groupParam is one of our enum values, filter by it
+  // - otherwise leave 'where' empty to return everything
+  const where: Prisma.ContainerTypeWhereInput = {};
+  if (
+    groupParam &&
+    (Object.values(ContainerGroup) as string[]).includes(groupParam)
+  ) {
+    where.group = groupParam as ContainerGroup;
+  }
+
   try {
-    // Fetch and return all container types, ordered by ISO code
     const items = await prismaClient.containerType.findMany({
+      where,                  // <-- if empty {}, returns all
       orderBy: { isoCode: "asc" },
       select: {
         isoCode: true,

@@ -22,7 +22,8 @@ enum ContainerGroup {
   DRY_STANDARD   // 20′ = 1 TEU, 40′ dry = 2 TEU
   DRY_HC         // 40′ high-cube = 2 TEU
   REEFER         // refrigerated (map to 1 or 2 TEU as needed)
-  OPEN_TOP       // open-top / flats (map to 2 TEU)
+  OPEN_TOP
+  TANK       // open-top / flats (map to 2 TEU)
   // …etc.
 }
 
@@ -826,31 +827,39 @@ model ContainerType {
 }
 
 model Tariff {
-  serviceId      String            // UUID FK to ServiceSchedule
-  pol            String            // port-of-loading UN/LOCODE
-  pod            String            // port-of-discharge UN/LOCODE
-  commodity      String            // e.g. "FAK"
-  group          ContainerGroup    // one of the four buckets
-  ratePerTeu     Decimal           @db.Decimal(12,2)  // USD per TEU
-
+  id             String           @id @default(uuid())
+  serviceId      String           // FK to ServiceSchedule
+  pol            String           // port-of-loading UN/LOCODE
+  pod            String           // port-of-discharge UN/LOCODE
+  commodity      String
+  group          ContainerGroup
   validFrom      DateTime
   validTo        DateTime?
-
-  service        ServiceSchedule   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  @@id([serviceId, pol, pod, commodity, group, validFrom])
+  service        ServiceSchedule  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  rates          TariffRate[]     // <--- Relation to rates
+  @@unique([serviceId, pol, pod, commodity, group, validFrom])
 }
 
+
+model TariffRate {
+  id             String           @id @default(uuid())
+  tariffId       String
+  containerType  String           // e.g. 20GP, 40GP, etc.
+  amount         Decimal          @db.Decimal(12,2)
+  tariff         Tariff           @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  @@unique([tariffId, containerType])   // One rate per container type per tariff
+}
 
 
 model SurchargeDef {
   id            String           @id @default(uuid())
-  name          String           // e.g. "Fuel Surcharge Origin Land"
+  name          String           @unique // e.g. "Fuel Surcharge Origin Land"
   scope         SurchargeScope   // ORIGIN | FREIGHT | DESTINATION
   portCode      String?          // for ORIGIN & DESTINATION
   serviceCode   String?          // for FREIGHT
   isPercentage  Boolean          @default(false)
   currency      String           @default("USD")
+  defaultRate   Decimal?         @db.Decimal(12,2)
   effectiveFrom DateTime         @default(now())
   effectiveTo   DateTime?        // null = open‐ended
 

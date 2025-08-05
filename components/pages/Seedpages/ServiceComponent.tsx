@@ -1415,7 +1415,7 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
       </form>
     </div>
   </section>
-)}
+      )}
 
 
       {/* SCHEDULE LIST */}
