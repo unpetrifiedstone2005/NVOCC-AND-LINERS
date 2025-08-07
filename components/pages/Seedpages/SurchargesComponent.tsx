@@ -1111,7 +1111,7 @@ async function importBulk(e: React.FormEvent) {
         </form>
       </div>
     </section>
-  )}
+        )}
 
 
         {/* SURCHARGE LIST */}
@@ -1125,55 +1125,91 @@ async function importBulk(e: React.FormEvent) {
               
               {/* Filters */}
             <div
-    className="bg-[#2e4972] rounded-lg border-10 border-black p-6 mb-8"
-    style={cardGradient}
-  >
-    {/* filters row */}
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <input
-        type="text"
-        placeholder="Search by name..."
-        value={filters.name}
-        onChange={e => setFilters(prev => ({ ...prev, name: e.target.value }))}
-        className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-      />
-      <select
-        value={filters.scope}
-        onChange={e => setFilters(prev => ({ ...prev, scope: e.target.value }))}
-        className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white focus:border-white focus:outline-none"
-      >
-        <option value="">All Scopes</option>
-        <option value="ORIGIN">Origin</option>
-        <option value="FREIGHT">Freight</option>
-        <option value="DESTINATION">Destination</option>
-      </select>
-      <input
-        type="text"
-        placeholder="Port/Service Code..."
-        value={filters.portCode}
-        onChange={e => setFilters(prev => ({ ...prev, portCode: e.target.value }))}
-        className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-      />
-    </div>
+              className="bg-[#2e4972] rounded-lg border-4 border-black p-6 mb-8"
+              style={cardGradient}
+            >
+              {/* inputs grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Name filter */}
+                <div className="space-y-2">
+                  <label htmlFor="filter-name" className="block text-sm font-semibold text-white">
+                    Search by name
+                  </label>
+                  <input
+                    id="filter-name"
+                    type="text"
+                    placeholder="Enter name…"
+                    value={filters.name}
+                    onChange={e => setFilters(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF]
+                              border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)]
+                              hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow
+                              rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                  />
+                </div>
 
-    {/* buttons row */}
-    <div className="mt-6 flex gap-4">
-      <button
-        onClick={applyFilters}
-        className="bg-[#600f9e] hover:bg-[#491174] px-6 py-2 rounded-lg flex items-center gap-2 font-semibold uppercase text-sm shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
-      >
-        <Search className="w-4 h-4" />
-        Apply
-      </button>
-      <button
-        onClick={clearFilters}
-        className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-6 py-2 rounded-lg flex items-center gap-2 font-semibold uppercase text-sm shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
-      >
-        <Filter className="w-4 h-4" />
-        Clear
-      </button>
-    </div>
-  </div>
+                {/* Scope filter */}
+                <div className="space-y-2">
+                  <label htmlFor="filter-scope" className="block text-sm font-semibold text-white">
+                    Scope
+                  </label>
+                  <select
+                    id="filter-scope"
+                    value={filters.scope}
+                    onChange={e => setFilters(prev => ({ ...prev, scope: e.target.value }))}
+                    className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF]
+                              border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)]
+                              hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow
+                              rounded-lg text-white focus:border-white focus:outline-none"
+                  >
+                    <option value="">All Scopes</option>
+                    <option value="ORIGIN">Origin</option>
+                    <option value="FREIGHT">Freight</option>
+                    <option value="DESTINATION">Destination</option>
+                  </select>
+                </div>
+
+                {/* Port/Service Code filter */}
+                <div className="space-y-2">
+                  <label htmlFor="filter-port-code" className="block text-sm font-semibold text-white">
+                    Port/Service Code
+                  </label>
+                  <input
+                    id="filter-port-code"
+                    type="text"
+                    placeholder="Enter code…"
+                    value={filters.portCode}
+                    onChange={e => setFilters(prev => ({ ...prev, portCode: e.target.value }))}
+                    className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF]
+                              border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)]
+                              hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow
+                              rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+          {/* action buttons */}
+          <div className="mt-6 flex gap-4 justify-end">
+            <button
+              onClick={applyFilters}
+              className="bg-[#600f9e] hover:bg-[#491174] px-6 py-2 rounded-lg flex items-center gap-2
+                        font-semibold uppercase text-sm shadow-[6px_6px_0px_rgba(0,0,0,1)]
+                        hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow text-white"
+            >
+              <Search className="w-4 h-4" />
+              Apply
+            </button>
+            <button
+              onClick={clearFilters}
+              className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-6 py-2 rounded-lg flex items-center gap-2
+                        font-semibold uppercase text-sm shadow-[6px_6px_0px_rgba(0,0,0,1)]
+                        hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow text-white"
+            >
+              <Filter className="w-4 h-4" />
+              Clear
+            </button>
+          </div>
+            </div>
 
 
   {isLoadingList ? (

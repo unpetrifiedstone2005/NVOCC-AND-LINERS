@@ -1,97 +1,55 @@
-// File: app/api/tariffs/route.ts
+// File: app/api/seed/tariffs/get/route.ts
 import { NextResponse } from "next/server";
-import { z, ZodError } from "zod";
 import { prismaClient } from "@/app/lib/db";
 
-/// 1. Query params schema, renamed & updated to match your new fields
-const QuerySchema = z.object({
-  commodity:    z.string().optional(),
-  serviceCodes: z.preprocess(
-                   (val) => typeof val === "string" ? [val] : val,
-                   z.array(z.string()).optional()
-                 ),
-  groups:       z.preprocess(
-                   (val) => typeof val === "string" ? [val] : val,
-                   z.array(z.enum([
-                     "DRY_STANDARD",
-                     "DRY_HC",
-                     "REEFER",
-                     "OPEN_TOP"
-                   ])).optional()
-                 ),
-  pol:          z.string().optional(),
-  pod:          z.string().optional(),
-  minRate:      z.preprocess(Number, z.number().min(0)).optional(),
-  maxRate:      z.preprocess(Number, z.number().min(0)).optional(),
-  page:         z.preprocess(Number, z.number().int().min(1)).default(1),
-  pageSize:     z.preprocess(Number, z.number().int().min(1).max(100)).default(20),
-});
-
 export async function GET(request: Request) {
-  // 2. Parse & validate query
-  let q;
+  const url       = new URL(request.url);
+  const page      = Number(url.searchParams.get("page")    ?? 1);
+  const limit     = Math.min(100, Number(url.searchParams.get("limit") ?? 20));
+
+  // pull only the filters you actually use
+  const serviceCode = url.searchParams.get("serviceCode") || undefined;
+  const voyageId    = url.searchParams.get("voyageId")    || undefined;
+  const commodity   = url.searchParams.get("commodity")   || undefined;
+  const group       = url.searchParams.get("group")       || undefined;
+
+  // build the WHERE clause
+  const where: any = {};
+  if (serviceCode)      where.schedule   = { code: serviceCode };
+  if (voyageId)         where.voyageId  = voyageId;
+  if (commodity)        where.commodity = commodity;
+  if (group)            where.group     = group;
+
   try {
-    const url = new URL(request.url);
-    q = QuerySchema.parse({
-      commodity:    url.searchParams.get("commodity") ?? undefined,
-      serviceCodes: url.searchParams.getAll("serviceCodes"),
-      groups:       url.searchParams.getAll("groups"),
-      pol:          url.searchParams.get("pol") ?? undefined,
-      pod:          url.searchParams.get("pod") ?? undefined,
-      minRate:      url.searchParams.get("minRate"),
-      maxRate:      url.searchParams.get("maxRate"),
-      page:         url.searchParams.get("page"),
-      pageSize:     url.searchParams.get("pageSize"),
+    const [ items, total ] = await Promise.all([
+      prismaClient.tariff.findMany({
+        where,
+        skip:  (page - 1) * limit,
+        take:  limit,
+        orderBy: { validFrom: "desc" },
+        include: {
+          // include the related schedule (to get code/description)
+          schedule: { select: { code: true, description: true } },
+          // include the related voyage (to get voyageNumber)
+          voyage:   { select: { voyageNumber: true } },
+          // include the rates array
+          rates:    true
+        }
+      }),
+      prismaClient.tariff.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      items,
+      total,
+      currentPage: page,
+      totalPages:  Math.ceil(total / limit),
     });
   } catch (err) {
-    if (err instanceof ZodError) {
-      return NextResponse.json({ error: err.errors }, { status: 400 });
-    }
-    return NextResponse.json({ error: "Invalid query" }, { status: 400 });
+    console.error("GET /seed/tariffs/get error", err);
+    return NextResponse.json(
+      { error: "Failed to load tariffs" },
+      { status: 500 }
+    );
   }
-
-  // 3. Build Prisma `where` filter
-  const where: any = {};
-  if (q.commodity)    where.commodity  = q.commodity;
-  if (q.serviceCodes) where.serviceCode = { in: q.serviceCodes };
-  if (q.groups)       where.group       = { in: q.groups };
-  if (q.pol)          where.pol         = q.pol;
-  if (q.pod)          where.pod         = q.pod;
-  if (q.minRate !== undefined || q.maxRate !== undefined) {
-    where.ratePerTeu = {};
-    if (q.minRate !== undefined) where.ratePerTeu.gte = q.minRate;
-    if (q.maxRate !== undefined) where.ratePerTeu.lte = q.maxRate;
-  }
-
-  // 4. Pagination
-  const skip  = (q.page - 1) * q.pageSize;
-  const take  = q.pageSize;
-
-  // 5. Fetch total count + page of items
-  const [ total, items ] = await Promise.all([
-    prismaClient.tariff.count({ where }),
-    prismaClient.tariff.findMany({
-      where,
-      skip,
-      take,
-      orderBy: { ratePerTeu: "desc" },
-      select: {
-        serviceCode: true,
-        pol:         true,
-        pod:         true,
-        commodity:   true,
-        group:       true,
-        ratePerTeu:  true,
-        validFrom:   true,
-        validTo:     true,
-      }
-    })
-  ]);
-
-  // 6. Return paginated response
-  const totalPages = Math.ceil(total / take);
-  return NextResponse.json({
-    meta: { total, page: q.page, pageSize: take, totalPages },
-    items
-  }, { status: 200 });
 }

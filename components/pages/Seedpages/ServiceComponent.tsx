@@ -1426,40 +1426,67 @@ function ScheduleCard({ schedule: s, openVoyages, openEdit }: ScheduleCardProps)
               <ListIcon className="text-cyan-400 w-8 h-8"/> Service Schedules
             </h2>
             <div
-              className="bg-[#2e4972] rounded-lg border-10 border-black p-6 mb-8 grid grid-cols-1 md:grid-cols-3 gap-10"
+              className="bg-[#2e4972] rounded-lg p-6 mb-8 grid grid-cols-1 md:grid-cols-3 gap-10"
               style={cardGradient}
             >
-              <input
-                type="text"
-                placeholder="Code..."
-                value={filters.code}
-                onChange={e=>setFilters(prev=>({...prev,code:e.target.value}))}
-                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-              />
-              <input
-                type="text"
-                placeholder="Description..."
-                value={filters.description}
-                onChange={e=>setFilters(prev=>({...prev,description:e.target.value}))}
-                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
-              />
-              <div className="flex gap-5 items-center mt-2 justify-end">
-                <button
-                  onClick={applyFilters}
-                  className="inline-flex justify-center items-center gap-2 h-10 px-8 bg-[#600f9e] hover:bg-[#491174] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+              {/* 1st column */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="filter-code"
+                  className="block text-sm font-semibold text-white"
                 >
-                  <Search className="w-5 h-5" />
-                  <span>Apply</span>
-                </button>
-                <button
-                  onClick={clearFilters}
-                  className="inline-flex items-center justify-center gap-2 h-10 px-8 bg-[#2a72dc] hover:bg-[#1e5bb8] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
-                >
-                  <Filter className="w-5 h-5" />
-                  <span>Clear</span>
-                </button>
+                  Service Code
+                </label>
+                <input
+                  id="filter-code"
+                  type="text"
+                  placeholder="Service Code..."
+                  value={filters.code}
+                  onChange={e =>
+                    setFilters(prev => ({ ...prev, code: e.target.value }))
+                  }
+                  className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                />
               </div>
-            </div>
+
+              {/* 2nd column */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="filter-desc"
+                  className="block text-sm font-semibold text-white"
+                >
+                  Description
+                </label>
+                <input
+                  id="filter-desc"
+                  type="text"
+                  placeholder="Description..."
+                  value={filters.description}
+                  onChange={e =>
+                    setFilters(prev => ({ ...prev, description: e.target.value }))
+                  }
+                  className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+                />
+              </div>
+
+  {/* 3rd column: buttons, align to bottom */}
+  <div className="flex gap-5 items-end justify-end">
+    <button
+      onClick={applyFilters}
+      className="inline-flex items-center gap-2 h-10 px-8 bg-[#600f9e] hover:bg-[#491174] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+    >
+      <Search className="w-5 h-5" />
+      Apply
+    </button>
+    <button
+      onClick={clearFilters}
+      className="inline-flex items-center gap-2 h-10 px-8 bg-[#2a72dc] hover:bg-[#1e5bb8] rounded-lg font-semibold uppercase text-base shadow-[6px_6px_0_rgba(0,0,0,1)] hover:shadow-[8px_8px_0_rgba(0,0,0,1)] transition-shadow"
+    >
+      <Filter className="w-5 h-5" />
+      Clear
+    </button>
+  </div>
+</div>
 
             {isLoadingSchedules ? (
               <div className="flex justify-center py-12">

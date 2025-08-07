@@ -395,7 +395,8 @@ model ServiceSchedule {
   code        String     @unique
   description String?
   voyages     Voyage[]
-  tariffs     Tariff[]
+  tariffs     Tariff[]     @relation("ServiceToTariffs")
+ 
 
   quotationRoutings QuotationRouting[] @relation("ServiceToQuotationRouting")
 }
@@ -410,6 +411,7 @@ model Voyage {
 
   portCalls    PortCall[]
   quotationRoutings QuotationRouting[] @relation("VoyageToQuotationRouting")
+  tariffs      Tariff[]         @relation("VoyageToTariffs") 
 
   service      ServiceSchedule  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
@@ -827,17 +829,22 @@ model ContainerType {
 }
 
 model Tariff {
-  id             String           @id @default(uuid())
-  serviceId      String           // FK to ServiceSchedule
-  pol            String           // port-of-loading UN/LOCODE
-  pod            String           // port-of-discharge UN/LOCODE
-  commodity      String
-  group          ContainerGroup
-  validFrom      DateTime
-  validTo        DateTime?
-  service        ServiceSchedule  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  rates          TariffRate[]     // <--- Relation to rates
-  @@unique([serviceId, pol, pod, commodity, group, validFrom])
+  id          String           @id @default(uuid())
+
+  scheduleId   String
+  voyageId    String
+
+  schedule     ServiceSchedule  @relation("ServiceToTariffs", fields: [scheduleId], references: [id])
+  voyage      Voyage           @relation("VoyageToTariffs",  fields: [voyageId],  references: [id])
+
+  commodity   String
+  group       ContainerGroup
+  validFrom   DateTime
+  validTo     DateTime?
+  rates       TariffRate[]
+
+  @@index([scheduleId])
+  @@index([voyageId])
 }
 
 
