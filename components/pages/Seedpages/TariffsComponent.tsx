@@ -1063,9 +1063,9 @@ async function applyEdit() {
               <div className="flex justify-center py-12">
                 <Settings className="animate-spin w-8 h-8 text-cyan-400"/>
               </div>
-            ) : allTariffs.length === 0 ? (
+              ) : allTariffs.length === 0 ? (
               <div className="text-center py-12 text-slate-400">No tariffs found</div>
-            ) : (
+              ) : (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                   {allTariffs.map(tariff=>{

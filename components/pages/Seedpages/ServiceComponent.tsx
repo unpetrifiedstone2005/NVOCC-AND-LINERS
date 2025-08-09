@@ -360,7 +360,7 @@ async function createPortCall(e: React.FormEvent) {
     await axios.post(
       `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/post`,
         {
-    portCode,
+     portUnlocode: portCode,
     order,
     eta: new Date(eta).toISOString(),
     etd: new Date(etd).toISOString(),
@@ -725,7 +725,7 @@ async function saveEditPortCall() {
   try {
     const patchData: { [key: string]: any } = {};
     if (portCallEditForm.portCode && portCallEditForm.portCode.trim() !== "") {
-      patchData.portCode = portCallEditForm.portCode.trim().toUpperCase();
+      patchData.portUnlocode = portCallEditForm.portCode.trim().toUpperCase();
     }
     if (Number.isInteger(portCallEditForm.order) && portCallEditForm.order >= 1) {
       patchData.order = portCallEditForm.order;
@@ -782,16 +782,39 @@ async function fetchPortCalls(
 ) {
   setIsLoadingPortCalls(true);
   try {
-    const params: Record<string, any> = { page, pageSize, ...filters };
+    // 1️⃣ Build params, renaming filter to portUnlocode
+    const params: Record<string, any> = { page, pageSize };
+    if (filters.portCode) {
+      params.portUnlocode = filters.portCode;  // ← backend now expects portUnlocode
+    }
+
     const { data } = await axios.get<{
-      portCalls: PortCall[];
+      portCalls: Array<{
+        id: string;
+        voyageId: string;
+        portUnlocode: string;
+        order: number;
+        eta: string;
+        etd: string;
+      }>;
       total: number;
       totalPages: number;
     }>(
       `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/get`,
       { params }
     );
-    setSelectedPortCalls(data.portCalls);
+
+    // 2️⃣ Map each portUnlocode → portCode for the UI
+    const calls = data.portCalls.map(pc => ({
+      id:           pc.id,
+      voyageId:     pc.voyageId,
+      portCode:     pc.portUnlocode,  // ← UI still uses portCode
+      order:        pc.order,
+      eta:          pc.eta,
+      etd:          pc.etd,
+    }));
+
+    setSelectedPortCalls(calls);
     setPortCallsTotal(data.total);
     setPortCallsTotalPages(data.totalPages);
   } catch (err) {
@@ -803,6 +826,7 @@ async function fetchPortCalls(
     setIsLoadingPortCalls(false);
   }
 }
+
 
 
 

@@ -121,9 +121,11 @@ const menuData: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
       { key: "seed_containers", label: "CONTAINERS", pathPattern: "/main/seed/containers", roles: ["CLIENT", "OPERATOR"] },
+      { key: "seed_locations", label: "LOCATIONS", pathPattern: "/main/seed/locations", roles: ["CLIENT"] },
       { key: "seed_serviceschedule", label: "SERVICE SCHEDULE & VOYAGES", pathPattern: "/main/seed/serviceschedules", roles: ["OPERATOR"] },
       { key: "seed_surcharges", label: "SURCHARGES", pathPattern: "/main/seed/surcharges", roles: ["OPERATOR"] },
       { key: "seed_tariffs", label: "TARRIFFS", pathPattern: "/main/seed/tariffs", roles: ["CLIENT"] },
+
     ],
   },
 ];

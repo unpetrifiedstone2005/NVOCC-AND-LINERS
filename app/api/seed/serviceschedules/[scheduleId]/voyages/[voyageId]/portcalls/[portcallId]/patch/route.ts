@@ -3,26 +3,25 @@ import { z, ZodError }              from "zod";
 import { prismaClient }             from "@/app/lib/db";
 
 const PatchPortCallSchema = z.object({
-  portCode:   z.string().optional(),
-  order:      z.number().int().min(1).optional(),
-  etd:        z.string().datetime().optional(),
-  eta:        z.string().datetime().optional(),
-  mode:       z.string().optional(),
-  vesselName: z.string().optional(),
+  portUnlocode: z.string().nonempty().optional(),
+  order:        z.number().int().min(1).optional(),
+  eta:          z.string().datetime().optional(),
+  etd:          z.string().datetime().optional(),
 });
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { scheduleId: string; voyageId: string; portcallId: string } }
+  { params }: { params: { voyageId: string; portcallId: string } }
 ) {
-  const { scheduleId, voyageId, portcallId } = await  params;
+  const { voyageId, portcallId } = params;
 
-  // UUID check for all three
-  const uuid = /^[0-9a-fA-F\-]{36}$/;
-  if (!uuid.test(scheduleId) || !uuid.test(voyageId) || !uuid.test(portcallId)) {
+  // 1️⃣ UUID sanity checks
+  const uuidRe = /^[0-9a-fA-F\-]{36}$/;
+  if (!uuidRe.test(voyageId) || !uuidRe.test(portcallId)) {
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
 
+  // 2️⃣ Parse & validate input
   let updates;
   try {
     updates = PatchPortCallSchema.parse(await req.json());
@@ -36,7 +35,7 @@ export async function PATCH(
     throw err;
   }
 
-  // Ensure port call exists for this voyage (and schedule)
+  // 3️⃣ Ensure the port call exists on that voyage
   const existing = await prismaClient.portCall.findFirst({
     where: { id: portcallId, voyageId }
   });
@@ -44,19 +43,52 @@ export async function PATCH(
     return NextResponse.json({ error: "PortCall not found" }, { status: 404 });
   }
 
-  // ---- ETA/ETD Constraints ----
-  if (updates.eta !== undefined || updates.etd !== undefined) {
-    // Fill in missing values from existing
-    const eta = updates.eta !== undefined ? new Date(updates.eta) : existing.eta;
-    const etd = updates.etd !== undefined ? new Date(updates.etd) : existing.etd;
+  // 4️⃣ If changing location, verify it exists
+  if (updates.portUnlocode) {
+    const loc = await prismaClient.location.findUnique({
+      where: { unlocode: updates.portUnlocode }
+    });
+    if (!loc) {
+      return NextResponse.json(
+        { error: `Location ${updates.portUnlocode} not supported` },
+        { status: 404 }
+      );
+    }
+  }
 
-    if (!eta || !etd || isNaN(eta.getTime()) || isNaN(etd.getTime())) {
+  // 5️⃣ ETA/ETD consistency check
+  if (updates.eta !== undefined || updates.etd !== undefined) {
+    let etaDate: Date;
+    if (updates.eta) {
+      etaDate = new Date(updates.eta);
+    } else if (existing.eta) {
+      etaDate = existing.eta;
+    } else {
+      return NextResponse.json(
+        { error: "ETA is required when updating dates" },
+        { status: 422 }
+      );
+    }
+
+    let etdDate: Date;
+    if (updates.etd) {
+      etdDate = new Date(updates.etd);
+    } else if (existing.etd) {
+      etdDate = existing.etd;
+    } else {
+      return NextResponse.json(
+        { error: "ETD is required when updating dates" },
+        { status: 422 }
+      );
+    }
+
+    if (isNaN(etaDate.getTime()) || isNaN(etdDate.getTime())) {
       return NextResponse.json(
         { error: "Both ETA and ETD must be valid ISO dates" },
         { status: 422 }
       );
     }
-    if (eta >= etd) {
+    if (etaDate >= etdDate) {
       return NextResponse.json(
         { error: "ETA must be before ETD" },
         { status: 422 }
@@ -64,16 +96,14 @@ export async function PATCH(
     }
   }
 
-  // ---- Actual Update ----
+  // 6️⃣ Perform the update
   const updated = await prismaClient.portCall.update({
     where: { id: portcallId },
     data: {
-      ...(updates.portCode   !== undefined && { portCode:   updates.portCode }),
-      ...(updates.order      !== undefined && { order:      updates.order }),
-      ...(updates.etd        !== undefined && { etd:        new Date(updates.etd) }),
-      ...(updates.eta        !== undefined && { eta:        new Date(updates.eta) }),
-      ...(updates.mode       !== undefined && { mode:       updates.mode }),
-      ...(updates.vesselName !== undefined && { vesselName: updates.vesselName }),
+      ...(updates.portUnlocode && { portUnlocode: updates.portUnlocode }),
+      ...(updates.order        && { order:        updates.order }),
+      ...(updates.eta          && { eta:          new Date(updates.eta) }),
+      ...(updates.etd          && { etd:          new Date(updates.etd) }),
     }
   });
 

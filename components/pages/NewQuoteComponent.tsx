@@ -68,6 +68,10 @@
     description: string;
   }
 
+  interface QuotationForm{
+    
+  }
+
   const offers: Offer[] = [
     {
       id: 1,
