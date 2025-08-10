@@ -25,6 +25,7 @@ import { QuotationCard } from "../QuotationCard";
 import { SchedulesCard } from "../SchedulesCard";
 import { TrackingCard } from "../TrackingCard";
 
+// --- TYPES ---------------------------------------------------------------
 type SubMenuItem = {
   key: string;
   label: string;
@@ -41,6 +42,7 @@ type MenuItem = {
   sub: SubMenuItem[];
 };
 
+// --- MENU DATA -----------------------------------------------------------
 const menuData: MenuItem[] = [
   {
     key: "quotes",
@@ -132,12 +134,32 @@ const menuData: MenuItem[] = [
   },
 ];
 
+// --- HELPERS -------------------------------------------------------------
+function isPathActive(current: string, target: string) {
+  return current === target || current.startsWith(target);
+}
+
+function getActiveMenuKey(pathname: string): string | null {
+  for (const menu of menuData) {
+    if (menu.pathPattern && isPathActive(pathname, menu.pathPattern)) return menu.key;
+    for (const sub of menu.sub) {
+      if (isPathActive(pathname, sub.pathPattern)) return menu.key;
+    }
+  }
+  return null;
+}
+
+function isMenuItemActive(pathname: string, menuItem: MenuItem): boolean {
+  if (menuItem.pathPattern && isPathActive(pathname, menuItem.pathPattern)) return true;
+  return menuItem.sub.some(sub => isPathActive(pathname, sub.pathPattern));
+}
+
+// --- MAIN COMPONENT ------------------------------------------------------
 export function LandingComponent() {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  // for now show every field/subfield regardless of role
   const filteredMenu = menuData;
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -217,8 +239,18 @@ export function LandingComponent() {
   const collapsedButtonStyle =
     "flex rounded-lg items-center justify-center w-full h-[60px] bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] transition-shadow border-black border-4 font-bold px-0";
 
+  const highlightClass = "bg-[#1A2F4E] text-[#00FFFF] font-bold";
+  const normalClass = "bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]";
+
   return (
-    <div className="w-full min-h-screen container-texture-bg text-md pt-8 overflow-x-hidden flex flex-col">
+    <div
+      className="w-full min-h-screen container-texture-bg text-md pt-8 overflow-x-hidden flex flex-col"
+      style={
+        {
+          ["--sbw" as any]: `${isOpen ? 300 : 80}px`,
+        } as React.CSSProperties
+      }
+    >
       {/* Header */}
       <div className="flex items-center gap-4 third-container-texture-bg justify-between px-6 py-4 w-full shadow-[0px_16px_0px_0px_rgba(0,0,0,0.8)]">
         <div className="flex items-center">
@@ -255,33 +287,25 @@ export function LandingComponent() {
             </button>
           )}
           <button
-            onClick={() => {
-              router.push("/");
-            }}
+            onClick={() => router.push("/")}
             className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             home
           </button>
           <button
-            onClick={() => {
-              router.push("/main/services&info");
-            }}
+            onClick={() => router.push("/main/services&info")}
             className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             services and information
           </button>
           <button
-            onClick={() => {
-              router.push("/main/aboutus");
-            }}
+            onClick={() => router.push("/main/aboutus")}
             className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             about us
           </button>
           <button
-            onClick={() => {
-              router.push("/main/dashboard");
-            }}
+            onClick={() => router.push("/main/dashboard")}
             className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             dashboard
@@ -347,18 +371,21 @@ export function LandingComponent() {
         )}
       </div>
 
-      <div className="flex-1">
-        <div className="relative">
-          {/* Sidebar */}
-          <div
-            ref={sidebarRef}
-            className={`${
-              isOpen
-                ? "w-[300px] shadow-[inset_0_0_20px_20px_rgba(0,0,0,0.7),-15px_20px_0px_rgba(0,0,0,1)]"
-                : "w-[80px] shadow-[inset_0_0_20px_20px_rgba(0,0,0,0.7),15px_8px_0px_rgba(0,0,0,1)]"
-            } min-h-0 overflow-hidden bg-[#0A1A2F] rounded-lg fixed left-1 top-[190px] border-t-4 border-r-4	border-b-4 border-[#2D4D8B] transition-width duration-300`}
-          >
-            <div className="flex flex-col">
+      {/* Sidebar + toggle */}
+      <div className="relative flex-1">
+        <div
+          ref={sidebarRef}
+          className="fixed left-1 top-[190px] bg-[#0A1A2F] rounded-lg border-t-4 border-r-4 border-b-4 border-[#2D4D8B] overflow-visible z-40"
+          style={{
+            width: "var(--sbw)" as any,
+            transition: "width 300ms cubic-bezier(0.4,0,0.2,1)",
+            boxShadow: "inset 0 0 20px 20px rgba(0,0,0,0.7), -15px 20px 0 rgba(0,0,0,1)",
+            willChange: "width",
+            transform: "translateZ(0)",
+          }}
+        >
+          <div className="relative h-full">
+            <div className="flex flex-col overflow-hidden">
               {filteredMenu.map((item) =>
                 isOpen ? (
                   <div key={item.key}>
@@ -370,26 +397,40 @@ export function LandingComponent() {
                           handleMenuClick(item.key);
                         }
                       }}
-                      className="rounded-lg bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] text-white shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-4 py-2 font-bold w-full flex	items-center justify-between"
+                      className={`
+                        border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 transition-shadow w-full flex items-center justify-between
+                        ${isMenuItemActive(pathname, item) ? highlightClass : normalClass}
+                      `}
                     >
                       <div className="flex items-center gap-2">
                         <span className="mt-1">{item.icon}</span>
                         <span>{item.label}</span>
                       </div>
-                      {item.sub.length > 0 && (openMenu === item.key ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+                      {item.sub.length > 0 &&
+                        (openMenu === item.key ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
                     </button>
+
                     <div
-                      className="ml-8	pl-4 border-l border-[#faf9f6]/20 overflow-hidden transition-all duration-300"
-                      style={{
-                        maxHeight: openMenu === item.key ? "500px" : "0px",
-                        opacity: openMenu === item.key ? 1 : 0,
-                      }}
+                      className={`
+                        ml-8 transition-all duration-300
+                        ${openMenu === item.key ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}
+                      `}
                     >
-                      {item.sub.map((sub) => (
-                        <button key={sub.key} onClick={() => router.push(sub.pathPattern)} className={subButtonStyle}>
-                          {sub.label}
-                        </button>
-                      ))}
+                      {item.sub.map((sub) => {
+                        const active = isPathActive(pathname, sub.pathPattern);
+                        return (
+                          <button
+                            key={sub.key}
+                            onClick={() => router.push(sub.pathPattern)}
+                            className={`
+                              ${subButtonStyle} text-md font-bold
+                              ${active ? "border-l-4 border-[#00FFFF] pl-4 bg-[#00FFFF]/20 text-[#2D4D8B]" : "border-l border-white/20 pl-4"}
+                            `}
+                          >
+                            {sub.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
@@ -399,7 +440,12 @@ export function LandingComponent() {
                       setIsOpen(true);
                       setTimeout(() => setDelayedOpenMenu(item.key), 400);
                     }}
-                    className={collapsedButtonStyle}
+                    className={`
+                      ${collapsedButtonStyle}
+                      ${isMenuItemActive(pathname, item)
+                        ? highlightClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
+                        : normalClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"}
+                    `}
                     title={item.label}
                   >
                     {item.icon}
@@ -407,260 +453,200 @@ export function LandingComponent() {
                 )
               )}
             </div>
-          </div>
 
-          <button
-            onClick={() => setIsOpen((o) => !o)}
-            className="w-8 h-8 bg-[#2D4D8B] text-white rounded-r-full fixed z-50"
-            style={{ left: isOpen ? "301px" : "81px", top: "198px", transition: "left 300ms cubic-bezier(0.4,0,0.2,1)" }}
-          >
-            {isOpen ? <ArrowBigLeft size={24} /> : <ArrowBigRight size={24} />}
-          </button>
-
-          {/* Main Content */}
-          <div className={`pt-[96px] transition-all duration-300 ${isOpen ? "pl-[300px]" : "pl-[80px]"}`}>
-            <br />
-            <div className="max-w-[1600.24px] mx-auto w-full px-4 items-center">
-              {/* TOP CARDS */}
-              <div className="flex flex-col font-bold gap-4">
-                <div className="flex justify-center gap-8">
-                  <div
-                    id="card-tracking"
-                    className={`transition-all duration-1000 ${
-                      visibleSections["card-tracking"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                    }`}
-                  >
-                    <TrackingCard />
-                  </div>
-                  <div
-                    id="card-booking"
-                    className={`transition-all duration-1000 ${
-                      visibleSections["card-booking"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                    }`}
-                  >
-                    <BookingCard />
-                  </div>
-                </div>
-                <br />
-                <div className="flex justify-center gap-8 mt-4">
-                  <div
-                    id="card-schedules"
-                    className={`transition-all duration-1000 ${
-                      visibleSections["card-schedules"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                    }`}
-                  >
-                    <SchedulesCard />
-                  </div>
-                  <div
-                    id="card-quotation"
-                    className={`transition-all duration-1000 ${
-                      visibleSections["card-quotation"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                    }`}
-                  >
-                    <QuotationCard />
-                  </div>
-                </div>
-              </div>
-              <br />
-              <br />
-              <br />
-              {/* ABOUT US SECTION */}
-              <div
-                id="about-section"
-                className={`
-                  max-w-[1600.24px] mx-auto w-full px-4 mb-8
-                  transition-all duration-1000
-                  ${visibleSections["about-section"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}
-                `}
-              >
-                <div
-                  className="bg-[#0F1B2A] rounded-xl shadow-[30px_30px_0px_rgba(0,0,0,1)] border-4 border-black p-10 flex flex-col items-center text-center relative overflow-hidden"
-                  style={{
-                    backgroundImage: `
-                      linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                      linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                    `,
-                    backgroundBlendMode: "overlay",
-                  }}
-                >
-                  <div className="bg-white rounded-full border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] p-2 mb-4">
-                    <img src="/logo.png" alt="SCMT Logo" className="w-20 h-20 object-contain" />
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-bold text-[#00FFFF] mb-4 tracking-wide drop-shadow-lg">
-                    About State Company for Maritime Transport
-                  </h2>
-                  <p className="text-white/90 text-lg md:text-xl mb-6 max-w-3xl mx-auto font-semibold">
-                    Since 1952, SCMT has stood as Iraq’s national shipping lifeline, connecting local trade to global
-                    markets with a modern fleet, advanced logistics, and a legacy of reliability.
-                    Backed by the Ministry of Transportation, our mission is to deliver secure, efficient, and world-class
-                    maritime services—empowering Iraq’s growth at sea.
-                  </p>
-                  <button
-                    onClick={() => {
-                      router.push("/main/aboutus");
-                    }}
-                    className="bg-[#2a72dc] hover:bg-[#00FFFF] text-white hover:text-black px-8 py-3 rounded-xl font-bold border-2 border-black shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-all text-lg uppercase tracking-wide"
-                  >
-                    Learn More
-                  </button>
-                </div>
-              </div>
-              <br />
-              <br />
-              <br />
-              {/* QUICK STATS SECTION */}
-              <div
-                id="stats-section"
-                className={`
-                  max-w-[1600.24px] mx-auto w-full px-4 mb-8
-                  transition-all duration-1000
-                  ${visibleSections["stats-section"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}
-                `}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div
-                    className="bg-[#2D4D8B] rounded-xl border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)]"
-                    style={{
-                      backgroundImage: `
-                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                      `,
-                      backgroundBlendMode: "overlay",
-                    }}
-                  >
-                    <div className="text-3xl font-bold text-[#00FFFF] mb-2">150+</div>
-                    <div className="text-white font-bold uppercase text-sm">Global Ports</div>
-                  </div>
-                  <div
-                    className="bg-[#2D4D8B] rounded-xl border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)]"
-                    style={{
-                      backgroundImage: `
-                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                      `,
-                      backgroundBlendMode: "overlay",
-                    }}
-                  >
-                    <div className="text-3xl font-bold text-[#00FFFF] mb-2">24/7</div>
-                    <div className="text-white font-bold uppercase text-sm">Customer Support</div>
-                  </div>
-                  <div
-                    className="bg-[#2D4D8B] rounded-xl border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)]"
-                    style={{
-                      backgroundImage: `
-                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                      `,
-                      backgroundBlendMode: "overlay",
-                    }}
-                  >
-                    <div className="text-3xl font-bold text-[#00FFFF] mb-2">50K+</div>
-                    <div className="text-white font-bold uppercase text-sm">Containers Monthly</div>
-                  </div>
-                  <div
-                    className="bg-[#2D4D8B] rounded-xl border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)]"
-                    style={{
-                      backgroundImage: `
-                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                      `,
-                      backgroundBlendMode: "overlay",
-                    }}
-                  >
-                    <div className="text-3xl font-bold text-[#00FFFF] mb-2">98%</div>
-                    <div className="text-white font-bold uppercase text-sm">On-Time Delivery</div>
-                  </div>
-                </div>
-              </div>
-              {/* VIDEO SECTION */}
-              <div
-                id="video-section"
-                className={`transition-all duration-1000 p-12 ${
-                  visibleSections["video-section"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                }`}
-              >
-                <Video src={SCMT} className="shadow-[40px_40px_0px_rgba(0,0,0,1)]" />
-              </div>
-              <br />
-              <br />
-              {/* FEATURED SERVICES SECTION */}
-              <div
-                id="services-section"
-                className={`max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000 ${
-                  visibleSections["services-section"] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                }`}
-              >
-                <div
-                  className="bg-[#888888] rounded-xl shadow-[15px_15px_0px_rgba(0,0,0,1)] border-4	border-black p-8"
-                  style={{
-                    backgroundImage: `
-                      linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                      linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                    `,
-                    backgroundBlendMode: "overlay",
-                  }}
-                >
-                  <h2 className="text-3xl	font-bold text-white mb-6 text-center">FEATURED SERVICES</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div
-                      className="bg-[#0A1A2F] rounded-xl p-6 border-4	border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
-                      style={{
-                        backgroundImage: `
-                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                        `,
-                        backgroundBlendMode: "overlay",
-                      }}
-                    >
-                      <Map size={48} className="text-[#00FFFF] mb-4" />
-                      <h3 className="text-xl font-bold text-white mb-3">CONTAINER TRACKING</h3>
-                      <p className="text-white/80 mb-4">Real-time tracking of your containers with GPS precision and automated notifications.</p>
-                      <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2	border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
-                        LEARN MORE
-                      </button>
-                    </div>
-                    <div
-                      className="bg-[#0A1A2F] rounded-xl p-6 border-4	border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
-                      style={{
-                        backgroundImage: `
-                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                        `,
-                        backgroundBlendMode: "overlay",
-                      }}
-                    >
-                      <Book size={48} className="text-[#00FFFF] mb-4" />
-                      <h3 className="text-xl font-bold text-white mb-3">INSTANT BOOKING</h3>
-                      <p className="text-white/80 mb-4">Book your cargo space instantly with our automated booking system and get confirmation in seconds.</p>
-                      <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2	border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
-                        LEARN MORE
-                      </button>
-                    </div>
-                    <div
-                      className="bg-[#0A1A2F] rounded-xl p-6	border-4	border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
-                      style={{
-                        backgroundImage: `
-                          linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
-                          linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
-                        `,
-                        backgroundBlendMode: "overlay",
-                      }}
-                    >
-                      <DollarSign size={48} className="text-[#00FFFF] mb-4" />
-                      <h3 className="text-xl font-bold text-white mb-3">COMPETITIVE RATES</h3>
-                      <p className="text-white/80 mb-4">Get the best shipping rates with our dynamic pricing engine and volume discounts.</p>
-                      <button className="bg-[#2D4D8B]	hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2	border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
-                        LEARN MORE
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <br />
-              <br />
-            </div>
+            {/* Toggle button pinned to the sidebar edge (exactly like your layout) */}
+            <button
+              onClick={() => setIsOpen(o => !o)}
+              className="absolute top-2 -right-8 w-8 h-8 bg-[#2D4D8B] text-white rounded-r-full shadow z-50"
+              aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {isOpen ? <ArrowBigLeft size={24} /> : <ArrowBigRight size={24} />}
+            </button>
           </div>
         </div>
+
+        {/* Main Content */}
+        <div
+          className="pt-[96px] pb-6"
+          style={{
+            paddingLeft: "var(--sbw)" as any,
+            transition: "padding-left 300ms cubic-bezier(0.4,0,0.2,1)",
+          }}
+        >
+          {/* TOP CARDS */}
+          <br />
+          <div className="max-w-[1600.24px] mx-auto w-full px-4 items-center">
+            <div className="flex flex-col font-bold gap-4">
+              <div className="flex justify-center gap-8">
+                <div id="card-tracking" className="transition-all duration-1000">
+                  <TrackingCard />
+                </div>
+                <div id="card-booking" className="transition-all duration-1000">
+                  <BookingCard />
+                </div>
+              </div>
+              <br />
+              <div className="flex justify-center gap-8 mt-4">
+                <div id="card-schedules" className="transition-all duration-1000">
+                  <SchedulesCard />
+                </div>
+                <div id="card-quotation" className="transition-all duration-1000">
+                  <QuotationCard />
+                </div>
+              </div>
+            </div>
+
+            {/* ABOUT US */}
+            <br />
+            <br />
+            <br />
+            <div id="about-section" className="max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000">
+              <div
+                className="bg-[#0F1B2A] rounded-xl shadow-[30px_30px_0px_rgba(0,0,0,1)] border-4 border-black p-10 flex flex-col items-center text-center relative overflow-hidden"
+                style={{
+                  backgroundImage: `
+                    linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                    linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                  `,
+                  backgroundBlendMode: "overlay",
+                }}
+              >
+                <div className="bg-white rounded-full border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] p-2 mb-4">
+                  <img src="/logo.png" alt="SCMT Logo" className="w-20 h-20 object-contain" />
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold text-[#00FFFF] mb-4 tracking-wide drop-shadow-lg">
+                  About State Company for Maritime Transport
+                </h2>
+                <p className="text-white/90 text-lg md:text-xl mb-6 max-w-3xl mx-auto font-semibold">
+                  Since 1952, SCMT has stood as Iraq’s national shipping lifeline, connecting local trade to global
+                  markets with a modern fleet, advanced logistics, and a legacy of reliability. Backed by the Ministry of
+                  Transportation, our mission is to deliver secure, efficient, and world-class maritime services—
+                  empowering Iraq’s growth at sea.
+                </p>
+                <button
+                  onClick={() => router.push("/main/aboutus")}
+                  className="bg-[#2a72dc] hover:bg-[#00FFFF] text-white hover:text-black px-8 py-3 rounded-xl font-bold border-2 border-black shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-all text-lg uppercase tracking-wide"
+                >
+                  Learn More
+                </button>
+              </div>
+            </div>
+
+            {/* STATS */}
+            <br />
+            <br />
+            <br />
+            <div id="stats-section" className="max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {[
+                  { n: "150+", t: "Global Ports" },
+                  { n: "24/7", t: "Customer Support" },
+                  { n: "50K+", t: "Containers Monthly" },
+                  { n: "98%", t: "On-Time Delivery" },
+                ].map((it) => (
+                  <div
+                    key={it.t}
+                    className="bg-[#2D4D8B] rounded-xl border-4 border-black p-6 text-center shadow-[15px_15px_0px_rgba(0,0,0,1)]"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                      `,
+                      backgroundBlendMode: "overlay",
+                    }}
+                  >
+                    <div className="text-3xl font-bold text-[#00FFFF] mb-2">{it.n}</div>
+                    <div className="text-white font-bold uppercase text-sm">{it.t}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* VIDEO */}
+            <div id="video-section" className="transition-all duration-1000 p-12">
+              <Video src={SCMT} className="shadow-[40px_40px_0px_rgba(0,0,0,1)]" />
+            </div>
+
+            {/* FEATURED SERVICES */}
+            <div
+              id="services-section"
+              className="max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000"
+            >
+              <div
+                className="bg-[#888888] rounded-xl shadow-[15px_15px_0px_rgba(0,0,0,1)] border-4 border-black p-8"
+                style={{
+                  backgroundImage: `
+                    linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                    linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                  `,
+                  backgroundBlendMode: "overlay",
+                }}
+              >
+                <h2 className="text-3xl font-bold text-white mb-6 text-center">FEATURED SERVICES</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div
+                    className="bg-[#0A1A2F] rounded-xl p-6 border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                      `,
+                      backgroundBlendMode: "overlay",
+                    }}
+                  >
+                    <Map size={48} className="text-[#00FFFF] mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-3">CONTAINER TRACKING</h3>
+                    <p className="text-white/80 mb-4">Real-time tracking of your containers with GPS precision and automated notifications.</p>
+                    <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+                      LEARN MORE
+                    </button>
+                  </div>
+
+                  <div
+                    className="bg-[#0A1A2F] rounded-xl p-6 border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                      `,
+                      backgroundBlendMode: "overlay",
+                    }}
+                  >
+                    <Book size={48} className="text-[#00FFFF] mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-3">INSTANT BOOKING</h3>
+                    <p className="text-white/80 mb-4">Book your cargo space instantly with our automated booking system and get confirmation in seconds.</p>
+                    <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+                      LEARN MORE
+                    </button>
+                  </div>
+
+                  <div
+                    className="bg-[#0A1A2F] rounded-xl p-6 border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+                        linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+                      `,
+                      backgroundBlendMode: "overlay",
+                    }}
+                  >
+                    <DollarSign size={48} className="text-[#00FFFF] mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-3">COMPETITIVE RATES</h3>
+                    <p className="text-white/80 mb-4">Get the best shipping rates with our dynamic pricing engine and volume discounts.</p>
+                    <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+                      LEARN MORE
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <br />
+            <br />
+          </div>
+        </div>
+
+        {/* Footer */}
         <footer className="w-full third-container-texture-bg mb-8 border-t-7 border-black shadow-[0px_20px_0px_rgba(0,0,0,1)]">
           <div className="flex justify-center py-6 px-6 relative">
             <div className="flex items-center space-x-10">

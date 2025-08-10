@@ -1,6 +1,6 @@
 // components/LocationInput.tsx
 "use client";
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import { MapPin } from "lucide-react";
 
 export type LocationRow = {
@@ -59,6 +59,9 @@ type Props = {
   initialCode?: string;
   inputClassName?: string;
   menuClassName?: string;
+
+  /** NEW: exact UN/LOCODEs to hide from the dropdown (e.g., ["USNYC"]) */
+  excludeCodes?: string[];
 };
 
 export default function LocationInput({
@@ -68,7 +71,8 @@ export default function LocationInput({
   onChange,
   initialCode,
   inputClassName,
-  menuClassName
+  menuClassName,
+  excludeCodes
 }: Props) {
   const [text, setText] = useState<string>("");         // what user sees/types
   const [open, setOpen] = useState(false);
@@ -90,6 +94,16 @@ export default function LocationInput({
     return () => { ignore = true; };
   }, [initialCode, value]);
 
+  // If current selected code becomes excluded, clear it
+  useEffect(() => {
+    if (!value || !excludeCodes?.length) return;
+    const v = value.toUpperCase();
+    if (excludeCodes.some(c => c?.toUpperCase() === v)) {
+      onChange("", "");
+      setText("");
+    }
+  }, [excludeCodes]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // debounce search
   useEffect(() => {
     let handle: any;
@@ -97,12 +111,19 @@ export default function LocationInput({
       handle = setTimeout(async () => {
         const data = await fetchLocations(q, 10);
         // sort by rank so “new york city” bubbles USNYC up
-        const ranked = data
+        let ranked = data
           .map(d => ({ d, s: rank(d, q.toLowerCase()) }))
           .sort((a, b) => b.s - a.s)
           .map(x => x.d);
+
+        // NEW: exclude exact UN/LOCODEs (code-only comparison)
+        if (excludeCodes?.length) {
+          const blk = new Set(excludeCodes.map(c => c?.toUpperCase()));
+          ranked = ranked.filter(r => !blk.has((r.unlocode ?? "").toUpperCase()));
+        }
+
         setRows(ranked);
-        setOpen(true);
+        setOpen(ranked.length > 0);
         setActive(0);
       }, 250);
     } else {
@@ -110,7 +131,7 @@ export default function LocationInput({
       setOpen(false);
     }
     return () => clearTimeout(handle);
-  }, [q]);
+  }, [q, excludeCodes]);
 
   // close on outside click
   useEffect(() => {
@@ -146,6 +167,13 @@ export default function LocationInput({
     }
   }
 
+  // precompute a render-time guard as well (belt & suspenders)
+  const renderRows = rows.filter(r => {
+    if (!excludeCodes?.length) return true;
+    const code = (r.unlocode ?? "").toUpperCase();
+    return !excludeCodes.map(c => c?.toUpperCase()).includes(code);
+  });
+
   return (
     <div className="relative" ref={boxRef}>
       <label className="block text-md text-[#faf9f6] font-light mb-2">{label}</label>
@@ -153,7 +181,7 @@ export default function LocationInput({
         <input
           value={text}
           onChange={e => setText(e.target.value)}
-          onFocus={() => { if (rows.length) setOpen(true); }}
+          onFocus={() => { if (renderRows.length) setOpen(true); }}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           className={inputClassName ?? "pl-12 w-full bg-[#2D4D8B] rounded-xl hover:bg-[#0A1A2F] hover:text-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-3 py-2 font-bold"}
@@ -161,9 +189,9 @@ export default function LocationInput({
         <MapPin size={20} color="white" className="absolute left-3 top-3 group-hover:stroke-[#00FFFF]" />
       </div>
 
-      {open && rows.length > 0 && (
+      {open && renderRows.length > 0 && (
         <div className={menuClassName ?? "absolute z-20 mt-2 w-full max-h-64 overflow-auto bg-[#0A1A2F] border-2 border-white rounded-xl shadow-[10px_10px_0px_rgba(0,0,0,1)]"}>
-          {rows.map((row, i) => {
+          {renderRows.map((row, i) => {
             const lbl = labelForLocation(row);
             const isActive = i === active;
             return (

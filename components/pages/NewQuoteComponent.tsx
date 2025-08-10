@@ -542,21 +542,22 @@ export const NewQuoteComponent: React.FC = () => {
 
                   {/* Use the same LocationInput inside the modal */}
                   <div className="space-y-4">
-                    <LocationInput
-                      label="Port of Loading (PoL)"
+                   <LocationInput
+                      label="START LOCATION"
                       value={formData.startLocation}
                       onChange={(code, display) => {
-                        setFormData((f) => ({ ...f, startLocation: code }));
+                        setFormData(f => ({ ...f, startLocation: code }));
                         setStartLabel(display);
                       }}
                     />
                     <LocationInput
-                      label="Port of Discharge (PoD)"
+                      label="END LOCATION"
                       value={formData.endLocation}
                       onChange={(code, display) => {
-                        setFormData((f) => ({ ...f, endLocation: code }));
+                        setFormData(f => ({ ...f, endLocation: code }));
                         setEndLabel(display);
                       }}
+                      excludeCodes={formData.startLocation ? [formData.startLocation] : undefined}
                     />
                   </div>
 

@@ -125,7 +125,6 @@ const menuData: MenuItem[] = [
       { key: "seed_serviceschedule", label: "SERVICE SCHEDULE & VOYAGES", pathPattern: "/main/seed/serviceschedules", roles: ["OPERATOR"] },
       { key: "seed_surcharges", label: "SURCHARGES", pathPattern: "/main/seed/surcharges", roles: ["OPERATOR"] },
       { key: "seed_tariffs", label: "TARRIFFS", pathPattern: "/main/seed/tariffs", roles: ["CLIENT"] },
-
     ],
   },
 ];
@@ -233,12 +232,18 @@ export default function MainLayout({
   const collapsedButtonStyle =
     "flex rounded-lg items-center justify-center w-full h-[60px] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] transition-shadow border-black border-4 font-bold px-0";
 
-  // Highlight classes
   const highlightClass = "bg-[#1A2F4E] text-[#00FFFF] font-bold";
   const normalClass = "bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]";
 
   return (
-    <div className="flex flex-col min-h-screen container-texture-bg overflow-x-hidden pt-8">
+    <div
+      className="flex flex-col min-h-screen container-texture-bg overflow-x-hidden pt-8"
+      style={
+        {
+          ["--sbw" as any]: `${isOpen ? 300 : 80}px`,
+        } as React.CSSProperties
+      }
+    >
       {/* Header */}
       <div className="flex items-center gap-4 third-container-texture-bg justify-between px-6 py-4 w-full shadow-[0px_16px_0px_0px_rgba(0,0,0,0.8)]">
         <div className="flex items-center">
@@ -273,7 +278,7 @@ export default function MainLayout({
           <button onClick={() => router.push("/main/services&info")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow">
             services and information
           </button>
-          <button onClick={() => router.push("/main/aboutus")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+          <button onClick={() => router.push("/main/aboutus")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow hover:shadow-[10px_8px_0px_rgba(0,0,0,1)]">
             about us
           </button>
           <button onClick={() => router.push("/main/dashboard")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow">
@@ -356,109 +361,109 @@ export default function MainLayout({
       <div className="relative flex-1">
         <div
           ref={sidebarRef}
-          className={`${
-            isOpen
-              ? "w-[301px] shadow-[inset_0_0_20px_20px_rgba(0,0,0,0.7),-15px_20px_0px_rgba(0,0,0,1)]"
-              : "w-[81px] shadow-[inset_0_0_20px_20px_rgba(0,0,0,0.7),15px_8px_0px_rgba(0,0,0,1)]"
-          } min-h-0 overflow-hidden bg-[#0A1A2F] rounded-lg fixed left-1 top-[190px] border-t-4 border-r-4 border-b-4 border-[#2D4D8B] transition-width duration-300`}
+          className="fixed left-1 top-[190px] bg-[#0A1A2F] rounded-lg border-t-4 border-r-4 border-b-4 border-[#2D4D8B] overflow-visible z-40"
+          style={{
+            width: "var(--sbw)" as any,
+            transition: "width 300ms cubic-bezier(0.4,0,0.2,1)",
+            boxShadow:
+              "inset 0 0 20px 20px rgba(0,0,0,0.7), -15px 20px 0 rgba(0,0,0,1)",
+            willChange: "width",
+            transform: "translateZ(0)",
+          }}
         >
-          <div className="flex flex-col">
-            {filteredMenu.map((item) =>
-              isOpen ? (
-                <div key={item.key}>
+          <div className="relative h-full">
+            <div className="flex flex-col overflow-hidden">
+              {filteredMenu.map((item) =>
+                isOpen ? (
+                  <div key={item.key}>
+                    <button
+                      onClick={() => {
+                        if (!item.sub.length && item.pathPattern) {
+                          router.push(item.pathPattern);
+                        } else {
+                          handleMenuClick(item.key);
+                        }
+                      }}
+                      className={`
+                        border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 transition-shadow w-full flex items-center justify-between
+                        ${isMenuItemActive(pathname, item) ? highlightClass : normalClass}
+                      `}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="mt-1">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </div>
+                      {item.sub.length > 0 &&
+                        (openMenu === item.key ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+                    </button>
+
+                    <div
+                      className={`
+                        ml-8 transition-all duration-300
+                        ${openMenu === item.key ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}
+                      `}
+                    >
+                      {item.sub.map((sub) => {
+                        const active = isPathActive(pathname, sub.pathPattern);
+                        return (
+                          <button
+                            key={sub.key}
+                            onClick={() => router.push(sub.pathPattern)}
+                            className={`
+                              ${subButtonStyle} text-md font-bold
+                              ${active ? "border-l-4 border-[#00FFFF] pl-4 bg-[#00FFFF]/20 text-[#2D4D8B]" : "border-l border-white/20 pl-4"}
+                            `}
+                          >
+                            {sub.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
                   <button
+                    key={item.key}
                     onClick={() => {
-                      if (!item.sub.length && item.pathPattern) {
-                        router.push(item.pathPattern);
-                      } else {
-                        handleMenuClick(item.key);
-                      }
+                      setIsOpen(true);
+                      setTimeout(() => setDelayedOpenMenu(item.key), 400);
                     }}
                     className={`
-                      border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 transition-shadow w-full flex items-center justify-between
-                      ${
-                        isMenuItemActive(pathname, item)
-                          ? highlightClass
-                          : normalClass
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="mt-1">{item.icon}</span>
-                      <span>{item.label}</span>
-                    </div>
-                    {item.sub.length > 0 &&
-                      (openMenu === item.key ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
-                  </button>
-                  <div
-                    className={`
-                      ml-8 transition-all duration-300
-                      ${openMenu === item.key ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}
-                    `}
-                  >
-                    {item.sub.map((sub) => {
-                      const active = isPathActive(pathname, sub.pathPattern);
-                      return (
-                        <button
-                          key={sub.key}
-                          onClick={() => router.push(sub.pathPattern)}
-                          className={`
-                            ${subButtonStyle} text-md font-bold
-                            ${
-                              active
-                                ? "border-l-4 border-[#00FFFF] pl-4 bg-[#00FFFF]/20 text-[#2D4D8B]"
-                                : "border-l border-white/20 pl-4"
-                            }
-                          `}
-                        >
-                          {sub.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <button
-                  key={item.key}
-                  onClick={() => {
-                    setIsOpen(true);
-                    setTimeout(() => setDelayedOpenMenu(item.key), 400);
-                  }}
-                  className={`
-                    ${collapsedButtonStyle}
-                    ${
-                      isMenuItemActive(pathname, item)
+                      ${collapsedButtonStyle}
+                      ${isMenuItemActive(pathname, item)
                         ? highlightClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
-                        : normalClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
-                    }
-                  `}
-                  title={item.label}
-                >
-                  {item.icon}
-                </button>
-              )
-            )}
+                        : normalClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"}
+                    `}
+                    title={item.label}
+                  >
+                    {item.icon}
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* Toggle button pinned to the sidebar edge (no lag) */}
+            <button
+              onClick={handleSidebarToggle}
+              className="absolute top-2 -right-8 w-8 h-8 bg-[#2D4D8B] text-white rounded-r-full shadow z-50"
+              aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {isOpen ? <ArrowBigLeft size={24} /> : <ArrowBigRight size={24} />}
+            </button>
           </div>
         </div>
 
-        <button
-          onClick={handleSidebarToggle}
-          className="w-8 h-8 bg-[#2D4D8B] text-white rounded-r-full fixed z-50"
+        {/* Main Content */}
+        <div
+          className="pt-[96px] pb-6"
           style={{
-            left: isOpen ? "305px" : "85px",
-            top: "198px",
-            transition: "left 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+            paddingLeft: "var(--sbw)" as any,
+            transition: "padding-left 300ms cubic-bezier(0.4,0,0.2,1)",
           }}
         >
-          {isOpen ? <ArrowBigLeft size={24} /> : <ArrowBigRight size={24} />}
-        </button>
-
-        {/* Main Content */}
-        <div className={`pt-[96px] pb-6 transition-all duration-300 ${isOpen ? "pl-[300px]" : "pl-[80px]"}`}>
           {children}
         </div>
-        <br/>
-        <br/>
+        <br />
+        <br />
       </div>
 
       {/* Footer */}
