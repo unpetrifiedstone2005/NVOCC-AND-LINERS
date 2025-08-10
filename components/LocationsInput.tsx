@@ -1,6 +1,6 @@
-// components/LocationInput.tsx
+// components/LocationsInput.tsx
 "use client";
-import React, {useEffect, useRef, useState} from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 
 export type LocationRow = {
@@ -17,31 +17,52 @@ function labelForLocation(loc: LocationRow) {
   return `${left}${code}`;
 }
 
-function normalize(s: string) {
-  return (s || "").toLowerCase().trim();
+// --- normalize helpers ------------------------------------------------------
+function tokenize(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\p{Letter}\p{Number}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+function normCode(s?: string | null) {
+  return (s ?? "").toUpperCase().trim();
+}
+function normLabel(s?: string | null) {
+  return (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+function tokensFor(loc: LocationRow): string[] {
+  const code = (loc.unlocode ?? "").toLowerCase().trim();
+  return [code, ...tokenize(loc.name), ...tokenize(loc.city ?? ""), ...tokenize(loc.country ?? "")].filter(Boolean);
 }
 
-// simple rank so typing “new york city” puts USNYC on top if present
+// strict token-aware prefix rule
+function strictPrefixMatch(loc: LocationRow, q: string) {
+  const qTokens = tokenize(q);
+  if (!qTokens.length) return true;
+  const src = tokensFor(loc);
+  return qTokens.every(t => src.some(st => st.startsWith(t)));
+}
+
 function rank(loc: LocationRow, q: string) {
-  const L = normalize(`${loc.name} ${loc.city ?? ""} ${loc.country ?? ""}`);
-  const C = (loc.unlocode ?? "").toLowerCase();
-  let score = 0;
-  if (!q) return score;
-  if (C === q.toLowerCase()) score += 200;                // exact UN/LOCODE
-  if (C.startsWith(q.toLowerCase())) score += 120;        // code prefix
-  if (L.includes(q)) score += 90;                         // full phrase found
-  // token bonus (e.g., "new york")
-  q.split(/\s+/).forEach(t => {
-    if (!t) return;
-    if (L.includes(t)) score += 20;
-    if (C.startsWith(t)) score += 15;
+  const qTokens = tokenize(q);
+  if (!qTokens.length) return 0;
+  const src = tokensFor(loc);
+  const code = (loc.unlocode ?? "").toLowerCase().trim();
+  let s = 0;
+  const nq = qTokens.join(" ");
+  if (code.startsWith(nq)) s += 200;
+  if (src.join(" ").startsWith(nq)) s += 180;
+  qTokens.forEach(t => {
+    if (code.startsWith(t)) s += 40;
+    if (src.some(st => st.startsWith(t))) s += 30;
   });
-  // type nudge
-  if ((loc.type ?? "").toUpperCase() === "SEAPORT") score += 5;
-  return score;
+  if ((loc.type ?? "").toUpperCase() === "SEAPORT") s += 5;
+  return s;
 }
 
-async function fetchLocations(q: string, limit = 10): Promise<LocationRow[]> {
+async function fetchLocations(q: string, limit = 50): Promise<LocationRow[]> {
   if (!q || q.trim().length < 2) return [];
   const res = await fetch(`/api/seed/locations/get?search=${encodeURIComponent(q)}&limit=${limit}`);
   if (!res.ok) return [];
@@ -52,16 +73,13 @@ async function fetchLocations(q: string, limit = 10): Promise<LocationRow[]> {
 type Props = {
   label: string;
   placeholder?: string;
-  // current selected value (UN/LOCODE or empty)
-  value: string;
+  value: string; // UN/LOCODE or ""
   onChange: (code: string, displayLabel: string, row?: LocationRow) => void;
-  // optional prefill from parent (e.g., "USNYC") – will resolve to a pretty label on mount
   initialCode?: string;
   inputClassName?: string;
   menuClassName?: string;
-
-  /** NEW: exact UN/LOCODEs to hide from the dropdown (e.g., ["USNYC"]) */
-  excludeCodes?: string[];
+  excludeCodes?: string[];   // exact codes to hide (e.g., ["USNYC"])
+  excludeLabels?: string[];  // exact labels to hide (optional)
 };
 
 export default function LocationInput({
@@ -72,66 +90,104 @@ export default function LocationInput({
   initialCode,
   inputClassName,
   menuClassName,
-  excludeCodes
+  excludeCodes,
+  excludeLabels,
 }: Props) {
-  const [text, setText] = useState<string>("");         // what user sees/types
+  const [text, setText] = useState<string>("");
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<LocationRow[]>([]);
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
-  const q = text.trim();
+  const inputEl = useRef<HTMLInputElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
-  // resolve initialCode->label once (e.g., “USNYC” => “New York, US (USNYC)”)
+  // NEW: prevent auto-open immediately after a selection
+  const suppressOpenRef = useRef(false);
+
+  const q = text.trim();
+  const minChars = 2;
+
+  // --- STABLE keys & memoized blocklists (avoid new objects in deps) --------
+  const ecKey = useMemo(
+    () => (excludeCodes && excludeCodes.length ? excludeCodes.join("|") : ""),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [excludeCodes?.join("|")]
+  );
+  const elKey = useMemo(
+    () => (excludeLabels && excludeLabels.length ? excludeLabels.join("|") : ""),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [excludeLabels?.join("|")]
+  );
+
+  const blkCodes = useMemo(() => new Set((excludeCodes ?? []).map(normCode).filter(Boolean)), [ecKey]);
+  const blkLabels = useMemo(() => new Set((excludeLabels ?? []).map(normLabel).filter(Boolean)), [elKey]);
+
+  // --- one-time exact-code label resolver (prevents "Bengaluru" overwrite) ---
+  const didInitRef = useRef(false);
   useEffect(() => {
-    let ignore = false;
+    if (didInitRef.current) return;
+    didInitRef.current = true; // run only once on mount
+
+    const pre = (initialCode || value || "").toUpperCase().trim();
+    if (!pre) return;
+
     (async () => {
-      const code = initialCode || value;
-      if (!code) return;
-      const r = await fetchLocations(code, 1);
-      if (ignore) return;
-      if (r[0]) setText(labelForLocation(r[0]));
+      const results = await fetchLocations(pre, 10);
+      const exact = results.find(r => (r.unlocode ?? "").toUpperCase().trim() === pre);
+      if (exact) setText(labelForLocation(exact));
     })();
-    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCode, value]);
 
-  // If current selected code becomes excluded, clear it
+  // if current selection becomes excluded, clear it
   useEffect(() => {
-    if (!value || !excludeCodes?.length) return;
-    const v = value.toUpperCase();
-    if (excludeCodes.some(c => c?.toUpperCase() === v)) {
+    const shouldClear =
+      (value && blkCodes.has(normCode(value))) ||
+      (text && blkLabels.has(normLabel(text)));
+    if (shouldClear) {
       onChange("", "");
       setText("");
     }
-  }, [excludeCodes]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ecKey, elKey]); // depend on stable keys only
 
-  // debounce search
+  // fetch + strict prefix + exclusions (only auto-open if focused & not suppressed)
   useEffect(() => {
     let handle: any;
-    if (q.length >= 2) {
-      handle = setTimeout(async () => {
-        const data = await fetchLocations(q, 10);
-        // sort by rank so “new york city” bubbles USNYC up
-        let ranked = data
-          .map(d => ({ d, s: rank(d, q.toLowerCase()) }))
-          .sort((a, b) => b.s - a.s)
-          .map(x => x.d);
+    let cancelled = false;
 
-        // NEW: exclude exact UN/LOCODEs (code-only comparison)
-        if (excludeCodes?.length) {
-          const blk = new Set(excludeCodes.map(c => c?.toUpperCase()));
-          ranked = ranked.filter(r => !blk.has((r.unlocode ?? "").toUpperCase()));
-        }
+    async function run() {
+      const data = await fetchLocations(q, 50);
 
+      let filtered = data.filter(r => strictPrefixMatch(r, q));
+      filtered = filtered.filter(r => {
+        const c = normCode(r.unlocode);
+        const l = normLabel(labelForLocation(r));
+        return !blkCodes.has(c) && !blkLabels.has(l);
+      });
+
+      const ranked = filtered
+        .map(d => ({ d, s: rank(d, q) }))
+        .sort((a, b) => b.s - a.s)
+        .map(x => x.d)
+        .slice(0, 50);
+
+      if (!cancelled) {
         setRows(ranked);
-        setOpen(ranked.length > 0);
+        // Only toggle open if THIS input is focused and we're not suppressing
+        setOpen(prev => (isFocused && !suppressOpenRef.current ? ranked.length > 0 : prev));
         setActive(0);
-      }, 250);
+      }
+    }
+
+    if (q.length >= minChars) {
+      handle = setTimeout(run, 180);
     } else {
       setRows([]);
       setOpen(false);
     }
-    return () => clearTimeout(handle);
-  }, [q, excludeCodes]);
+    return () => { clearTimeout(handle); cancelled = true; };
+  }, [q, ecKey, elKey, blkCodes, blkLabels, isFocused]);
 
   // close on outside click
   useEffect(() => {
@@ -146,6 +202,8 @@ export default function LocationInput({
   function choose(row: LocationRow) {
     const code = row.unlocode ?? row.name;
     const lbl = labelForLocation(row);
+    // prevent auto-open on the re-fetch that follows text change
+    suppressOpenRef.current = true;
     setText(lbl);
     setOpen(false);
     onChange(code, lbl, row);
@@ -153,35 +211,37 @@ export default function LocationInput({
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!open || rows.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActive(a => Math.min(a + 1, rows.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActive(a => Math.max(a - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      choose(rows[active]);
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(a => Math.min(a + 1, rows.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    else if (e.key === "Enter") { e.preventDefault(); choose(rows[active]); }
+    else if (e.key === "Escape") { setOpen(false); }
   }
 
-  // precompute a render-time guard as well (belt & suspenders)
-  const renderRows = rows.filter(r => {
-    if (!excludeCodes?.length) return true;
-    const code = (r.unlocode ?? "").toUpperCase();
-    return !excludeCodes.map(c => c?.toUpperCase()).includes(code);
-  });
+  // reset suppression on new typing or when field is re-focused
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    suppressOpenRef.current = false;
+    setText(e.target.value);
+  }
+
+  // final render guard (uses memoized sets)
+  const renderRows = rows
+    .filter(r => strictPrefixMatch(r, q))
+    .filter(r => !blkCodes.has(normCode(r.unlocode)) && !blkLabels.has(normLabel(labelForLocation(r))));
 
   return (
     <div className="relative" ref={boxRef}>
       <label className="block text-md text-[#faf9f6] font-light mb-2">{label}</label>
       <div className="relative group">
         <input
+          ref={inputEl}
           value={text}
-          onChange={e => setText(e.target.value)}
-          onFocus={() => { if (renderRows.length) setOpen(true); }}
+          onChange={handleChange}
+          onFocus={() => {
+            setIsFocused(true);
+            // only open on focus if not suppressed
+            if (!suppressOpenRef.current && renderRows.length > 0) setOpen(true);
+          }}
+          onBlur={() => { setIsFocused(false); }}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           className={inputClassName ?? "pl-12 w-full bg-[#2D4D8B] rounded-xl hover:bg-[#0A1A2F] hover:text-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-3 py-2 font-bold"}

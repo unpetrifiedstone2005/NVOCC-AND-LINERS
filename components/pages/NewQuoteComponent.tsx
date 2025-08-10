@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, ChangeEvent, useEffect } from "react";
+import React, { useState, ChangeEvent, useEffect, useMemo } from "react";
 import {
   MapPin,
   Calendar,
@@ -19,7 +19,6 @@ import {
   X,
   Anchor,
   Sailboat,
-  Code,
 } from "lucide-react";
 
 // If your component lives elsewhere, change the path accordingly:
@@ -52,12 +51,17 @@ interface Offer {
   carrier: string;
   service: string;
   transitTime: string;
-  price: string; // e.g. "$2,450"
+  price: string;
   departure: string;
   arrival: string;
   vesselName: string;
   features: string[];
   selectionKey?: string;
+}
+
+interface ContainerTypeRow {
+  code: string;
+  label: string;
 }
 
 /** --- MOCK OFFERS (replace later with your pricing endpoint) --------------- */
@@ -105,6 +109,19 @@ function moneyToNumber(s: string) {
   const m = s.replace(/[^\d.]/g, "");
   return Number(m || 0);
 }
+// robust boolean reader for various backend key names
+function pickBool(meta: any, keys: string[]): boolean | null {
+  if (!meta) return null;
+  for (const k of keys) {
+    if (k in meta) {
+      const v = meta[k];
+      if (typeof v === "boolean") return v;
+      if (v === 1 || v === "1" || v === "true") return true;
+      if (v === 0 || v === "0" || v === "false") return false;
+    }
+  }
+  return null; // unknown
+}
 
 /** --- MAIN COMPONENT ------------------------------------------------------- */
 export const NewQuoteComponent: React.FC = () => {
@@ -136,9 +153,120 @@ export const NewQuoteComponent: React.FC = () => {
   const [startLabel, setStartLabel] = useState<string>("");
   const [endLabel, setEndLabel] = useState<string>("");
 
+  // keep the full selected rows to validate door availability
+  const [startMeta, setStartMeta] = useState<any | null>(null);
+  const [endMeta, setEndMeta] = useState<any | null>(null);
+
+  // --- container types from backend ---
+  const [containerTypes, setContainerTypes] = useState<ContainerTypeRow[]>([]);
+  const [ctLoading, setCtLoading] = useState(false);
+  const [ctError, setCtError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setCtLoading(true);
+        setCtError(null);
+        const res = await fetch("/api/seed/containers/types/get");
+        if (!res.ok) throw new Error("Failed to fetch types");
+        const raw = await res.json();
+        const items: any[] = Array.isArray(raw) ? raw : (raw?.items ?? []);
+        const normalized: ContainerTypeRow[] = items
+          .map((it) => {
+            const code =
+              (it?.code ?? it?.value ?? it?.id ?? it?.isoCode ?? it?.slug ?? "").toString().trim();
+            const label =
+              (it?.label ?? it?.name ?? it?.description ?? it?.displayName ?? code).toString().trim();
+            if (!code || !label) return null;
+            return { code, label };
+          })
+          .filter(Boolean) as ContainerTypeRow[];
+        if (!cancelled) {
+          setContainerTypes(normalized);
+          if (normalized.length && !normalized.some((t) => t.code === formData.containerType)) {
+            setFormData((f) => ({ ...f, containerType: normalized[0].code }));
+          }
+        }
+      } catch (e: any) {
+        if (!cancelled) setCtError(e?.message || "Could not load container types.");
+      } finally {
+        if (!cancelled) setCtLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  // ===== SEARCH VALIDATION (restored) =====
+  const startEqualsEnd = useMemo(() => {
+    const a = formData.startLocation?.trim().toUpperCase();
+    const b = formData.endLocation?.trim().toUpperCase();
+    return !!a && !!b && a === b;
+  }, [formData.startLocation, formData.endLocation]);
+
+  // interpret backend flags (we check several common key names)
+  const pickupDoorAllowed = useMemo(
+    () =>
+      pickBool(startMeta, [
+        "doorPickupAllowed",
+        "pickupDoorAllowed",
+        "supportsDoorPickup",
+        "pickupDoor",
+        "pickupDoorAvailable",
+        "pickup_door_available",
+        "door_available_pickup",
+      ]),
+    [startMeta]
+  );
+  const deliveryDoorAllowed = useMemo(
+    () =>
+      pickBool(endMeta, [
+        "doorDeliveryAllowed",
+        "deliveryDoorAllowed",
+        "supportsDoorDelivery",
+        "deliveryDoor",
+        "deliveryDoorAvailable",
+        "delivery_door_available",
+        "door_available_delivery",
+      ]),
+    [endMeta]
+  );
+
+  // block if door explicitly NOT supported (null = unknown -> don't block)
+  const pickupDoorBlocked =
+    formData.pickupType === "door" && pickupDoorAllowed === false;
+  const deliveryDoorBlocked =
+    formData.deliveryType === "door" && deliveryDoorAllowed === false;
+
+  const searchErrors = useMemo(() => {
+    const errs: string[] = [];
+    if (!formData.startLocation) errs.push("Select a start location.");
+    if (!formData.endLocation) errs.push("Select an end location.");
+    if (formData.startLocation && formData.endLocation && startEqualsEnd)
+      errs.push("Start and End must be different.");
+    if (pickupDoorBlocked)
+      errs.push(`${startLabel || formData.startLocation} does not support PICKUP at DOOR.`);
+    if (deliveryDoorBlocked)
+      errs.push(`${endLabel || formData.endLocation} does not support DELIVERY at DOOR.`);
+    return errs;
+  }, [
+    formData.startLocation,
+    formData.endLocation,
+    startEqualsEnd,
+    pickupDoorBlocked,
+    deliveryDoorBlocked,
+    startLabel,
+    endLabel,
+  ]);
+
+  const canSearch = searchErrors.length === 0;
 
   const nextStep = () => {
     if (currentStep < 3) setCurrentStep((s) => s + 1);
@@ -147,14 +275,12 @@ export const NewQuoteComponent: React.FC = () => {
     if (currentStep > 1) setCurrentStep((s) => s - 1);
   };
   const canProceedToNext = () => {
-    if (currentStep === 1) return !!(formData.startLocation && formData.endLocation);
+    if (currentStep === 1) return canSearch; // <-- restored block
     if (currentStep === 2) return selectedOffer !== null;
     return true;
   };
 
   /** --- STYLES ------------------------------------------------------------ */
-  const buttonStyle =
-    "bg-[#0A1A2F] rounded-xl hover:bg-[#2D4D8B] hover:text-[#00FFFF] text-[#faf9f6] shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] transition-shadow border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 hover:font-bold";
   const inputStyle =
     "w-full bg-[#0A1A2F] rounded-xl hover:bg-[#2D4D8B] hover:text-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] placeholder:font-light transition-shadow border-black border-4 px-3 py-2 font-bold placeholder:opacity-90";
   const radioButtonStyle = "w-4 h-4 accent-[#1d4595] bg-[#373737] border-2 border-black";
@@ -165,13 +291,11 @@ export const NewQuoteComponent: React.FC = () => {
     <div className="max-w-[1600.24px] mx-auto px-4 flex flex-col font-bold rounded-xl p-10">
       <div>
         <div className="inline-flex items-center space-x-4 gap-3 rounded-xl text-2xl font-bold text-[#faf9f6] mb-8 border-2 border-white shadow-[20px_20px_0px_rgba(0,0,0,1)] px-6 py-2 bg-[#0A1A2F] mx-auto">
-          <div>
-            <Package size={32} />
-          </div>
+          <div><Package size={32} /></div>
           <div>NEW QUOTE REQUEST</div>
         </div>
 
-        {/* Progress (now 3 steps) */}
+        {/* Progress */}
         <div className="flex items-center rounded-xl justify-between bg-[#0F1B2A] border-white shadow-[30px_30px_0px_rgba(0,0,0,1)] border-2 px-6 py-4 mb-12">
           {[
             { num: 1, label: "SEARCH" },
@@ -218,28 +342,54 @@ export const NewQuoteComponent: React.FC = () => {
                 <LocateFixed size={20} /> ROUTING
               </h3>
 
-              {/* START / END using reusable LocationInput (backend-powered) */}
-              <div className="grid md:grid-cols-2 gap-6 mb-6">
+              {/* START / END */}
+              <div className="grid md:grid-cols-2 gap-6 mb-2">
                 <LocationInput
                   label="START LOCATION"
                   value={formData.startLocation}
-                  onChange={(code, display) => {
-                    setFormData((f) => ({ ...f, startLocation: code }));
+                  onChange={(code, display, row) => {
+                    setFormData(f => ({ ...f, startLocation: code }));
                     setStartLabel(display);
+                    setStartMeta(row || null);
+                    // if user picked the same code as END, clear end (optional)
+                    if (code && formData.endLocation && code.trim().toUpperCase() === formData.endLocation.trim().toUpperCase()) {
+                      setFormData(f => ({ ...f, endLocation: "" }));
+                      setEndLabel("");
+                      setEndMeta(null);
+                    }
                   }}
+                  excludeCodes={formData.endLocation ? [formData.endLocation] : undefined}
+                  excludeLabels={endLabel ? [endLabel] : undefined}
                 />
                 <LocationInput
                   label="END LOCATION"
                   value={formData.endLocation}
-                  onChange={(code, display) => {
-                    setFormData((f) => ({ ...f, endLocation: code }));
+                  onChange={(code, display, row) => {
+                    setFormData(f => ({ ...f, endLocation: code }));
                     setEndLabel(display);
+                    setEndMeta(row || null);
+                    if (code && formData.startLocation && code.trim().toUpperCase() === formData.startLocation.trim().toUpperCase()) {
+                      setFormData(f => ({ ...f, startLocation: "" }));
+                      setStartLabel("");
+                      setStartMeta(null);
+                    }
                   }}
+                  excludeCodes={formData.startLocation ? [formData.startLocation] : undefined}
+                  excludeLabels={startLabel ? [startLabel] : undefined}
                 />
               </div>
 
+              {/* validation messages (small, inline) */}
+              {searchErrors.length > 0 && (
+                <div className="mt-4 mb-2 rounded-lg border-2 border-red-400 bg-[#3b0b0b] text-red-200 px-4 py-2 text-sm">
+                  <ul className="list-disc list-inside space-y-1">
+                    {searchErrors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </div>
+              )}
+
               {/* Pickup/Delivery Type */}
-              <div className="grid md:grid-cols-2 gap-8">
+              <div className="grid md:grid-cols-2 gap-8 mt-6">
                 {(["pickupType", "deliveryType"] as (keyof FormData)[]).map((field) => (
                   <div key={field}>
                     <h4 className="text-[#faf9f6] font-light mb-3">
@@ -298,13 +448,19 @@ export const NewQuoteComponent: React.FC = () => {
                   <select
                     value={formData.containerType}
                     onChange={(e) => handleInputChange("containerType", e.target.value)}
-                    className={`rounded-xl hover:text-[#00FFFF] text-white shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-3 py-2 font-bold bg-[#11235d] hover:bg-[#1a307a] w-full`}
+                    disabled={ctLoading || !containerTypes.length}
+                    className={`rounded-xl hover:text-[#00FFFF] text-white shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-3 py-2 font-bold bg-[#11235d] hover:bg-[#1a307a] w-full disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    <option value="20-general">20' GP HC</option>
-                    <option value="40-general">40' GP HC</option>
-                    <option value="40-hc">40' HC</option>
-                    <option value="45-hc">45' HC</option>
+                    {ctLoading && <option>Loading types…</option>}
+                    {!ctLoading && !containerTypes.length && <option>No types available</option>}
+                    {!ctLoading &&
+                      containerTypes.map((ct) => (
+                        <option key={ct.code} value={ct.code}>
+                          {ct.label}
+                        </option>
+                      ))}
                   </select>
+                  {ctError && <div className="mt-2 text-sm text-[#fa8a8a] font-bold">{ctError}</div>}
                 </div>
                 <div>
                   <label className="block text-[#faf9f6] font-light mb-2">QUANTITY</label>
@@ -335,7 +491,7 @@ export const NewQuoteComponent: React.FC = () => {
                           name="weightUnit"
                           checked={formData.weightUnit === u}
                           onChange={() => handleInputChange("weightUnit", u)}
-                          className={radioButtonStyle}
+                          className="w-4 h-4 accent-[#1d4595] bg-[#373737] border-2 border-black"
                         />
                         {u}
                       </label>
@@ -344,6 +500,7 @@ export const NewQuoteComponent: React.FC = () => {
                 </div>
               </div>
 
+              {/* DANGEROUS GOODS */}
               <label className="flex items-center gap-3 text-[#faf9f6] font-light mb-4">
                 <input
                   type="checkbox"
@@ -459,7 +616,8 @@ export const NewQuoteComponent: React.FC = () => {
                 <button
                   onClick={nextStep}
                   disabled={!canProceedToNext()}
-                  className={`bg-[#0A1A2F] rounded-3xl hover:bg-[#2D4D8B] hover:text-[#00FFFF] text-[#faf9f6] px-12 py-3 text-lg shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[15px_5px_0px_rgba(0,0,0,1)] `}
+                  className={`bg-[#0A1A2F] rounded-3xl hover:bg-[#2D4D8B] hover:text-[#00FFFF] text-[#faf9f6] px-12 py-3 text-lg shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[15px_5px_0px_rgba(0,0,0,1)] disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={!canProceedToNext() ? (searchErrors[0] || "Complete routing to continue") : undefined}
                 >
                   SEARCH
                 </button>
@@ -540,24 +698,38 @@ export const NewQuoteComponent: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Use the same LocationInput inside the modal */}
                   <div className="space-y-4">
-                   <LocationInput
+                    <LocationInput
                       label="START LOCATION"
                       value={formData.startLocation}
-                      onChange={(code, display) => {
+                      onChange={(code, display, row) => {
                         setFormData(f => ({ ...f, startLocation: code }));
                         setStartLabel(display);
+                        setStartMeta(row || null);
+                        if (code && formData.endLocation && code.trim().toUpperCase() === formData.endLocation.trim().toUpperCase()) {
+                          setFormData(f => ({ ...f, endLocation: "" }));
+                          setEndLabel("");
+                          setEndMeta(null);
+                        }
                       }}
+                      excludeCodes={formData.endLocation ? [formData.endLocation] : undefined}
+                      excludeLabels={endLabel ? [endLabel] : undefined}
                     />
                     <LocationInput
                       label="END LOCATION"
                       value={formData.endLocation}
-                      onChange={(code, display) => {
+                      onChange={(code, display, row) => {
                         setFormData(f => ({ ...f, endLocation: code }));
                         setEndLabel(display);
+                        setEndMeta(row || null);
+                        if (code && formData.startLocation && code.trim().toUpperCase() === formData.startLocation.trim().toUpperCase()) {
+                          setFormData(f => ({ ...f, startLocation: "" }));
+                          setStartLabel("");
+                          setStartMeta(null);
+                        }
                       }}
                       excludeCodes={formData.startLocation ? [formData.startLocation] : undefined}
+                      excludeLabels={startLabel ? [startLabel] : undefined}
                     />
                   </div>
 
@@ -671,7 +843,7 @@ export const NewQuoteComponent: React.FC = () => {
                             <Info size={14} /> Remarks
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-[14px]">
+                        <div className="grid grid-cols-2 gap-2 text=[14px]">
                           {o.features.map((f: string, j: number) => (
                             <div key={j} className="flex items-center gap-1 ml-1 text-[#faf9f6]">
                               <span className="text-[#00FFFF] font-bold">•</span>
@@ -1046,8 +1218,9 @@ export const NewQuoteComponent: React.FC = () => {
               <button
                 onClick={nextStep}
                 disabled={!canProceedToNext()}
-                className="bg-white rounded-xl font-bold px-4 py-2 flex flex-col justify-between hover:bg-gray-400 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[17px_17px_0px_rgba(0,0,0,1)] transition-shadow"
+                className="bg-white rounded-xl font-bold px-4 py-2 flex flex-col justify-between hover:bg-gray-400 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-[17px_17px_0px_rgba(0,0,0,1)] transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ height: "100%" }}
+                title={!canProceedToNext() ? "Complete selections to continue" : undefined}
               >
                 <span className="self-center">NEXT</span>
                 <ArrowRight size={20} className="self-end" />
