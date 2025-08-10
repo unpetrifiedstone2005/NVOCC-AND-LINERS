@@ -492,21 +492,44 @@ async function importBulk(e: React.FormEvent) {
     }
 
 
-    
+    function useDebounce<T>(value: T, delay = 1000) {
+      const [debounced, setDebounced] = React.useState(value);
+      React.useEffect(() => {
+        const t = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(t);
+      }, [value, delay]);
+      return debounced;
+    }
+
+    const debouncedFilters = useDebounce(filters, 300);
  
 
     useEffect(() => {
-      if (activeTab === "surcharge-list") fetchSurchargeDefs(currentPage);
-      fetchContainerTypes();
-    }, [activeTab, currentPage]);
+  fetchContainerTypes();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
+// Fetch on tab or page change (immediate)
+useEffect(() => {
+  if (activeTab !== "surcharge-list") return;
+  fetchSurchargeDefs(currentPage);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [activeTab, currentPage]);
 
-    useEffect(() => {
-    if (activeTab === "surcharge-list" || activeTab === "rates") {
-      fetchSurchargeDefs(1);
-    }
-    fetchContainerTypes();
-  }, [activeTab]);
+// Fetch when filters settle (debounced 1s)
+useEffect(() => {
+  if (activeTab !== "surcharge-list") return;
+
+  // If page isn't 1, go to page 1 first; the page effect above will fetch.
+  if (currentPage !== 1) {
+    setCurrentPage(1);
+    return;
+  }
+
+  // Already on page 1 → fetch now using the latest filters (read inside fetch)
+  fetchSurchargeDefs(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [activeTab, debouncedFilters]);
 
     // --- RENDER --------------------------------------------------------------
     return (

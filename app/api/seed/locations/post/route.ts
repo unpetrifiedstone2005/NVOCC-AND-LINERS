@@ -4,6 +4,22 @@ import { z, ZodError } from "zod";
 import { prismaClient } from "@/app/lib/db";
 import { LocationType } from "@prisma/client";
 
+// --- helpers ---------------------------------------------------------------
+function boolish(v: unknown): boolean | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v === 1 ? true : v === 0 ? false : undefined;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (["1", "true", "yes", "y"].includes(s)) return true;
+    if (["0", "false", "no", "n"].includes(s)) return false;
+  }
+  return undefined; // treat unknown as "not provided"
+}
+
+const Boolish = z.any().transform((v) => boolish(v)); // -> true | false | null | undefined
+
 // Accept UI-ish shape (code/unlocode + free-form type string)
 const RawItemSchema = z.object({
   code:     z.string().trim().optional().nullable(),     // UI alias for unlocode
@@ -11,8 +27,14 @@ const RawItemSchema = z.object({
   name:     z.string().trim().min(1, "name required"),
   city:     z.string().trim().optional().nullable(),
   country:  z.string().trim().optional().nullable(),
-  type:     z.string().trim().optional().nullable(),     // "PORT"|"SEAPORT"|"INLAND"|"INLAND_CITY"|"TERMINAL"|"DEPOT"|ICD/CFS/WAREHOUSE
+  type:     z.string().trim().optional().nullable(),     // "PORT"|"SEAPORT"|"INLAND"|"INLAND_CITY"|"TERMINAL"|"DEPOT"|ICD/CFS/etc.
+
+  // NEW: door capability (tri-state true/false/null; undefined = not provided)
+  doorPickupAllowed:   Boolish.optional(),
+  doorDeliveryAllowed: Boolish.optional(),
+  doorNotes:           z.string().trim().optional().nullable(),
 });
+
 const BulkSchema = z.union([RawItemSchema, z.array(RawItemSchema).min(1)]);
 type RawItem = z.infer<typeof RawItemSchema>;
 
@@ -23,19 +45,30 @@ function mapType(raw: string | null | undefined): LocationType {
   if (t === "INLAND" || t === "INLAND_CITY" || t === "CITY") return LocationType.INLAND_CITY;
   if (t === "TERMINAL" || t === "SMDG") return LocationType.TERMINAL;
   if (t === "DEPOT" || t === "ICD" || t === "CFS" || t === "WAREHOUSE" || t === "RAMP") return LocationType.DEPOT;
-  return LocationType.INLAND_CITY; // sensible default
+  return LocationType.INLAND_CITY; // default
 }
 
 /** Normalize one item to DB shape */
 function normalize(r: RawItem) {
   const codeCandidate = (r.unlocode ?? r.code ?? "").trim().toUpperCase();
   const unlocode = codeCandidate === "" ? null : codeCandidate;
+
+  const doorPickupAllowed =
+    r.doorPickupAllowed === undefined ? null : (r.doorPickupAllowed as boolean | null);
+  const doorDeliveryAllowed =
+    r.doorDeliveryAllowed === undefined ? null : (r.doorDeliveryAllowed as boolean | null);
+
   return {
     unlocode,
     name: r.name.trim(),
     city: r.city?.trim() || null,
     country: r.country?.trim()?.toUpperCase() || null,
-    type: mapType(r.type), // ← no hasCode here
+    type: mapType(r.type),
+
+    // NEW: persisted flags
+    doorPickupAllowed,
+    doorDeliveryAllowed,
+    doorNotes: r.doorNotes ? r.doorNotes : null,
   };
 }
 
@@ -70,7 +103,6 @@ export async function POST(req: NextRequest) {
         (errors[`[${idx}].unlocode`] ||= []).push("UN/LOCODE must be 5 alphanumerics (e.g., SGSIN)");
       }
     } else {
-      // For TERMINAL/DEPOT, unlocode is optional; if provided, still validate
       if (it.unlocode && !/^[A-Z0-9]{5}$/.test(it.unlocode)) {
         (errors[`[${idx}].unlocode`] ||= []).push("If provided, UN/LOCODE must be 5 alphanumerics");
       }
@@ -101,7 +133,16 @@ export async function POST(req: NextRequest) {
         await tx.location.upsert({
           where:  { unlocode: d.unlocode! },
           create: d,
-          update: { name: d.name, city: d.city, country: d.country, type: d.type },
+          update: {
+            name: d.name,
+            city: d.city,
+            country: d.country,
+            type: d.type,
+            // NEW: update door flags on upsert
+            doorPickupAllowed: d.doorPickupAllowed,
+            doorDeliveryAllowed: d.doorDeliveryAllowed,
+            doorNotes: d.doorNotes,
+          },
         });
         results[exists ? "updated" : "created"]++;
       }
@@ -115,7 +156,15 @@ export async function POST(req: NextRequest) {
         if (existing) {
           await tx.location.update({
             where: { id: existing.id },
-            data:  { name: d.name, city: d.city, country: d.country, type: d.type },
+            data: {
+              name: d.name,
+              city: d.city,
+              country: d.country,
+              type: d.type,
+              doorPickupAllowed: d.doorPickupAllowed,
+              doorDeliveryAllowed: d.doorDeliveryAllowed,
+              doorNotes: d.doorNotes,
+            },
           });
           results.updated++;
         } else {

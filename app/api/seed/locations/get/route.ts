@@ -91,6 +91,10 @@ export async function GET(req: NextRequest) {
         city: true,
         country: true,
         type: true, // DB enum
+        // ✅ include door fields
+        doorPickupAllowed: true,
+        doorDeliveryAllowed: true,
+        doorNotes: true,
       },
     }),
   ]);
@@ -100,11 +104,16 @@ export async function GET(req: NextRequest) {
   // Map DB -> UI shape your component expects
   const items = rows.map(r => ({
     id: r.id,
-    unlocode: r.unlocode ?? "",
-    name: r.name ?? "",
-    city: r.city ?? "",
-    country: r.country ?? "",
-    type: dbToUiType(String(r.type)),
+    unlocode: r.unlocode,     // keep null if null
+    name: r.name,
+    city: r.city,
+    country: r.country,
+    type: dbToUiType(String(r.type)) as UiLocationType,
+
+    // ✅ pass through the door fields
+    doorPickupAllowed: r.doorPickupAllowed,
+    doorDeliveryAllowed: r.doorDeliveryAllowed,
+    doorNotes: r.doorNotes,
   }));
 
   return NextResponse.json({

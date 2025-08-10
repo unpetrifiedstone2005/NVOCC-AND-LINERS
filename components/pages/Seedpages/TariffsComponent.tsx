@@ -1,6 +1,6 @@
 // File: components/pages/Seedpages/TariffsComponent.tsx
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect,useRef } from "react";
 import {
   Ship,
   DollarSign,
@@ -345,37 +345,46 @@ async function fetchVoyages(scheduleId: string) {
 
 
 
+  const listRequestRef = useRef<AbortController | null>(null);
+
   // ▶ fetch the paginated list of tariffs
   async function fetchTariffs(page = 1) {
-    setIsLoadingList(true);
-    try {
-      const params = {
-        page:  String(page),
-        limit: "20",   // ← use "limit" to override the default page size
-        ...(filters.serviceCode && { serviceCode: filters.serviceCode }),
-        ...(filters.voyageId    && { voyageId:    filters.voyageId   }),
-        ...(filters.commodity   && { commodity:   filters.commodity  }),
-        ...(filters.group       && { group:       filters.group      }),
-      };
+  setIsLoadingList(true);
 
-      const res = await axios.get<{
-        items:       ApiTariff[];
-        total:       number;
-        currentPage: number;
-        totalPages:  number;
-      }>("/api/seed/tariffs/get", { params });
+  // cancel the previous in-flight request (if any)
+  listRequestRef.current?.abort();
+  const controller = new AbortController();
+  listRequestRef.current = controller;
 
-      setAllTariffs(res.data.items);
-      setCurrentPage(res.data.currentPage);
-      setTotalPages(res.data.totalPages);
+  try {
+    const params = {
+      page:  String(page),
+      limit: "20",
+      ...(filters.serviceCode && { serviceCode: filters.serviceCode }),
+      ...(filters.voyageId    && { voyageId:    filters.voyageId   }),
+      ...(filters.commodity   && { commodity:   filters.commodity  }),
+      ...(filters.group       && { group:       filters.group      }),
+    };
 
-    } catch (err) {
-      console.error("fetchTariffs error:", err);
-      showMessage("error", "Failed to fetch tariffs");
-    } finally {
-      setIsLoadingList(false);
-    }
+    const res = await axios.get<{
+      items: ApiTariff[];
+      total: number;
+      currentPage: number;
+      totalPages: number;
+    }>("/api/seed/tariffs/get", { params, signal: controller.signal });
+
+    setAllTariffs(res.data.items);
+    setCurrentPage(res.data.currentPage);
+    setTotalPages(res.data.totalPages);
+  } catch (err: any) {
+    // ignore user-initiated aborts
+    if (axios.isAxiosError(err) && err.code === "ERR_CANCELED") return;
+    console.error("fetchTariffs error:", err);
+    showMessage("error", "Failed to fetch tariffs");
+  } finally {
+    setIsLoadingList(false);
   }
+}
 
 
   // ▶ apply edits from the modal
@@ -555,6 +564,16 @@ async function applyEdit() {
     a.click();
   }
 
+  function useDebounce<T>(value: T, delay = 700) {
+    const [debounced, setDebounced] = React.useState(value);
+    React.useEffect(() => {
+      const t = setTimeout(() => setDebounced(value), delay);
+      return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
+  }
+
+  const debouncedFilters = useDebounce(filters, 200);
   // ──────────────────────────────────────────────────────
   // LIFECYCLE
   // ──────────────────────────────────────────────────────
@@ -575,11 +594,22 @@ async function applyEdit() {
     }
   }, [tariffForm.scheduleId]);
 
-  useEffect(()=>{
-    if (activeTab === "tariff-list") {
-      fetchTariffs(currentPage);
-    }
-  }, [activeTab, currentPage, filters]);
+ useEffect(() => {
+  if (activeTab !== "tariff-list") return;
+  fetchTariffs(currentPage);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [activeTab, currentPage]);
+
+useEffect(() => {
+  if (activeTab !== "tariff-list") return;
+
+  if (currentPage !== 1) {
+    setCurrentPage(1);      // Effect A will run and fetch with page 1
+    return;
+  }
+  fetchTariffs(1);          // already on page 1, fetch now
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [debouncedFilters, activeTab]);
 
   // ──────────────────────────────────────────────────────
   // RENDER

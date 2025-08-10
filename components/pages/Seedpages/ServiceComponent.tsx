@@ -827,12 +827,32 @@ async function fetchPortCalls(
   }
 }
 
+  function useDebounce<T>(value: T, delay = 1000) {
+    const [debounced, setDebounced] = React.useState(value);
+    React.useEffect(() => {
+      const t = setTimeout(() => setDebounced(value), delay);
+      return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
+  }
 
+  const debouncedFilters = useDebounce(filters, 300);
 
+  const debouncedVoyageSearch = useDebounce(voyageSearch, 300)
 
   useEffect(() => {
-    fetchSchedules(1)
-  }, [])
+  if (activeTab !== "schedule-list") return;
+
+  // if you’re not on page 1, jump there first; the page effect will fetch
+  if (currentPage !== 1) {
+    setCurrentPage(1);
+    return;
+  }
+
+  // already on page 1 → fetch now with the latest filters
+  fetchSchedules(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [debouncedFilters, activeTab]);
 
   useEffect(() => {
     if (activeTab === "schedule-list") {
@@ -845,7 +865,7 @@ async function fetchPortCalls(
 
   // === Pagination logic for Voyage Modal ===
   const voyagesForSchedule = voyages
-    .filter(v => v.voyageNumber?.toLowerCase().includes(voyageSearch.toLowerCase()));
+    .filter(v => v.voyageNumber?.toLowerCase().includes(debouncedVoyageSearch.toLowerCase()));
   const totalVoyagePages = Math.ceil(voyagesForSchedule.length / voyagesPerPage);
   const paginatedVoyages = voyagesForSchedule.slice((voyagePage-1)*voyagesPerPage, voyagePage*voyagesPerPage);
 

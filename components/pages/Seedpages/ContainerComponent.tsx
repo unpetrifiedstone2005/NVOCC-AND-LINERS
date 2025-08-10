@@ -275,6 +275,18 @@
       setTimeout(() => setMessage(null), 5000);
     };
 
+    function useDebounce<T>(value: T, delay = 700) {
+  const [debounced, setDebounced] = React.useState(value);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+
+const debouncedFilters = useDebounce(filters, 700);
+
     // Fetch existing container-types from DB
 useEffect(() => {
   console.log("📦 useEffect: fetching container types & stats");
@@ -629,9 +641,16 @@ const fetchContainers = async (page: number = 1) => {
 
 
 
-    useEffect(() => {
-      if (activeTab === "container-list") fetchContainers(currentPage);
-    }, [activeTab, currentPage]);
+  useEffect(() => {
+  if (activeTab !== "container-list") return;
+
+  if (currentPage !== 1) {
+    setCurrentPage(1);
+    return;
+  }
+  fetchContainers(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [debouncedFilters, activeTab]);
 
 
 

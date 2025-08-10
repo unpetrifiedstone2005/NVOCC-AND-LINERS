@@ -820,35 +820,41 @@ model APISnapshot {
 }
 
 model Location {
-  id            String       @id @default(uuid())
-  unlocode      String?      @unique
-  name          String
-  city          String?
-  country       String?
-  type          LocationType
+  id               String       @id @default(uuid())
+  unlocode         String?      @unique
+  name             String
+  city             String?
+  country          String?
+  type             LocationType
 
-  facilityScheme FacilityScheme?
-  facilityCode   String?
-  parentUnlocode String?
+  facilityScheme   FacilityScheme?
+  facilityCode     String?
+  parentUnlocode   String?
 
-  parent         Location?   @relation("CityFacilities", fields: [parentUnlocode], references: [unlocode])
-  facilities     Location[]  @relation("CityFacilities")
-  portCalls      PortCall[]  @relation("LocationPortCalls")
-  vesselSchedules VesselSchedule[] @relation("LocationSchedules")
-  containerEvents ContainerEvent[] @relation("LocationEvents")
+  parent           Location?    @relation("CityFacilities", fields: [parentUnlocode], references: [unlocode])
+  facilities       Location[]   @relation("CityFacilities")
+  portCalls        PortCall[]   @relation("LocationPortCalls")
+  vesselSchedules  VesselSchedule[] @relation("LocationSchedules")
+  containerEvents  ContainerEvent[] @relation("LocationEvents")
 
-  supported      Boolean     @default(true)
-  validFrom      DateTime?
-  validTo        DateTime?
-  aliases        String[]
+  // 👇 NEW: Door capability (tri-state via nullable booleans)
+  doorPickupAllowed   Boolean?   // true = Door pickup allowed; false = not allowed; null = unknown
+  doorDeliveryAllowed Boolean?   // true = Door delivery allowed; false = not allowed; null = unknown
+  doorNotes           String?    // optional remark like "No inland coverage" / "Max weight 20T", etc.
 
-  createdAt      DateTime    @default(now())
+  supported        Boolean      @default(true)
+  validFrom        DateTime?
+  validTo          DateTime?
+  aliases          String[]
+
+  createdAt        DateTime     @default(now())
 
   @@index([type])
   @@index([parentUnlocode])
-  @@index([name])     // ← add
-  @@index([city])     // ← add
-  @@index([country])  // ← optional, but handy
+  @@index([name])
+  @@index([city])
+  @@index([country])
+  @@index([doorPickupAllowed, doorDeliveryAllowed]) // handy for filtering
   @@unique([facilityScheme, facilityCode])
 }
 
