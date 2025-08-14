@@ -125,6 +125,7 @@ const menuData: MenuItem[] = [
       { key: "seed_serviceschedule", label: "SERVICE SCHEDULE & VOYAGES", pathPattern: "/main/seed/serviceschedules", roles: ["OPERATOR"] },
       { key: "seed_surcharges", label: "SURCHARGES", pathPattern: "/main/seed/surcharges", roles: ["OPERATOR"] },
       { key: "seed_tariffs", label: "TARRIFFS", pathPattern: "/main/seed/tariffs", roles: ["CLIENT"] },
+      { key: "seed_inland", label: "INLAND RATES", pathPattern: "/main/seed/inlandrates", roles: ["CLIENT"] },
     ],
   },
 ];

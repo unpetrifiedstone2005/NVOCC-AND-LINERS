@@ -33,6 +33,7 @@ const RawItemSchema = z.object({
   doorPickupAllowed:   Boolish.optional(),
   doorDeliveryAllowed: Boolish.optional(),
   doorNotes:           z.string().trim().optional().nullable(),
+  aliases:             z.array(z.string().trim()).optional().default([]),
 });
 
 const BulkSchema = z.union([RawItemSchema, z.array(RawItemSchema).min(1)]);
@@ -58,6 +59,12 @@ function normalize(r: RawItem) {
   const doorDeliveryAllowed =
     r.doorDeliveryAllowed === undefined ? null : (r.doorDeliveryAllowed as boolean | null);
 
+  const aliases =
+    (r.aliases ?? [])
+      .map(s => s.trim())
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i); // dedupe
+
   return {
     unlocode,
     name: r.name.trim(),
@@ -65,10 +72,11 @@ function normalize(r: RawItem) {
     country: r.country?.trim()?.toUpperCase() || null,
     type: mapType(r.type),
 
-    // NEW: persisted flags
     doorPickupAllowed,
     doorDeliveryAllowed,
     doorNotes: r.doorNotes ? r.doorNotes : null,
+
+    aliases, // <-- add this
   };
 }
 
@@ -142,6 +150,7 @@ export async function POST(req: NextRequest) {
             doorPickupAllowed: d.doorPickupAllowed,
             doorDeliveryAllowed: d.doorDeliveryAllowed,
             doorNotes: d.doorNotes,
+            aliases: d.aliases,
           },
         });
         results[exists ? "updated" : "created"]++;

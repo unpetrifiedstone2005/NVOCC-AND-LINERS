@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
         doorPickupAllowed: true,
         doorDeliveryAllowed: true,
         doorNotes: true,
+        aliases: true,
       },
     }),
   ]);

@@ -32,6 +32,18 @@ enum Leg {
   IMPORT
 }
 
+enum CutoffKind { 
+  DOC_SI 
+  FCL_GATEIN 
+  VGM 
+  ERD 
+  }
+
+enum CutoffRelativeTo { 
+  ETD 
+  ETA
+  }
+
 enum DeliveryType {
   DOOR
   TERMINAL
@@ -98,6 +110,18 @@ enum BookingStatus {
   DELIVERED
   CANCELLED
 }
+
+enum InlandMode { 
+  TRUCK 
+  RAIL 
+  BARGE 
+  }
+
+enum InlandDirection { 
+  PRE_CARRIAGE
+ ON_CARRIAGE 
+ 
+ }
 
 
 enum SurchargeType {
@@ -260,6 +284,59 @@ model DetentionTerm {
   cros           ContainerReleaseOrder[]
 }
 
+
+model InlandZone {
+  id             String   @id @default(uuid())
+  country        String
+  name           String
+  postalPrefixes String[] @default([])
+  notes          String?
+  createdAt      DateTime @default(now())
+  inlandRates InlandRate[] @relation("ZoneToRates")
+}
+
+
+
+model InlandRate {
+  id                   String        @id @default(uuid())
+  zoneId               String
+  zone InlandZone     @relation("ZoneToRates", fields: [zoneId], references: [id], onDelete: Cascade)
+  portUnlocode         String
+  port                 Location      @relation("PortToInlandRates", fields: [portUnlocode], references: [unlocode])
+  direction            InlandDirection
+  mode                 InlandMode
+  containerGroup       ContainerGroup
+  containerTypeIsoCode String?       // optional override
+   containerType        ContainerType? @relation("ContainerTypeToInlandRates", fields: [containerTypeIsoCode], references: [isoCode])
+
+  currency             String        @default("USD")
+  basis                String        // "FLAT" | "PER_KM" | "BREAKS"
+  flatAmount           Decimal?      @db.Decimal(12,2)
+  perKmAmount          Decimal?      @db.Decimal(12,2)
+  minCharge            Decimal?      @db.Decimal(12,2)
+
+  validFrom            DateTime
+  validTo              DateTime?
+  maxDistanceKm        Int?
+  maxWeightKg          Int?
+  createdAt            DateTime      @default(now())
+
+  breaks               InlandRateBreak[]
+
+  @@index([zoneId])
+  @@index([portUnlocode, direction, mode, containerGroup, containerTypeIsoCode])
+  @@unique([zoneId, portUnlocode, direction, mode, containerGroup, containerTypeIsoCode, validFrom])
+}
+
+model InlandRateBreak {
+  id           String     @id @default(uuid())
+  inlandRateId String
+  inlandRate   InlandRate @relation(fields: [inlandRateId], references: [id], onDelete: Cascade)
+  breakType    String     // "WEIGHT" | "DISTANCE"
+  fromValue    Int
+  toValue      Int?
+  amount       Decimal    @db.Decimal(12,2)
+}
 
 
 model CROContainer {
@@ -446,6 +523,7 @@ model PortCall {
   etd          DateTime?
 
   voyage       Voyage   @relation(fields: [voyageId], references: [id], onDelete: Cascade)
+  cutoffs      PortCallCutoff[]
 
   @@index([portUnlocode])
   @@index([voyageId, order])
@@ -454,7 +532,20 @@ model PortCall {
   @@unique([voyageId, order]) // ← add this
 }
 
+model PortCallCutoff {
+  id             String   @id @default(uuid())
+  portCallId     String
+  portCall       PortCall @relation(fields: [portCallId], references: [id], onDelete: Cascade)
 
+  facilityScheme FacilityScheme?
+  facilityCode   String?
+  kind           CutoffKind
+  at             DateTime       // store UTC
+  source         String?        // "EDI" | "MANUAL" | "CALCULATED"
+
+  @@unique([portCallId, facilityScheme, facilityCode, kind])
+  @@index([portCallId])
+}
 
 
 model QuotationRouting {
@@ -792,7 +883,6 @@ model InvoiceLine {
 }
 
 
-
 model DemurrageAlert {
   id           String     @id @default(uuid())
   containerId  String
@@ -836,6 +926,7 @@ model Location {
   portCalls        PortCall[]   @relation("LocationPortCalls")
   vesselSchedules  VesselSchedule[] @relation("LocationSchedules")
   containerEvents  ContainerEvent[] @relation("LocationEvents")
+  inlandRates      InlandRate[] @relation("PortToInlandRates")
 
   // 👇 NEW: Door capability (tri-state via nullable booleans)
   doorPickupAllowed   Boolean?   // true = Door pickup allowed; false = not allowed; null = unknown
@@ -846,6 +937,9 @@ model Location {
   validFrom        DateTime?
   validTo          DateTime?
   aliases          String[]
+
+
+  timezone         String?
 
   createdAt        DateTime     @default(now())
 
@@ -858,7 +952,19 @@ model Location {
   @@unique([facilityScheme, facilityCode])
 }
 
-
+model CutoffRule {
+  id             String          @id @default(uuid())
+  portUnlocode   String
+  facilityScheme FacilityScheme?
+  facilityCode   String?
+  kind           CutoffKind
+  relativeTo     CutoffRelativeTo @default(ETD)
+  offsetHours    Int
+  appliesToGroup ContainerGroup?
+  activeFrom     DateTime @default(now())
+  activeTo       DateTime?
+  @@index([portUnlocode, facilityScheme, facilityCode, kind])
+}
 
 model ContainerType {
   isoCode       String           @id   // e.g., "40HC-DRY", "40RFR"
@@ -878,6 +984,9 @@ model ContainerType {
   containers            Container[]
   surchargeRates        SurchargeRate[]       @relation("TypeToRates")
   quotationContainers   QuotationContainer[]
+
+
+  inlandRates         InlandRate[]          @relation("ContainerTypeToInlandRates")
 }
 
 model Tariff {

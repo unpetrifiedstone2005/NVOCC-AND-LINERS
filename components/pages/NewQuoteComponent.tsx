@@ -6,7 +6,6 @@ import {
   Calendar,
   Container as ContainerIcon,
   Package,
-  Info,
   Ship,
   ArrowRight,
   ArrowLeft,
@@ -15,7 +14,6 @@ import {
   Mail,
   LocateFixed,
   AlertTriangle,
-  Calculator,
   X,
   Anchor,
   Sailboat,
@@ -27,7 +25,6 @@ import {
   Clock,
   DollarSign,
   ChevronDown,
-  AlertCircle,
 } from "lucide-react";
 
 import LocationInput from "../LocationsInput";
@@ -58,7 +55,7 @@ interface ContainerTypeRow {
   label: string;
 }
 
-/** Tariff & surcharge coming from your GET endpoints */
+/** Tariff rows flattened per containerType */
 type Tariff = {
   containerTypeCode: string;   // "20STD" | "40STD" | "40HC" | ...
   currency: string;            // "USD", etc.
@@ -74,6 +71,12 @@ type Surcharge = {
   amount?: number;             // for PER_CONTAINER / PER_SHIPMENT
   basis: "PER_CONTAINER" | "PER_SHIPMENT" | "PERCENT";
   percent?: number;            // if basis === "PERCENT"
+};
+
+type DepartureItem = {
+  date: string; // ISO YYYY-MM-DD
+  priceByType?: Record<string, { currency: string; amount: number }>;
+  isPreferred?: boolean;
 };
 
 /** --- SMALL UTILS --------------------------------------------------------- */
@@ -93,15 +96,18 @@ const buildQuery = (params: Record<string, any>) =>
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
 
-/** Map your UI container to a family ("group") and the type codes to show */
-function groupForUiType(ui: string): { groupId: string; allowed: string[] } {
-  // Expand if you add reefers, open-top, etc.
+/** Map your UI container to a Prisma ContainerGroup enum + allowed CT codes */
+function groupForUiType(ui: string): { groupId: "DRY_STANDARD" | "DRY_HC"; allowed: string[] } {
   switch (ui) {
     case "20-general":
     case "40-general":
+      // DRY_STANDARD group → base 20/40 dry
+      return { groupId: "DRY_STANDARD", allowed: ["20STD", "40STD"] };
     case "40-hc":
+      // DRY_HC group → 40HC only
+      return { groupId: "DRY_HC", allowed: ["40HC"] };
     default:
-      return { groupId: "dry", allowed: ["20STD", "40STD", "40HC"] };
+      return { groupId: "DRY_STANDARD", allowed: ["20STD", "40STD"] };
   }
 }
 function uiToPrimaryTariffCode(ui: string): string {
@@ -172,6 +178,11 @@ export const NewQuoteComponent: React.FC = () => {
   const [surcharges, setSurcharges] = useState<Surcharge[]>([]);
   const [surchargesLoading, setSurchargesLoading] = useState(false);
   const [surchargesError, setSurchargesError] = useState<string | null>(null);
+
+  const [departures, setDepartures] = useState<DepartureItem[]>([]);
+  const [depLoading, setDepLoading] = useState(false);
+  const [depError, setDepError] = useState<string | null>(null);
+  const [selectedDepartureIdx, setSelectedDepartureIdx] = useState(0);
 
   const [selectedCtCode, setSelectedCtCode] = useState<string | null>(null);
   const [showModal, setShowModal] = useState<"breakdown" | "remarks" | null>(null);
@@ -252,7 +263,6 @@ export const NewQuoteComponent: React.FC = () => {
         "deliveryDoor",
         "deliveryDoorAvailable",
         "delivery_door_available",
-        "door_available_delivery",
       ]),
     [endMeta]
   );
@@ -286,7 +296,7 @@ export const NewQuoteComponent: React.FC = () => {
     endLabel,
   ]);
 
-  /** --- STEP 2: FETCH TARIFFS + SURCHARGES ------------------------------- */
+  /** --- STEP 2: FETCH TARIFFS + SURCHARGES + DEPARTURES ------------------ */
   const canQuery = useMemo(
     () => !searchErrors.length && !!formData.startLocation && !!formData.endLocation,
     [searchErrors.length, formData.startLocation, formData.endLocation]
@@ -296,7 +306,7 @@ export const NewQuoteComponent: React.FC = () => {
     if (currentStep !== 2 || !canQuery) return;
     let cancelled = false;
 
-    // Tariffs for this route & group
+    // Tariffs for this route (we'll filter by allowed group types client-side)
     (async () => {
       setTariffsLoading(true);
       setTariffsError(null);
@@ -305,7 +315,6 @@ export const NewQuoteComponent: React.FC = () => {
           origin: formData.startLocation,
           destination: formData.endLocation,
           date: formData.validFrom,
-          group: groupId, // server can narrow by group
         });
         const res = await fetch(`/api/seed/tariffs/get?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to load tariffs");
@@ -316,7 +325,6 @@ export const NewQuoteComponent: React.FC = () => {
           ? json.items
           : [];
 
-        // Only present the "family" of the chosen container
         const filtered = list
           .filter((t) => allowed.includes((t.containerTypeCode || "").toUpperCase()))
           .map((t) => ({
@@ -326,7 +334,7 @@ export const NewQuoteComponent: React.FC = () => {
 
         if (!cancelled) {
           setTariffs(filtered);
-          // auto-select primary type if available
+          // auto-select primary type within this group
           const primary = uiToPrimaryTariffCode(formData.containerType);
           const pick =
             filtered.find((t) => t.containerTypeCode === primary)?.containerTypeCode ||
@@ -367,6 +375,42 @@ export const NewQuoteComponent: React.FC = () => {
       }
     })();
 
+    // Departures (service schedules)
+    (async () => {
+      setDepLoading(true);
+      setDepError(null);
+      try {
+        const q = buildQuery({
+          origin: formData.startLocation,
+          destination: formData.endLocation,
+          date: formData.validFrom,
+        });
+        const res = await fetch(`/api/seed/serviceschedules/get?${q}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load departures");
+        const raw = await res.json();
+        const arr = Array.isArray(raw) ? raw : (raw?.items ?? []);
+        const normalized: DepartureItem[] = arr
+          .map((r: any) => {
+            const d = r?.etd || r?.departure || r?.depDate || r?.date || r?.sailDate || "";
+            const iso = d ? new Date(d).toISOString().slice(0, 10) : "";
+            return {
+              date: iso,
+              priceByType: r?.priceByType || r?.prices || undefined,
+              isPreferred: !!r?.preferred,
+            };
+          })
+          .filter((d: DepartureItem) => d.date);
+        if (!cancelled) {
+          setDepartures(normalized);
+          setSelectedDepartureIdx(0);
+        }
+      } catch (e: any) {
+        if (!cancelled) setDepError(e?.message ?? "Unable to fetch departures");
+      } finally {
+        if (!cancelled) setDepLoading(false);
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -381,9 +425,11 @@ export const NewQuoteComponent: React.FC = () => {
     allowed.join("|"),
   ]);
 
-  /** --- PRICE MATH -------------------------------------------------------- */
+  /** --- PRICE + TIME HELPERS --------------------------------------------- */
   const qty = Math.max(1, Number(formData.containerQuantity || 1));
-  const selectedTariff = tariffs.find((t) => t.containerTypeCode === selectedCtCode) || null;
+  const selectedCode = (selectedCtCode || uiToPrimaryTariffCode(formData.containerType)).toUpperCase();
+  const selectedTariff: Tariff | null =
+    tariffs.find((t) => (t.containerTypeCode || "").toUpperCase() === selectedCode) || null;
 
   function perContainerTotalFor(t: Tariff | null): number {
     if (!t) return 0;
@@ -398,11 +444,61 @@ export const NewQuoteComponent: React.FC = () => {
     if (!t) return { currency: "USD", amount: 0 };
     const perCtr = perContainerTotalFor(t);
     let total = perCtr * qty;
-    // add per-shipment surcharges once
     for (const s of surcharges) {
       if (s.basis === "PER_SHIPMENT" && s.amount) total += s.amount;
     }
     return { currency: t.currency, amount: total };
+  }
+
+  // Selected departure date (fallback to validFrom if no schedule yet)
+  const selectedDepartureDate = useMemo(() => {
+    const iso = departures[selectedDepartureIdx]?.date || formData.validFrom;
+    // Make a Date at 17:00 local for ETD to avoid midnight ambiguity
+    const d = new Date(iso);
+    d.setHours(17, 0, 0, 0);
+    return d;
+  }, [departures, selectedDepartureIdx, formData.validFrom]);
+
+  function cutoff(etd: Date, daysBefore: number, hour = 17) {
+    const d = new Date(etd);
+    d.setDate(d.getDate() - daysBefore);
+    d.setHours(hour, 0, 0, 0);
+    return d;
+  }
+  const cutoffs = useMemo(() => {
+    const etd = selectedDepartureDate;
+    return [
+      { label: "CY Cutoff", date: cutoff(etd, 3, 17) },
+      { label: "Docs Cutoff", date: cutoff(etd, 2, 17) },
+      { label: "VGM Cutoff", date: cutoff(etd, 1, 17) },
+      { label: "ETD (Sailing)", date: cutoff(etd, 0, 17) },
+    ];
+  }, [selectedDepartureDate]);
+
+  // Live countdown tick
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  function fmtDateTime(d: Date) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+  }
+  function countdownTo(d: Date) {
+    const now = new Date().getTime();
+    const diff = d.getTime() - now;
+    if (diff <= 0) return { text: "Passed", past: true };
+    const s = Math.floor(diff / 1000);
+    const days = Math.floor(s / 86400);
+    const hours = Math.floor((s % 86400) / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    return { text: `${days}d ${hours}h ${mins}m`, past: false };
   }
 
   /** --- CONTROLS ---------------------------------------------------------- */
@@ -733,482 +829,541 @@ export const NewQuoteComponent: React.FC = () => {
         )}
 
         {/* STEP 2: OFFER (TARIFF) SELECTION */}
-            {currentStep === 2 && (
-              <div className={`${sectionStyle} p-13 mb-13`} style={cardGradient}>
-                {/* Inline Route Bar */}
-                <div className="mb-6">
-                  <div className="p-4 rounded-2xl flex items-center justify-between">
-                    {[
-                      { name: startLabel || formData.startLocation, type: formData.pickupType },
-                      { name: endLabel || formData.endLocation, type: formData.deliveryType },
-                    ].map((pt, idx) => (
-                      <React.Fragment key={idx}>
-                        <div className="flex flex-col items-center text-center">
-                          <div className="bg-[#2D4D8B] p-2 rounded-full">
-                            {pt.type === "door" ? <MapPin size={30} className="text-white" /> : <Anchor size={30} className="text-white" />}
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-[#22D3EE]">{pt.name}</div>
-                          <div className="text-sm text-white font-bold mt-1">{pt.type.toUpperCase()}</div>
+        {currentStep === 2 && (
+          <div className={`${sectionStyle} p-13 mb-13`} style={cardGradient}>
+            {/* Inline Route Bar */}
+            <div className="mb-6">
+              <div className="p-4 rounded-2xl flex items-center justify-between">
+                {[
+                  { name: startLabel || formData.startLocation, type: formData.pickupType },
+                  { name: endLabel || formData.endLocation, type: formData.deliveryType },
+                ].map((pt, idx) => (
+                  <React.Fragment key={idx}>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="bg-[#2D4D8B] p-2 rounded-full">
+                        {pt.type === "door" ? <MapPin size={30} className="text-white" /> : <Anchor size={30} className="text-white" />}
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-[#22D3EE]">{pt.name}</div>
+                      <div className="text-sm text-white font-bold mt-1">{pt.type.toUpperCase()}</div>
+                    </div>
+
+                    {idx < 1 && (
+                      <div className="flex items-center flex-1 mx-2 relative">
+                        <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
+                        <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
+                        <Sailboat size={55} className="text-[#22D3EE] mb-7" />
+                        <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
+                        <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
+
+                        <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 ">
+                          <button
+                            onClick={() => setIsRouteModalOpen(true)}
+                            className="uppercase px-4 py-1 text-sm bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] text-white rounded-xl shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 font-bold text-black "
+                          >
+                            Edit
+                          </button>
                         </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
 
-                        {idx < 1 && (
-                          <div className="flex items-center flex-1 mx-2 relative">
-                            <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
-                            <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
-                            <Sailboat size={55} className="text-[#22D3EE] mb-7" />
-                            <div className="flex-1 h-0.5 border-t-2 border-dotted border-[#22D3EE] mx-1"></div>
-                            <div className="w-2 h-2 bg-[#22D3EE] rounded-full"></div>
+            {/* Departures Section */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4 text-white font-bold uppercase">
+                <Ship size={18} className="text-[#22D3EE]" />
+                DEPARTURES
+                <span className="ml-3 text-xs font-normal opacity-80">
+                  {depLoading ? "Loading…" : depError ? depError : `${departures.length} sailings`}
+                </span>
+              </div>
 
-                            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 ">
-                              <button
-                                onClick={() => setIsRouteModalOpen(true)}
-                                className="uppercase px-4 py-1 text-sm bg-[#1d4595] hover:bg-[#1A2A4A] hover:text-[#00FFFF] text-white rounded-xl shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 font-bold text-black "
-                              >
-                                Edit
-                              </button>
+              <div className="flex items-center gap-4 overflow-x-auto pb-4">
+                <button
+                  className="p-2 text-[#22D3EE] hover:text-white transition-colors disabled:opacity-40"
+                  onClick={() => setSelectedDepartureIdx((i) => Math.max(0, i - 1))}
+                  disabled={selectedDepartureIdx === 0}
+                  aria-label="Previous"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+
+                {(departures.length ? departures : [{ date: formData.validFrom }]).map((d, idx) => {
+                  const selected = idx === selectedDepartureIdx;
+                  const priceObj =
+                    d.priceByType?.[selectedCode] ||
+                    (tariffs.find((t) => (t.containerTypeCode || "").toUpperCase() === selectedCode)
+                      ? {
+                          currency: (tariffs.find((t) => (t.containerTypeCode || "").toUpperCase() === selectedCode) as Tariff).currency,
+                          amount: (tariffs.find((t) => (t.containerTypeCode || "").toUpperCase() === selectedCode) as Tariff).amount,
+                        }
+                      : undefined);
+
+                  return (
+                    <div
+                      key={`${d.date}-${idx}`}
+                      onClick={() => setSelectedDepartureIdx(idx)}
+                      className={clsx(
+                        "flex flex-col items-center p-4 rounded-xl border-2 min-w-[140px] cursor-pointer transition-all",
+                        selected
+                          ? "bg-[#2D4D8B] border-[#22D3EE] text-white shadow-[8px_8px_0px_rgba(0,0,0,1)]"
+                          : "bg-[#1A2A4A] border-[#2D4D8B] text-white hover:bg-[#2D4D8B] hover:border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)]"
+                      )}
+                    >
+                      <div className="text-sm font-bold">{d.date}</div>
+                      <div className={clsx("text-lg font-bold mt-1", selected ? "text-[#22D3EE]" : "text-white")}>
+                        {priceObj ? `${priceObj.currency} ${priceObj.amount.toLocaleString()}` : "—"}
+                      </div>
+                      <div className="mt-2 w-6 h-6 rounded-full border-2 border-[#22D3EE] flex items-center justify-center">
+                        {selected && <div className="w-3 h-3 bg-[#22D3EE] rounded-full" />}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button
+                  className="p-2 text-[#22D3EE] hover:text-white transition-colors disabled:opacity-40"
+                  onClick={() =>
+                    setSelectedDepartureIdx((i) => Math.min((departures.length || 1) - 1, i + 1))
+                  }
+                  disabled={selectedDepartureIdx >= (departures.length || 1) - 1}
+                  aria-label="Next"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </div>
+
+              <div className="text-center text-[#22D3EE] text-sm mt-4 font-semibold">
+                Prices shown for {selectedCode} (switch type below)
+              </div>
+            </div>
+
+            {/* CONTENT GRID: Left = offers; Right = snapshot+timeline+assumptions */}
+            <div className="grid md:grid-cols-3 gap-6 mb-6">
+              {/* Left: Quick Quotes (Tariffs) */}
+              <div className="md:col-span-2 bg-[#1A2A4A] rounded-2xl border-2 border-[#2D4D8B] shadow-[15px_15px_0px_rgba(0,0,0,1)] overflow-hidden">
+                <div className="bg-[#2D4D8B] p-4 border-b-2 border-[#22D3EE]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#22D3EE] rounded-full flex items-center justify-center">
+                      <Clock size={16} className="text-black" />
+                    </div>
+                    <h3 className="font-bold text-white uppercase text-lg">Quick Quotes</h3>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-[#0A1A2F]">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Calendar size={16} className="text-[#22D3EE]" />
+                    <span className="text-sm text-[#22D3EE] font-semibold">
+                      {tariffsLoading ? "Loading…" : tariffsError ? tariffsError : "Public tariff"}
+                    </span>
+                  </div>
+
+                  {/* Group CT switcher */}
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    {allowed.map((ct) => {
+                      const t = tariffs.find((x) => (x.containerTypeCode || "").toUpperCase() === ct);
+                      return (
+                        <button
+                          key={ct}
+                          onClick={() => setSelectedCtCode(ct)}
+                          className={clsx(
+                            "p-3 text-md font-bold transition shadow border-2 border-black cursor-pointer text-left",
+                            selectedCode === ct
+                              ? "bg-gray-300 text-black rounded-3xl shadow-[13px_13px_0px_rgba(0,0,0,1)]"
+                              : "bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white rounded-lg shadow-[4px_4px_0px_rgba(0,0,0,1)]"
+                          )}
+                          title={t ? `${t.currency} ${Number(t.amount || 0).toLocaleString()} / container` : "No rate"}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>{ct}</span>
+                            <span className="text-xs font-semibold">
+                              {t ? `${t.currency} ${Number(t.amount || 0).toLocaleString()}` : "—"}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="space-y-3">
+                    {allowed.map((code) => {
+                      const t = tariffs.find((x) => (x.containerTypeCode || "").toUpperCase() === code);
+                      return (
+                        <div key={code} className="flex justify-between items-center bg-[#1A2A4A] p-3 rounded-lg border border-[#2D4D8B]">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg font-bold text-white">
+                              {t ? `${t.currency} ${t.amount.toLocaleString()}` : "—"}
+                            </span>
+                            <span className="text-xs text-[#22D3EE] font-semibold">/Container</span>
+                          </div>
+                          <div className="bg-[#2D4D8B] px-3 py-1 rounded-lg border border-[#22D3EE]">
+                            <span className="text-sm font-bold text-[#22D3EE]">{code}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedCtCode(selectedCode)}
+                    disabled={!tariffs.length}
+                    className={clsx(
+                      "w-full font-bold py-3 rounded-lg border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all uppercase mt-6",
+                      tariffs.length
+                        ? "bg-[#22D3EE] text-black hover:shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:bg-[#00FFFF]"
+                        : "bg-gray-500 text-gray-300 cursor-not-allowed"
+                    )}
+                  >
+                    Select
+                  </button>
+
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => setShowModal("breakdown")}
+                      className="flex-1 bg-[#2D4D8B] text-white font-bold py-2 px-3 rounded border-2 border-[#22D3EE] text-sm hover:bg-[#1A2F4E] transition-colors"
+                    >
+                      <BarChart3 size={16} className="inline mr-1" />
+                      Price Breakdown
+                    </button>
+                    <button
+                      onClick={() => setShowModal("remarks")}
+                      className="flex-1 bg-[#2D4D8B] text-white font-bold py-2 px-3 rounded border-2 border-[#22D3EE] text-sm hover:bg-[#1A2F4E] transition-colors"
+                    >
+                      <MessageCircle size={16} className="inline mr-1" />
+                      Remarks
+                    </button>
+                  </div>
+
+                  {/* Features */}
+                  <div className="mt-6 space-y-3 text-sm">
+                    <div className="flex items-center gap-3 text-[#22D3EE]">
+                      <CheckCircle size={16} />
+                      <span className="text-white">Equipment and Loading guarantee</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[#22D3EE]">
+                      <CheckCircle size={16} />
+                      <span className="text-white">Instant booking confirmation</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[#22D3EE]">
+                      <DollarSign size={16} />
+                      <span className="text-white">Fixed Ocean Freight (Surcharges valid at time of shipment)</span>
+                    </div>
+                  </div>
+
+                  <button className="w-full text-[#22D3EE] text-sm font-bold mt-4 hover:text-white transition-colors flex items-center justify-center gap-2">
+                    <ChevronDown size={16} />
+                    Show All Features
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Rail: Snapshot + Timeline + Assumptions */}
+              <div className="md:col-span-1 md:sticky top-4 h-fit space-y-6">
+                {/* Quote Snapshot */}
+                <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#22D3EE] shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                  <div className="bg-[#2D4D8B] px-4 py-3 border-b-2 border-[#22D3EE] flex items-center gap-3">
+                    <div className="w-7 h-7 bg-[#22D3EE] rounded-full flex items-center justify-center">
+                      <Package size={14} className="text-black" />
+                    </div>
+                    <div className="text-white font-bold uppercase text-sm">Quote Snapshot</div>
+                  </div>
+                  <div className="p-4 text-white space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span>Container Type</span>
+                      <span className="font-bold text-[#22D3EE]">{selectedCode}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Quantity</span>
+                      <span className="font-bold text-[#22D3EE]">{qty}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Base / Ctr</span>
+                      <span className="font-bold text-[#22D3EE]">
+                        {selectedTariff ? `${selectedTariff.currency} ${selectedTariff.amount.toLocaleString()}` : "—"}
+                      </span>
+                    </div>
+                    <div className="border-t border-[#2D4D8B] my-2" />
+                    <div className="flex justify-between text-base font-bold">
+                      <span className="text-[#00FFFF]">Est. Total</span>
+                      <span className="text-[#00FFFF]">
+                        {(() => {
+                          const g = grandTotalForSelection(selectedTariff);
+                          return `${g.currency} ${g.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sailing Timeline (cutoffs + countdown) */}
+                <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#22D3EE] shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                  <div className="bg-[#2D4D8B] px-4 py-3 border-b-2 border-[#22D3EE] flex items-center gap-3">
+                    <div className="w-7 h-7 bg-[#22D3EE] rounded-full flex items-center justify-center">
+                      <Clock size={14} className="text-black" />
+                    </div>
+                    <div className="text-white font-bold uppercase text-sm">Sailing Timeline</div>
+                  </div>
+                  <div className="p-4 text-white space-y-3">
+                    <div className="text-xs opacity-80">For departure: <span className="font-bold text-[#22D3EE]">{fmtDateTime(selectedDepartureDate)}</span></div>
+                    <div className="space-y-2">
+                      {cutoffs.map((m, i) => {
+                        const cd = countdownTo(m.date);
+                        return (
+                          <div key={i} className="flex items-center justify-between bg-[#0F1B2A] border border-[#2D4D8B] rounded-xl px-3 py-2">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold">{m.label}</span>
+                              <span className="text-xs opacity-90">{fmtDateTime(m.date)}</span>
+                            </div>
+                            <div
+                              className={clsx(
+                                "text-xs font-bold px-2 py-1 rounded-lg border",
+                                cd.past
+                                  ? "bg-[#3b0b0b] border-red-400 text-red-200"
+                                  : "bg-[#0d767d] border-teal-300 text-white"
+                              )}
+                            >
+                              {cd.text}
                             </div>
                           </div>
-                        )}
-                      </React.Fragment>
-                    ))}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                {/* Route Edit Modal */}
-                {isRouteModalOpen && (
-                  <div className="fixed inset-0 bg-transparent backdrop-blur-md bg-opacity-50 flex items-center justify-center z-50">
-                    <div
-                      className="text-white w-4/5 max-w-md p-6 rounded-2xl shadow-[30px_30px_0px_rgba(0,0,0,1)] border-2 border-white"
-                      style={cardGradient}
-                      onClick={(e) => e.stopPropagation()}
+                {/* Assumptions & Exclusions (derived) */}
+                <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#22D3EE] shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                  <div className="bg-[#2D4D8B] px-4 py-3 border-b-2 border-[#22D3EE] flex items-center gap-3">
+                    <div className="w-7 h-7 bg-[#22D3EE] rounded-full flex items-center justify-center">
+                      <CheckCircle size={14} className="text-black" />
+                    </div>
+                    <div className="text-white font-bold uppercase text-sm">Assumptions & Exclusions</div>
+                  </div>
+                  <div className="p-4 text-white text-sm space-y-2">
+                    <div className="flex justify-between">
+                      <span>SOC</span>
+                      <span className="font-bold">{formData.shipperOwnedContainer ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Commodity</span>
+                      <span className="font-bold">{formData.commodity || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Weight / Ctr</span>
+                      <span className="font-bold">
+                        {formData.weightPerContainer || "—"} {formData.weightUnit}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Dangerous Goods</span>
+                      <span className="font-bold">
+                        {formData.dangerousGoods ? `Yes${formData.imoClass ? ` (IMO ${formData.imoClass})` : ""}${formData.unNumber ? `, ${formData.unNumber}` : ""}` : "No"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pickup</span>
+                      <span className="font-bold">{formData.pickupType.toUpperCase()}</span>
+                    </div>
+                    <div className={clsx("text-xs rounded-md px-2 py-1 border",
+                      formData.pickupType === "door" && pickupDoorAllowed === false
+                        ? "bg-[#3b0b0b] border-red-400 text-red-200"
+                        : "bg-[#0F1B2A] border-[#2D4D8B] text-white/90"
+                    )}>
+                      {formData.pickupType === "door"
+                        ? pickupDoorAllowed === false
+                          ? "Pickup at door not supported at origin."
+                          : "Door pickup assumed."
+                        : "Terminal pickup assumed."}
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Delivery</span>
+                      <span className="font-bold">{formData.deliveryType.toUpperCase()}</span>
+                    </div>
+                    <div className={clsx("text-xs rounded-md px-2 py-1 border",
+                      formData.deliveryType === "door" && deliveryDoorAllowed === false
+                        ? "bg-[#3b0b0b] border-red-400 text-red-200"
+                        : "bg-[#0F1B2A] border-[#2D4D8B] text-white/90"
+                    )}>
+                      {formData.deliveryType === "door"
+                        ? deliveryDoorAllowed === false
+                          ? "Delivery at door not supported at destination."
+                          : "Door delivery assumed."
+                        : "Terminal delivery assumed."}
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Valid From</span>
+                      <span className="font-bold">{formData.validFrom}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Price Breakdown / Remarks Modal */}
+            {showModal && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowModal(null)}>
+                <div
+                  className="rounded-xl w-4/5 max-w-4xl max-h-[80vh] overflow-hidden border-4 border-black shadow-[-8px_4px_16px_rgba(0,0,0,0.6)]"
+                  onClick={(e) => e.stopPropagation()}
+                  style={cardGradient}
+                >
+                  {/* Modal Header */}
+                  <div className="flex border-b-4 rounded-xl border-black">
+                    <button
+                      onClick={() => setShowModal("breakdown")}
+                      className={clsx(
+                        "flex-1 px-6 py-4 font-bold border-r-4 border-black transition-all",
+                        showModal === "breakdown" ? "bg-[#0057d9] text-white" : "bg-[#2a72dc] text-white hover:bg-[#1c437c]"
+                      )}
                     >
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold">Routing Points</h3>
-                        <button onClick={() => setIsRouteModalOpen(false)}>
-                          <X size={20} />
-                        </button>
-                      </div>
-                      <div className="space-y-4">
-                        <LocationInput
-                          label="START LOCATION"
-                          value={formData.startLocation}
-                          onChange={(code, display, row) => {
-                            setFormData((f) => ({ ...f, startLocation: code }));
-                            setStartLabel(display);
-                            setStartMeta(row || null);
-                            if (code && formData.endLocation && code.trim().toUpperCase() === formData.endLocation.trim().toUpperCase()) {
-                              setFormData((f) => ({ ...f, endLocation: "" }));
-                              setEndLabel("");
-                              setEndMeta(null);
-                            }
-                          }}
-                          excludeCodes={formData.endLocation ? [formData.endLocation] : undefined}
-                          excludeLabels={endLabel ? [endLabel] : undefined}
-                        />
-                        <LocationInput
-                          label="END LOCATION"
-                          value={formData.endLocation}
-                          onChange={(code, display, row) => {
-                            setFormData((f) => ({ ...f, endLocation: code }));
-                            setEndLabel(display);
-                            setEndMeta(row || null);
-                            if (code && formData.startLocation && code.trim().toUpperCase() === formData.startLocation.trim().toUpperCase()) {
-                              setFormData((f) => ({ ...f, startLocation: "" }));
-                              setStartLabel("");
-                              setStartMeta(null);
-                            }
-                          }}
-                          excludeCodes={startLabel ? [formData.startLocation] : undefined}
-                          excludeLabels={startLabel ? [startLabel] : undefined}
-                        />
-                      </div>
-                      <div className="flex justify-end mt-6">
-                        <button
-                          onClick={() => setIsRouteModalOpen(false)}
-                          className="px-4 py-2 font-bold border-2 border-black rounded bg-gray-300 text-black hover:bg-gray-400 mr-2"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => setIsRouteModalOpen(false)}
-                          className="px-4 py-2 font-bold border-2 border-black rounded bg-[#0d767d] text-white hover:bg-[#0A5B61]"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Departures Section */}
-                <div className="mb-8">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="flex items-center text-white font-bold uppercase">
-                      <span className="text-[#22D3EE] mr-2">✈️</span>
-                      DEPARTURES
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 overflow-x-auto pb-4">
-                    <button className="p-2 text-[#22D3EE] hover:text-white transition-colors">
-                      <ChevronLeft size={24} />
+                      Price Breakdown
                     </button>
-                    
-                    {[
-                      { date: '2025-08-17', price: '1365', selected: true },
-                      { date: '2025-08-24', price: '1365' },
-                      { date: '2025-08-31', price: '1365' },
-                      { date: '2025-09-07', price: '1365' },
-                      { date: '2025-09-14', price: '1365' },
-                    ].map((departure, idx) => (
-                      <div
-                        key={idx}
-                        className={clsx(
-                          "flex flex-col items-center p-4 rounded-xl border-2 min-w-[120px] cursor-pointer transition-all",
-                          departure.selected
-                            ? "bg-[#2D4D8B] border-[#22D3EE] text-white shadow-[8px_8px_0px_rgba(0,0,0,1)]"
-                            : "bg-[#1A2A4A] border-[#2D4D8B] text-white hover:bg-[#2D4D8B] hover:border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)]"
-                        )}
-                      >
-                        <div className="text-sm font-bold text-white">{departure.date}</div>
-                        <div className={clsx(
-                          "text-lg font-bold mt-1",
-                          departure.selected ? "text-[#22D3EE]" : "text-white"
-                        )}>
-                          USD {departure.price}
-                        </div>
-                        <div className="mt-2 w-6 h-6 rounded-full border-2 border-[#22D3EE] flex items-center justify-center">
-                          {departure.selected && <div className="w-3 h-3 bg-[#22D3EE] rounded-full" />}
-                        </div>
-                      </div>
-                    ))}
-                    
-                    <button className="p-2 text-[#22D3EE] hover:text-white transition-colors">
-                      <ChevronRight size={24} />
+                    <button
+                      onClick={() => setShowModal("remarks")}
+                      className={clsx(
+                        "flex-1 px-6 py-4 font-bold transition-all",
+                        showModal === "remarks" ? "bg-[#7000c6] text-white" : "bg-[#7b22bf] text-[#faf9f6] hover:bg-[#330358]"
+                      )}
+                    >
+                      Remarks and Info
+                    </button>
+                    <button onClick={() => setShowModal(null)} className="px-4 py-4 bg-gray-300 text-black hover:bg-gray-400 transition-all">
+                      <X size={20} />
                     </button>
                   </div>
-                  
-                  <div className="text-center text-[#22D3EE] text-sm mt-4 font-semibold">
-                    Freights as per 40HC - others also included for Quick Quotes
-                  </div>
-                </div>
 
-                {/* Quote Options */}
-                <div className="grid md:grid-cols-2 gap-6 mb-6">
-                  {/* Quick Quotes */}
-                  <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#2D4D8B] shadow-[15px_15px_0px_rgba(0,0,0,1)] overflow-hidden">
-                    <div className="bg-[#2D4D8B] p-4 border-b-2 border-[#22D3EE]">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-[#22D3EE] rounded-full flex items-center justify-center">
-                          <Clock size={16} className="text-black" />
+                  {/* Modal Content */}
+                  <div className="p-6 overflow-y-auto max-h-[60vh] text-white">
+                    {showModal === "breakdown" && (
+                      <div>
+                        <h3 className="text-2xl font-bold mb-6">Total Price Estimate</h3>
+
+                        {/* Summary across the selected family/group */}
+                        <div className="bg-[#2D4D8B] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
+                          <div className="grid grid-cols-4 gap-4 text-center">
+                            <div className="font-bold">Container Type</div>
+                            {allowed.map((c) => <div key={c} className="font-bold">{c}</div>)}
+                            <div>Estimated Total / Container</div>
+                            {allowed.map((c) => {
+                              const t = tariffs.find((x) => (x.containerTypeCode || "").toUpperCase() === c) || null;
+                              const per = perContainerTotalFor(t);
+                              const cur = t?.currency || "USD";
+                              return <div key={c}>{cur} {per.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>;
+                            })}
+                          </div>
+                          <div className="text-xs mt-2 opacity-90 text-white/90">
+                            Includes base ocean freight + any per-container / percent surcharges. Per-shipment charges are added once at checkout.
+                          </div>
                         </div>
-                        <h3 className="font-bold text-white uppercase text-lg">Quick Quotes</h3>
-                      </div>
-                    </div>
-                    
-                    <div className="p-6 bg-[#0A1A2F]">
-                      <div className="flex items-center gap-3 mb-4">
-                        <Calendar size={16} className="text-[#22D3EE]" />
-                        <span className="text-sm text-[#22D3EE] font-semibold">
-                          Valid 2025-08-11 to 2025-09-30
-                        </span>
-                      </div>
-                      
-                      <div className="mb-6">
-                        <div className="flex items-center gap-3 mb-4">
-                          <Ship size={16} className="text-[#22D3EE]" />
-                          <span className="text-sm font-bold text-white uppercase">
-                            Ocean Freight (all in one document)
-                          </span>
-                        </div>
-                        
-                        <div className="space-y-3">
-                          {[
-                            { type: '20STD', price: '895' },
-                            { type: '40STD', price: '1365' },
-                            { type: '40HC', price: '1365' },
-                          ].map((container, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-[#1A2A4A] p-3 rounded-lg border border-[#2D4D8B]">
-                              <div className="flex items-center gap-3">
-                                <span className="text-lg font-bold text-white">
-                                  USD {container.price}
-                                </span>
-                                <span className="text-xs text-[#22D3EE] font-semibold">
-                                  /Container
-                                </span>
-                              </div>
-                              <div className="bg-[#2D4D8B] px-3 py-1 rounded-lg border border-[#22D3EE]">
-                                <span className="text-sm font-bold text-[#22D3EE]">
-                                  {container.type}
-                                </span>
+
+                        {/* Detailed lines for the selected type */}
+                        {selectedTariff && (
+                          <>
+                            <h4 className="text-xl font-bold mb-4">
+                              Selected: {selectedTariff.containerTypeCode}
+                            </h4>
+
+                            <div className="bg-[#1e3a8a] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="font-bold">Ocean Freight</div>
+                                <div className="text-right">
+                                  {selectedTariff.currency} {selectedTariff.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                  <span className="opacity-80"> / container</span>
+                                </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <button className="w-full bg-[#22D3EE] text-black font-bold py-3 rounded-lg border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:bg-[#00FFFF] transition-all uppercase">
-                        Select
-                      </button>
-                      
-                      <div className="flex gap-2 mt-4">
-                        <button 
-                          onClick={() => setShowModal("breakdown")}
-                          className="flex-1 bg-[#2D4D8B] text-white font-bold py-2 px-3 rounded border-2 border-[#22D3EE] text-sm hover:bg-[#1A2F4E] transition-colors"
-                        >
-                          <BarChart3 size={16} className="inline mr-1" />
-                          Price Breakdown
-                        </button>
-                        <button 
-                          onClick={() => setShowModal("remarks")}
-                          className="flex-1 bg-[#2D4D8B] text-white font-bold py-2 px-3 rounded border-2 border-[#22D3EE] text-sm hover:bg-[#1A2F4E] transition-colors"
-                        >
-                          <MessageCircle size={16} className="inline mr-1" />
-                          Remarks
-                        </button>
-                      </div>
-                      
-                      {/* Features */}
-                      <div className="mt-6 space-y-3 text-sm">
-                        <div className="flex items-center gap-3 text-[#22D3EE]">
-                          <CheckCircle size={16} />
-                          <span className="text-white">Equipment and Loading guarantee</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[#22D3EE]">
-                          <CheckCircle size={16} />
-                          <span className="text-white">Instant booking confirmation</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[#22D3EE]">
-                          <DollarSign size={16} />
-                          <span className="text-white">Fixed Ocean Freight (Surcharges valid at time of shipment)</span>
-                        </div>
-                      </div>
-                      
-                      <button className="w-full text-[#22D3EE] text-sm font-bold mt-4 hover:text-white transition-colors flex items-center justify-center gap-2">
-                        <ChevronDown size={16} />
-                        Show All Features
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* Quick Quotes Spot */}
-                  <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#444] shadow-[15px_15px_0px_rgba(0,0,0,1)] overflow-hidden opacity-60">
-                    <div className="bg-[#444] p-4 border-b-2 border-[#666]">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-[#666] rounded-full flex items-center justify-center">
-                          <Calendar size={16} className="text-white" />
-                        </div>
-                        <h3 className="font-bold text-gray-300 uppercase text-lg">Quick Quotes Spot</h3>
-                      </div>
-                    </div>
-                    
-                    <div className="p-6 bg-[#222]">
-                      <div className="text-center py-8">
-                        <AlertCircle size={48} className="text-yellow-500 mx-auto mb-4" />
-                        <p className="text-gray-300 text-sm mb-4 leading-relaxed">
-                          To receive Quick Quotes Spot offers your user needs to be verified on our side. 
-                          This will be done max. 2 days after your registration.
-                        </p>
-                      </div>
-                      
-                      <div className="flex gap-2 mt-4">
-                        <button 
-                          disabled
-                          className="flex-1 bg-gray-600 text-gray-400 font-bold py-2 px-3 rounded border-2 border-gray-500 text-sm cursor-not-allowed"
-                        >
-                          <BarChart3 size={16} className="inline mr-1" />
-                          Price Breakdown
-                        </button>
-                        <button 
-                          disabled
-                          className="flex-1 bg-gray-600 text-gray-400 font-bold py-2 px-3 rounded border-2 border-gray-500 text-sm cursor-not-allowed"
-                        >
-                          <MessageCircle size={16} className="inline mr-1" />
-                          Remarks
-                        </button>
-                      </div>
-                      
-                      {/* Features */}
-                      <div className="mt-6 space-y-3 text-sm opacity-50">
-                        <div className="flex items-center gap-3">
-                          <CheckCircle size={16} className="text-gray-400" />
-                          <span className="text-gray-400">Equipment and Loading guarantee</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <CheckCircle size={16} className="text-gray-400" />
-                          <span className="text-gray-400">Instant booking confirmation</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <DollarSign size={16} className="text-gray-400" />
-                          <span className="text-gray-400">Fixed Ocean Freight and surcharges</span>
-                        </div>
-                      </div>
-                      
-                      <button className="w-full text-gray-400 text-sm font-bold mt-4 cursor-not-allowed flex items-center justify-center gap-2">
-                        <ChevronDown size={16} />
-                        Show All Features
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Price Breakdown / Remarks Modal */}
-                {showModal && (
-                  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowModal(null)}>
-                    <div
-                      className="rounded-xl w-4/5 max-w-4xl max-h-[80vh] overflow-hidden border-4 border-black shadow-[-8px_4px_16px_rgba(0,0,0,0.6)]"
-                      onClick={(e) => e.stopPropagation()}
-                      style={cardGradient}
-                    >
-                      {/* Modal Header */}
-                      <div className="flex border-b-4 rounded-xl border-black">
-                        <button
-                          onClick={() => setShowModal("breakdown")}
-                          className={clsx(
-                            "flex-1 px-6 py-4 font-bold border-r-4 border-black transition-all",
-                            showModal === "breakdown" ? "bg-[#0057d9] text-white" : "bg-[#2a72dc] text-white hover:bg-[#1c437c]"
-                          )}
-                        >
-                          Price Breakdown
-                        </button>
-                        <button
-                          onClick={() => setShowModal("remarks")}
-                          className={clsx(
-                            "flex-1 px-6 py-4 font-bold transition-all",
-                            showModal === "remarks" ? "bg-[#7000c6] text-white" : "bg-[#7b22bf] text-[#faf9f6] hover:bg-[#330358]"
-                          )}
-                        >
-                          Remarks and Info
-                        </button>
-                        <button onClick={() => setShowModal(null)} className="px-4 py-4 bg-gray-300 text-black hover:bg-gray-400 transition-all">
-                          <X size={20} />
-                        </button>
-                      </div>
-
-                      {/* Modal Content */}
-                      <div className="p-6 overflow-y-auto max-h-[60vh] text-white">
-                        {showModal === "breakdown" && (
-                          <div>
-                            <h3 className="text-2xl font-bold mb-6">Total Price Estimate</h3>
-
-                            {/* Summary across the family */}
-                            <div className="bg-[#2D4D8B] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
-                              <div className="grid grid-cols-4 gap-4 text-center">
-                                <div className="font-bold">Container Type</div>
-                                {allowed.map((c) => <div key={c} className="font-bold">{c}</div>)}
-                                <div>Estimated Total / Container</div>
-                                {allowed.map((c) => {
-                                  const t = tariffs.find((x) => x.containerTypeCode === c) || null;
-                                  const per = perContainerTotalFor(t);
-                                  const cur = t?.currency || "USD";
-                                  return <div key={c}>{cur} {per.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>;
+                            <h4 className="text-xl font-bold mb-4">Surcharges</h4>
+                            <div className="bg-[#051241] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
+                              <div className="grid grid-cols-3 gap-4 text-sm">
+                                <div className="font-bold">Code</div>
+                                <div className="font-bold">Basis</div>
+                                <div className="font-bold text-right">Amount</div>
+                                {surcharges.map((s, i) => {
+                                  let text = "-";
+                                  if (s.basis === "PER_CONTAINER" && s.amount != null) {
+                                    text = `${s.currency} ${s.amount.toLocaleString()} / container`;
+                                  } else if (s.basis === "PER_SHIPMENT" && s.amount != null) {
+                                    text = `${s.currency} ${s.amount.toLocaleString()} per shipment`;
+                                  } else if (s.basis === "PERCENT" && s.percent != null) {
+                                    text = `${s.percent}% of ocean freight`;
+                                  }
+                                  return (
+                                    <React.Fragment key={i}>
+                                      <div title={s.description || s.code}>{s.code}</div>
+                                      <div>{s.basis.replace("_", " ")}</div>
+                                      <div className="text-right">{text}</div>
+                                    </React.Fragment>
+                                  );
                                 })}
                               </div>
-                              <div className="text-xs mt-2 opacity-90 text-white/90">
-                                Includes base ocean freight + any per-container / percent surcharges. Per-shipment charges are added once at checkout.
-                              </div>
                             </div>
 
-                            {/* Detailed lines for the selected type */}
-                            {selectedTariff && (
-                              <>
-                                <h4 className="text-xl font-bold mb-4">Selected: {selectedTariff.containerTypeCode}</h4>
-
-                                <div className="bg-[#1e3a8a] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="font-bold">Ocean Freight</div>
-                                    <div className="text-right">
-                                      {selectedTariff.currency} {selectedTariff.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                                      <span className="opacity-80"> / container</span>
+                            <div className="bg-[#0A1A2F] border-4 border-white p-4 rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)]">
+                              {(() => {
+                                const { currency, amount } = grandTotalForSelection(selectedTariff);
+                                return (
+                                  <>
+                                    <div className="flex justify-between text-xl font-bold">
+                                      <span className="text-[#00FFFF]">TOTAL ESTIMATE ({qty}× {selectedTariff.containerTypeCode}):</span>
+                                      <span className="text-[#00FFFF]">
+                                        {currency} {amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                      </span>
                                     </div>
-                                  </div>
-                                </div>
-
-                                <h4 className="text-xl font-bold mb-4">Surcharges</h4>
-                                <div className="bg-[#051241] border-4 border-black p-4 mb-6 shadow-[10px_10px_0px_rgba(0,0,0,1)] rounded-xl">
-                                  <div className="grid grid-cols-3 gap-4 text-sm">
-                                    <div className="font-bold">Code</div>
-                                    <div className="font-bold">Basis</div>
-                                    <div className="font-bold text-right">Amount</div>
-                                    {surcharges.map((s, i) => {
-                                      let text = "-";
-                                      if (s.basis === "PER_CONTAINER" && s.amount != null) {
-                                        text = `${s.currency} ${s.amount.toLocaleString()} / container`;
-                                      } else if (s.basis === "PER_SHIPMENT" && s.amount != null) {
-                                        text = `${s.currency} ${s.amount.toLocaleString()} per shipment`;
-                                      } else if (s.basis === "PERCENT" && s.percent != null) {
-                                        text = `${s.percent}% of ocean freight`;
-                                      }
-                                      return (
-                                        <React.Fragment key={i}>
-                                          <div title={s.description || s.code}>{s.code}</div>
-                                          <div>{s.basis.replace("_", " ")}</div>
-                                          <div className="text-right">{text}</div>
-                                        </React.Fragment>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                <div className="bg-[#0A1A2F] border-4 border-white p-4 rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)]">
-                                  {(() => {
-                                    const { currency, amount } = grandTotalForSelection(selectedTariff);
-                                    return (
-                                      <>
-                                        <div className="flex justify-between text-xl font-bold">
-                                          <span className="text-[#00FFFF]">TOTAL ESTIMATE ({qty}× {selectedTariff.containerTypeCode}):</span>
-                                          <span className="text-[#00FFFF]">
-                                            {currency} {amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                                          </span>
-                                        </div>
-                                        <div className="text-xs opacity-90 mt-1">
-                                          Includes per-shipment charges once; actuals may vary at booking.
-                                        </div>
-                                      </>
-                                    );
-                                  })()}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        )}
-
-                        {showModal === "remarks" && (
-                          <div>
-                            <h3 className="text-2xl font-bold mb-6">Remarks</h3>
-                            <div className="bg-[#1A2A4A] rounded-xl border-4 border-black p-6 mb-6">
-                              <p className="mb-4">
-                                Future Marine Fuel Recovery (MFR) surcharge adjustments may not be reflected. Check your local tariff
-                                notes and terms for full validity and exceptions.
-                              </p>
-                              <p>
-                                Detention & Demurrage and country-specific fees may apply depending on equipment and terminal handling.
-                              </p>
+                                    <div className="text-xs opacity-90 mt-1">
+                                      Includes per-shipment charges once; actuals may vary at booking.
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
-                          </div>
+                          </>
                         )}
                       </div>
+                    )}
 
-                      {/* Modal Footer */}
-                      <div className="border-t-4 border-black p-4 bg-[#22546d] flex justify-end">
-                        <button
-                          onClick={() => setShowModal(null)}
-                          className="bg-gray-300 text-black rounded-xl px-6 py-2 font-bold border-4 border-black shadow-[-4px_2px_8px_rgba(0,0,0,0.4)] hover:bg-gray-400 transition-all"
-                        >
-                          Close
-                        </button>
+                    {showModal === "remarks" && (
+                      <div>
+                        <h3 className="text-2xl font-bold mb-6">Remarks</h3>
+                        <div className="bg-[#1A2A4A] rounded-xl border-4 border-black p-6 mb-6">
+                          <p className="mb-4">
+                            Future Marine Fuel Recovery (MFR) surcharge adjustments may not be reflected. Check your local tariff
+                            notes and terms for full validity and exceptions.
+                          </p>
+                          <p>
+                            Detention & Demurrage and country-specific fees may apply depending on equipment and terminal handling.
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
+
+                  {/* Modal Footer */}
+                  <div className="border-t-4 border-black p-4 bg-[#22546d] flex justify-end">
+                    <button
+                      onClick={() => setShowModal(null)}
+                      className="bg-gray-300 text-black rounded-xl px-6 py-2 font-bold border-4 border-black shadow-[-4px_2px_8px_rgba(0,0,0,0.4)] hover:bg-gray-400 transition-all"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
+          </div>
+        )}
 
         {/* STEP 3: REVIEW */}
         {currentStep === 3 && (
           (() => {
             const t = selectedTariff;
             const totals = t ? grandTotalForSelection(t) : { currency: "USD", amount: 0 };
+            const qty = Math.max(1, Number(formData.containerQuantity || 1));
             return (
               <div className={`${sectionStyle} p-10 mb-13`} style={cardGradient}>
                 <h2 className="text-xl font-bold text-[#faf9f6] mb-6 flex items-center gap-2">
@@ -1264,7 +1419,7 @@ export const NewQuoteComponent: React.FC = () => {
                       <div className="text-center">
                         <div className="text-[#faf9f6] text-xs">CONTAINER</div>
                         <div className="uppercase text-[#00FFFF] text-sm font-bold">
-                          {qty}× {selectedCtCode || uiToPrimaryTariffCode(formData.containerType)}
+                          {qty}× {(selectedCtCode || uiToPrimaryTariffCode(formData.containerType))}
                         </div>
                       </div>
                       <div className="text-center">
