@@ -858,6 +858,10 @@ export function ServiceComponent() {
     }
   }
 
+  const [cutoffIdsByPc, setCutoffIdsByPc] = useState<
+  Record<string, Partial<Record<CutoffKind, string>>>
+>({});
+
   // FIXED: include scheduleId & voyageId and correct 'portcalls' path + '/get'
   async function fetchCutoffsFor(scheduleId: string, voyageId: string, calls: PortCall[]) {
     const entries = await Promise.all(
@@ -867,32 +871,45 @@ export function ServiceComponent() {
           const { data } = await axios.get(
             `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${pc.id}/cutoffs/get`
           );
+
           const values: Partial<Record<CutoffKind, string>> = {};
+          const ids: Partial<Record<CutoffKind, string>> = {};
+
           (data.cutoffs ?? []).forEach((c: any) => {
             values[c.kind as CutoffKind] = c.at;
+            ids[c.kind as CutoffKind] = c.id; // <-- capture id
           });
+
+          // keep your DOC_SI suggestion
           if (!values.DOC_SI) {
             const suggested = defaultDocSiFromEtd(pc.etd || undefined);
             if (suggested) values.DOC_SI = suggested;
           }
-          return [pc.id!, { timezone: data.port?.timezone ?? "UTC", values }] as const;
+
+          return [pc.id!, { tz: data.port?.timezone ?? "UTC", values, ids }] as const;
         } catch {
           const suggested = defaultDocSiFromEtd(pc.etd || undefined);
           const values: Partial<Record<CutoffKind, string>> = {};
           if (suggested) values.DOC_SI = suggested;
-          return [pc.id!, { timezone: "UTC", values }] as const;
+          return [pc.id!, { tz: "UTC", values, ids: {} }] as const;
         }
       })
     );
 
-    const map: Record<string, { timezone?: string; values: Partial<Record<CutoffKind, string>> }> = {};
+    const valueMap: Record<string, { timezone?: string; values: Partial<Record<CutoffKind, string>> }> = {};
+    const idMap: Record<string, Partial<Record<CutoffKind, string>>> = {};
+
     for (const e of entries) {
       if (!e) continue;
-      const [id, val] = e;
-      map[id] = val;
+      const [id, { tz, values, ids }] = e;
+      valueMap[id] = { timezone: tz, values };
+      idMap[id] = ids;
     }
-    setCutoffsByPortCall(map);
+
+    setCutoffsByPortCall(valueMap);
+    setCutoffIdsByPc(idMap);
   }
+
 
   function fmtLocal(isoUtc: string, tz: string) {
     try {
@@ -965,48 +982,73 @@ export function ServiceComponent() {
   }
 
   // FIXED: nested PATCH + refresh GET
-  async function saveCutoffs() {
-    if (!cutoffPortCall?.id) return;
-    const scheduleId = selectedVoyage?.service?.id ?? selectedSchedule?.id;
-    const voyageId = selectedVoyage?.id;
-    if (!scheduleId || !voyageId) return showMessage("error", "Missing schedule/voyage id");
+async function saveCutoffs() {
+  if (!cutoffPortCall?.id) return;
+  const scheduleId = selectedVoyage?.service?.id ?? selectedSchedule?.id;
+  const voyageId = selectedVoyage?.id;
+  if (!scheduleId || !voyageId) return showMessage("error", "Missing schedule/voyage id");
 
-    setCutoffSaving(true);
-    try {
-      await axios.patch(
-        `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${cutoffPortCall.id}/cutoffs`,
-        {
-          updates: cutoffRows.filter((r) => r.at),
+  const idsForPc = cutoffIdsByPc[cutoffPortCall.id] || {};
+  const toSave = cutoffRows.filter((r) => r.at);
+
+  if (toSave.length === 0) {
+    showMessage("error", "No cut-offs to save");
+    return;
+  }
+
+  setCutoffSaving(true);
+  try {
+    const results = await Promise.allSettled(
+      toSave.map((r) => {
+        const cutoffId = idsForPc[r.kind];
+        if (!cutoffId) {
+          // your API only supports update-by-id; no id means nothing to patch
+          return Promise.reject(new Error(`No existing ${r.kind} cutoff id to update.`));
         }
-      );
+        return axios.patch(
+          `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${cutoffPortCall.id}/cutoffs/${cutoffId}/patch`,
+          { at: r.at, source: r.source ?? "MANUAL" }
+        );
+      })
+    );
+
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length) {
+      showMessage("error", `Some cut-offs failed: ${failed.length}. Check console/network.`);
+    } else {
       showMessage("success", "Cut-offs saved");
       setCutoffModalOpen(false);
-
-      // refresh inline viewer map for this port call
-      try {
-        const { data } = await axios.get(
-          `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${cutoffPortCall.id}/cutoffs/get`
-        );
-        const values: Partial<Record<CutoffKind, string>> = {};
-        (data.cutoffs ?? []).forEach((c: any) => {
-          values[c.kind as CutoffKind] = c.at;
-        });
-        setCutoffsByPortCall((prev) => ({
-          ...prev,
-          [cutoffPortCall.id!]: { timezone: data.port?.timezone ?? "UTC", values },
-        }));
-      } catch {
-        // ignore
-      }
-    } catch (e: any) {
-      const msg = axios.isAxiosError(e)
-        ? e.response?.data?.error || "Failed to save cut-offs"
-        : "Failed to save cut-offs";
-      showMessage("error", msg);
-    } finally {
-      setCutoffSaving(false);
     }
+
+    // refresh inline data (values + ids)
+    try {
+      const { data } = await axios.get(
+        `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${cutoffPortCall.id}/cutoffs/get`
+      );
+      const values: Partial<Record<CutoffKind, string>> = {};
+      const ids2: Partial<Record<CutoffKind, string>> = {};
+      (data.cutoffs ?? []).forEach((c: any) => {
+        values[c.kind as CutoffKind] = c.at;
+        ids2[c.kind as CutoffKind] = c.id;
+      });
+      setCutoffsByPortCall((prev) => ({
+        ...prev,
+        [cutoffPortCall.id!]: { timezone: data.port?.timezone ?? "UTC", values },
+      }));
+      setCutoffIdsByPc((prev) => ({ ...prev, [cutoffPortCall.id!]: ids2 }));
+    } catch {
+      /* ignore */
+    }
+  } catch (e: any) {
+    const msg = axios.isAxiosError(e)
+      ? e.response?.data?.error || "Failed to save cut-offs"
+      : "Failed to save cut-offs";
+    showMessage("error", msg);
+  } finally {
+    setCutoffSaving(false);
   }
+}
+
 
   // NEW: Port call edit helpers
   function openEditPortCall(pc: PortCall) {
@@ -1105,7 +1147,6 @@ export function ServiceComponent() {
       </div>
     );
   }
-
   // ───────────────────────────────────────────────────────────────────────────
   // Render
   // ───────────────────────────────────────────────────────────────────────────

@@ -529,7 +529,7 @@ model PortCall {
   @@index([voyageId, order])
   @@index([eta])
   @@index([etd])
-  @@unique([voyageId, order]) // ← add this
+  @@unique([voyageId, order]) 
 }
 
 model PortCallCutoff {

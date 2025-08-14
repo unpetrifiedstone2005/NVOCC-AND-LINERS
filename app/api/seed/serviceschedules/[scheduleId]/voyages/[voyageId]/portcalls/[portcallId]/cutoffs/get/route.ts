@@ -3,37 +3,32 @@ import { prismaClient } from "@/app/lib/db";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { portCallId: string } }
+  { params }: { params: Promise<{ scheduleId: string; voyageId: string; portCallId?: string; portcallId?: string }> }
 ) {
-  const { portCallId } = params;
+  const p = await params; // ✅ await params (not the whole context)
+  const portCallId = p.portCallId ?? p.portcallId; // tolerate folder casing
+
+  if (!portCallId) {
+    return NextResponse.json({ error: "Missing portCallId" }, { status: 400 });
+  }
 
   try {
-    // Grab only fields we know exist on PortCall
     const portCall = await prismaClient.portCall.findUnique({
       where: { id: portCallId },
       select: { id: true, portUnlocode: true },
     });
+    if (!portCall) {
+      return NextResponse.json({ error: "Port call not found" }, { status: 404 });
+    }
 
-    // Default timezone if you don’t have a ports catalog
+    // Optional timezone lookup
     let timezone = "UTC";
-
-    // Best-effort ports catalog lookup without TS errors.
-    // If you have a model like `Port`/`Ports`/`Unlocode` with `unlocode` and `timezone`,
-    // this will try them in order. If none exist, we keep UTC.
     try {
-      const code = portCall?.portUnlocode;
+      const code = portCall.portUnlocode;
       if (code) {
-        const anyClient = prismaClient as any;
+        const any = prismaClient as any;
         const portModel =
-          anyClient.Port ??
-          anyClient.PortCatalog ??
-          anyClient.Ports ??
-          anyClient.port ??
-          anyClient.ports ??
-          anyClient.Unlocode ??
-          anyClient.unlocode ??
-          null;
-
+          any.Port ?? any.PortCatalog ?? any.Ports ?? any.port ?? any.ports ?? any.Unlocode ?? any.unlocode ?? null;
         if (portModel?.findUnique) {
           const port = await portModel.findUnique({
             where: { unlocode: code },
@@ -43,34 +38,34 @@ export async function GET(
         }
       }
     } catch {
-      // ignore and keep UTC
+      // keep UTC
     }
 
-    // Load cutoffs for this port call.
-    // Prefer the `portCallCutoff` model; fall back to `cutoff` if that’s your schema.
-    let cutoffs: Array<{ kind: string; at: string; source?: string }> = [];
+    // Include IDs so the client can PATCH by cutoffId
+    let cutoffs: Array<{ id: string; kind: string; at: string; source?: string }> = [];
     try {
-      cutoffs = await (prismaClient as any).portCallCutoff.findMany({
+      const rows = await (prismaClient as any).portCallCutoff.findMany({
         where: { portCallId },
         orderBy: { kind: "asc" },
-        select: { kind: true, at: true, source: true },
+        select: { id: true, kind: true, at: true, source: true },
       });
+      cutoffs = rows.map((c: any) => ({ ...c, at: new Date(c.at).toISOString() }));
     } catch {
       try {
-        cutoffs = await (prismaClient as any).cutoff.findMany({
+        const rows = await (prismaClient as any).cutoff.findMany({
           where: { portCallId },
           orderBy: { kind: "asc" },
-          select: { kind: true, at: true, source: true },
+          select: { id: true, kind: true, at: true, source: true },
         });
+        cutoffs = rows.map((c: any) => ({ ...c, at: new Date(c.at).toISOString() }));
       } catch {
-        // leave as empty array
+        // leave empty
       }
     }
 
-    // Always return 200 so the UI doesn’t log 404 even when there are no cutoffs
     return NextResponse.json({ port: { timezone }, cutoffs });
   } catch (err) {
-    console.error("GET /api/seed/portcalls/[portCallId]/cutoffs failed:", err);
+    console.error("cutoffs/get failed:", err);
     return NextResponse.json({ port: { timezone: "UTC" }, cutoffs: [] });
   }
 }
