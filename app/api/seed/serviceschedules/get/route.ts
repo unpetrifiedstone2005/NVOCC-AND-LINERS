@@ -6,13 +6,18 @@ import { prismaClient } from "@/app/lib/db";
 export async function GET(request: Request) {
   const url = new URL(request.url);
 
-  // pagination
-  const page  = parseInt(url.searchParams.get("page")        || "1",  10);
-  const limit = Math.min(100, parseInt(url.searchParams.get("limit") || "20", 10));
+  // pagination (safe defaults)
+  const pageRaw  = parseInt(url.searchParams.get("page")  || "1", 10);
+  const limitRaw = parseInt(url.searchParams.get("limit") || "20", 10);
+  const page  = Number.isFinite(pageRaw)  && pageRaw  > 0 ? pageRaw  : 1;
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(100, limitRaw) : 20;
 
   // optional filters
   const codeFilter = url.searchParams.get("code") || undefined;
   const descFilter = url.searchParams.get("description") || undefined;
+
+  // optionally include voyages to keep payloads light by default
+  const includeVoyages = url.searchParams.get("includeVoyages") === "true";
 
   // build where clause
   const where: Record<string, any> = {};
@@ -20,21 +25,32 @@ export async function GET(request: Request) {
   if (descFilter) where.description = { contains: descFilter, mode: "insensitive" };
 
   try {
-    // parallel fetch + count
     const [items, total] = await Promise.all([
       prismaClient.serviceSchedule.findMany({
         where,
         skip:  (page - 1) * limit,
         take:  limit,
         orderBy: { code: "asc" },
-       include: {
-        voyages: {
-           // You can paginate or sort here if you like; this will bring back _all_ voyages
-           orderBy: { departure: "asc" },
-           include: { portCalls: true },
-         },
-         _count: { select: { voyages: true } }, // optional, keep if you still need counts
-       },
+        include: {
+          ...(includeVoyages
+            ? {
+                voyages: {
+                  orderBy: { departure: "asc" },
+                  // NOTE: `Voyage` no longer has `portCalls`, so don't include it.
+                  // Select a compact set of fields to avoid huge payloads.
+                  select: {
+                    id: true,
+                    serviceId: true,
+                    voyageNumber: true,
+                    vesselName: true,
+                    departure: true,
+                    arrival: true,
+                  },
+                },
+              }
+            : {}),
+          _count: { select: { voyages: true } },
+        },
       }),
       prismaClient.serviceSchedule.count({ where }),
     ]);

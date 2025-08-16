@@ -5,7 +5,6 @@ import axios from "axios";
 import {
   Ship,
   Navigation,
-  Anchor,
   Upload,
   List as ListIcon,
   CheckCircle,
@@ -23,7 +22,6 @@ import {
   Download,
   Calendar,
   Clock,
-  Trash2,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,15 +42,16 @@ interface ServiceForm {
 
 type VoyageCore = {
   voyageNumber: string;
-  departure: string;
-  arrival: string;
+  departure: string; // ISO
+  arrival: string;   // ISO
   vesselName: string;
+  polUnlocode?: string | null; // NEW
+  podUnlocode?: string | null; // NEW
 };
 
 interface Voyage extends VoyageCore {
   id: string;
   serviceId: string;
-  portCalls?: PortCall[];
   service?: {
     id: string;
     code: string;
@@ -64,27 +63,10 @@ type VoyageForm = {
   serviceCode: string;
   voyageNumber: string;
   vesselName: string;
-  // departure/arrival are derived
-  departure?: string;
-  arrival?: string;
-};
-
-interface PortCall {
-  id?: string;
-  voyageId: string;
-  portCode: string;
-  order: number;
-  etd: string | null;
-  eta: string | null;
-}
-
-// Draft row used in unified creator
-type PortCallDraft = {
-  uid: string;
-  portCode: string;
-  order: number | "";
-  eta: string; // datetime-local string
-  etd: string; // datetime-local string
+  departure?: string; // local input value
+  arrival?: string;   // local input value
+  polUnlocode: string; // NEW
+  podUnlocode: string; // NEW
 };
 
 type CutoffKind = "ERD" | "FCL_GATEIN" | "VGM" | "DOC_SI";
@@ -108,29 +90,43 @@ const cardGradient = {
   backgroundBlendMode: "overlay",
 };
 
-const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+function toLocalInputValue(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
+}
+
+function fromLocalInputValue(localValue?: string | null): string | null {
+  if (!localValue) return null;
+  // Value is local time; Date will create the correct UTC instant.
+  return new Date(localValue).toISOString();
+}
+
+const UNLOCODE_5 = /^[A-Za-z0-9]{5}$/;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 export function ServiceComponent() {
   const [activeTab, setActiveTab] = useState<
-    "create-schedule" | "create-voyage-flow" | "bulk-import" | "schedule-list"
+    "create-schedule" | "create-voyage" | "bulk-import" | "schedule-list"
   >("create-schedule");
 
+  // Create schedule
   const [serviceForm, setServiceForm] = useState<ServiceForm>({ code: "", description: "" });
 
-  // Unified voyage+port calls form
+  // Create voyage
   const [voyageForm, setVoyageForm] = useState<VoyageForm>({
     serviceCode: "",
     voyageNumber: "",
     vesselName: "",
+    departure: "",
+    arrival: "",
+    polUnlocode: "", // NEW
+    podUnlocode: "", // NEW
   });
-
-  const [pcRows, setPcRows] = useState<PortCallDraft[]>([
-    { uid: uid(), portCode: "", order: 1, eta: "", etd: "" }, // origin
-    { uid: uid(), portCode: "", order: 2, eta: "", etd: "" }, // next/final initially
-  ]);
 
   // Data
   const [allSchedules, setAllSchedules] = useState<ServiceSchedule[]>([]);
@@ -146,40 +142,21 @@ export function ServiceComponent() {
   const [selectedVoyage, setSelectedVoyage] = useState<Voyage | null>(null);
   const [editForm, setEditForm] = useState<ServiceSchedule>({} as ServiceSchedule);
 
-  // Edit voyage modal
+  // Edit voyage
   const [editVoyageModal, setEditVoyageModal] = useState(false);
   const [voyageEditForm, setVoyageEditForm] = useState<Voyage | null>(null);
 
-  // Port calls viewer + edit
-  const [selectedPortCalls, setSelectedPortCalls] = useState<PortCall[]>([]);
-  const [isLoadingPortCalls, setIsLoadingPortCalls] = useState(false);
-  const [portCallsTotalPages, setPortCallsTotalPages] = useState<number>(1);
-  const [portCallsTotal, setPortCallsTotal] = useState<number>(0);
-  const [portCallsModalOpen, setPortCallsModalOpen] = useState(false);
-  const [portCallsPage, setPortCallsPage] = useState<number>(1);
-  const [portCallsPageSize, setPortCallsPageSize] = useState<number>(10);
-  const [portCallsFilters, setPortCallsFilters] = useState<{ portCode?: string }>({});
-
-  // NEW: Port call edit modal
-  const [pcEditModalOpen, setPcEditModalOpen] = useState(false);
-  const [pcEditForm, setPcEditForm] = useState<PortCall | null>(null);
-
-  // Cutoffs modal
+  // Cutoffs
   const [cutoffModalOpen, setCutoffModalOpen] = useState(false);
   const [cutoffSaving, setCutoffSaving] = useState(false);
+  const [cutoffLoading, setCutoffLoading] = useState(false);
   const [cutoffTimezone, setCutoffTimezone] = useState("UTC");
-  const [cutoffPortCall, setCutoffPortCall] = useState<PortCall | null>(null);
   const [cutoffRows, setCutoffRows] = useState<CutoffRow[]>([
     { kind: "ERD", at: "" },
     { kind: "FCL_GATEIN", at: "" },
     { kind: "VGM", at: "" },
     { kind: "DOC_SI", at: "" },
   ]);
-
-  // Inline cutoffs for viewer
-  const [cutoffsByPortCall, setCutoffsByPortCall] = useState<
-    Record<string, { timezone?: string; values: Partial<Record<CutoffKind, string>> }>
-  >({});
 
   // UI status
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -193,9 +170,7 @@ export function ServiceComponent() {
     setTimeout(() => setMessage(null), 5000);
   };
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Fetch & helpers
-  // ───────────────────────────────────────────────────────────────────────────
+  // Debounce
   function useDebounce<T>(value: T, delay = 600) {
     const [debounced, setDebounced] = React.useState(value);
     React.useEffect(() => {
@@ -206,6 +181,7 @@ export function ServiceComponent() {
   }
   const debouncedFilters = useDebounce(filters, 300);
 
+  // Fetch schedules
   async function fetchSchedules(page = 1) {
     setIsLoadingSchedules(true);
     try {
@@ -226,6 +202,7 @@ export function ServiceComponent() {
     }
   }
 
+  // Fetch voyages for a schedule
   async function fetchVoyages(scheduleId: string) {
     setIsLoadingVoyages(true);
     try {
@@ -247,6 +224,7 @@ export function ServiceComponent() {
     }
   }
 
+  // Effects
   useEffect(() => {
     if (activeTab !== "schedule-list") return;
     if (currentPage !== 1) {
@@ -263,7 +241,7 @@ export function ServiceComponent() {
   }, [activeTab, currentPage]);
 
   useEffect(() => {
-    if (["create-schedule", "create-voyage-flow", "bulk-import"].includes(activeTab) && !isLoadingSchedules) {
+    if (["create-schedule", "create-voyage", "bulk-import"].includes(activeTab) && !isLoadingSchedules) {
       fetchSchedules(1);
     }
   }, [activeTab]); // eslint-disable-line
@@ -294,106 +272,31 @@ export function ServiceComponent() {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Unified: Create Voyage + Port Calls
+  // Create Voyage
   // ───────────────────────────────────────────────────────────────────────────
-  function numericRows(rows: PortCallDraft[]) {
-    return rows
-      .filter((r) => typeof r.order === "number" && r.order >= 1)
-      .sort((a, b) => Number(a.order) - Number(b.order));
-  }
-  function maxOrder(rows: PortCallDraft[]) {
-    const nums = rows.map((r) => (typeof r.order === "number" ? r.order : 0));
-    return nums.length ? Math.max(...nums) : 0;
-  }
-  function duplicateOrders(rows: PortCallDraft[]) {
-    const map = new Map<number, number>();
-    for (const r of rows) {
-      if (typeof r.order !== "number") continue;
-      map.set(r.order, (map.get(r.order) || 0) + 1);
-    }
-    const dups: number[] = [];
-    map.forEach((cnt, ord) => {
-      if (cnt > 1) dups.push(ord);
-    });
-    return dups;
-  }
-  function isFinalRow(row: PortCallDraft, rows = pcRows) {
-    if (typeof row.order !== "number" || row.order < 1) return false;
-    return row.order === maxOrder(rows);
-  }
-
-  function addPcRow() {
-    const nextOrder = maxOrder(pcRows) + 1 || 1;
-    setPcRows((rs) => [...rs, { uid: uid(), portCode: "", order: nextOrder, eta: "", etd: "" }]);
-  }
-  function removePcRow(uidToRemove: string) {
-    setPcRows((rs) => {
-      const filtered = rs.filter((r) => r.uid !== uidToRemove);
-      if (filtered.length === 0) {
-        // Always keep at least one
-        return [{ uid: uid(), portCode: "", order: 1, eta: "", etd: "" }];
-      }
-      return filtered;
-    });
-  }
-  function updatePcRow(uidRow: string, patch: Partial<PortCallDraft>) {
-    setPcRows((rs) => rs.map((r) => (r.uid === uidRow ? { ...r, ...patch } : r)));
-  }
-
-  // Derived voyage window (live preview)
-  const nrows = numericRows(pcRows);
-  const origin = nrows[0];
-  const finalRow = nrows[nrows.length - 1];
-  const derivedDeparture = origin?.etd || ""; // voyage.departure
-  const derivedArrival = finalRow?.eta || ""; // voyage.arrival
-
-  function validateUnified(): string | null {
+  function validateVoyageForm(): string | null {
     if (!voyageForm.serviceCode) return "Select a schedule";
     if (!voyageForm.voyageNumber.trim()) return "Voyage number is required";
     if (!voyageForm.vesselName.trim()) return "Vessel name is required";
 
-    if (pcRows.length === 0) return "Add at least one port call";
+    // NEW: require UN/LOCODEs (5 chars)
+    const pol = voyageForm.polUnlocode?.trim().toUpperCase();
+    const pod = voyageForm.podUnlocode?.trim().toUpperCase();
+    if (!pol || !UNLOCODE_5.test(pol)) return "POL (UN/LOCODE) must be 5 letters/digits";
+    if (!pod || !UNLOCODE_5.test(pod)) return "POD (UN/LOCODE) must be 5 letters/digits";
 
-    const dups = duplicateOrders(pcRows);
-    if (dups.length) return `Duplicate call order(s): ${dups.join(", ")}`;
+    if (!voyageForm.departure) return "Departure is required";
+    if (!voyageForm.arrival) return "Arrival is required";
 
-    const maxOrd = maxOrder(pcRows);
-    if (maxOrd < 1) return "At least one call must have order >= 1";
-
-    for (const r of pcRows) {
-      const ord = Number(r.order);
-      if (!ord || ord < 1) return "Call order must be >= 1";
-      if (!r.portCode.trim()) return `Port code required for call order ${ord}`;
-
-      // ETA rule: required for non-origin calls, hidden for origin
-      if (ord > 1 && !r.eta) return `ETA is required for call order ${ord}`;
-
-      // ETD rule: required unless final call
-      const final = ord === maxOrd;
-      if (!final && !r.etd) return `ETD is required for call order ${ord}`;
-
-      // Temporal rule
-      if (r.eta && r.etd) {
-        const eta = new Date(r.eta).getTime();
-        const etd = new Date(r.etd).getTime();
-        if (!(etd > eta)) return `ETD must be after ETA (order ${ord})`;
-      }
-    }
-
-    // Derived voyage window
-    if (!derivedDeparture) return "Origin must have an ETD (sets voyage departure).";
-    if (!derivedArrival) return "Final call must have an ETA (sets voyage arrival).";
-
-    const depMs = new Date(derivedDeparture).getTime();
-    const arrMs = new Date(derivedArrival).getTime();
-    if (!(arrMs > depMs)) return "Voyage arrival must be after voyage departure.";
-
+    const dep = new Date(voyageForm.departure).getTime();
+    const arr = new Date(voyageForm.arrival).getTime();
+    if (!(arr > dep)) return "Arrival must be after departure";
     return null;
   }
 
-  async function createVoyageAndPortCalls(e: React.FormEvent) {
+  async function createVoyage(e: React.FormEvent) {
     e.preventDefault();
-    const err = validateUnified();
+    const err = validateVoyageForm();
     if (err) return showMessage("error", err);
 
     setIsLoading(true);
@@ -403,39 +306,28 @@ export function ServiceComponent() {
 
       const payload = {
         voyageNumber: voyageForm.voyageNumber.trim(),
-        departure: new Date(derivedDeparture).toISOString(),
-        arrival: new Date(derivedArrival).toISOString(),
         vesselName: voyageForm.vesselName.trim(),
+        polUnlocode: voyageForm.polUnlocode.trim().toUpperCase(), // NEW
+        podUnlocode: voyageForm.podUnlocode.trim().toUpperCase(), // NEW
+        departure: fromLocalInputValue(voyageForm.departure)!,
+        arrival: fromLocalInputValue(voyageForm.arrival)!,
       };
+
       const { data: created } = await axios.post<Voyage>(
         `/api/seed/serviceschedules/${schedule.id}/voyages/post`,
         payload
       );
 
-      // Create port calls
-      for (const r of nrows) {
-        const ord = Number(r.order);
-        const body: any = {
-          portUnlocode: r.portCode.trim().toUpperCase(),
-          order: ord,
-        };
-        if (ord > 1 && r.eta) body.eta = new Date(r.eta).toISOString();
-        if (r.etd) body.etd = new Date(r.etd).toISOString();
-        await axios.post(
-          `/api/seed/serviceschedules/${schedule.id}/voyages/${created.id}/portcalls/post`,
-          body
-        );
-      }
-
-      showMessage("success", `Voyage ${created.voyageNumber} and ${nrows.length} port call(s) created.`);
-
-      // Reset
-      setVoyageForm((prev) => ({ ...prev, voyageNumber: "", vesselName: "" }));
-      setPcRows([
-        { uid: uid(), portCode: "", order: 1, eta: "", etd: "" },
-        { uid: uid(), portCode: "", order: 2, eta: "", etd: "" },
-      ]);
-
+      showMessage("success", `Voyage ${created.voyageNumber} created.`);
+      setVoyageForm({
+        serviceCode: voyageForm.serviceCode,
+        voyageNumber: "",
+        vesselName: "",
+        departure: "",
+        arrival: "",
+        polUnlocode: "",
+        podUnlocode: "",
+      });
       await fetchVoyages(schedule.id);
     } catch (error: unknown) {
       if (axios.isAxiosError(error) && error.response) {
@@ -448,7 +340,7 @@ export function ServiceComponent() {
       } else if (error instanceof Error) {
         showMessage("error", error.message);
       } else {
-        showMessage("error", "Failed to create voyage & port calls");
+        showMessage("error", "Failed to create voyage");
       }
     } finally {
       setIsLoading(false);
@@ -456,8 +348,20 @@ export function ServiceComponent() {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Bulk sample
+  // Bulk import — voyages require POL/POD + dep/arr
   // ───────────────────────────────────────────────────────────────────────────
+  const [bulkData, setBulkData] = useState<string>("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [bulkMode, setBulkMode] = useState<"textarea" | "file">("textarea");
+
+    type BulkCutoff = {
+    kind: CutoffKind;                 // "ERD" | "FCL_GATEIN" | "VGM" | "DOC_SI"
+    at: string;                       // ISO timestamp
+    facilityScheme?: string | null;   // e.g. "SMDG"
+    facilityCode?: string | null;     // e.g. "USNYCN4"
+    source?: "MANUAL" | "AUTO" | "CALCULATED";
+  };
+
   function downloadSample() {
     const sample = [
       {
@@ -467,120 +371,109 @@ export function ServiceComponent() {
           {
             voyageNumber: "245N",
             vesselName: "MSC OSCAR",
+            polUnlocode: "CNSHA",
+            podUnlocode: "USNYC",
             departure: "2025-09-01T08:00:00Z",
-            arrival: "2025-09-24T12:00:00Z",
-            portCalls: [
-              { order: 1, portCode: "CNSHA", etd: "2025-09-01T08:00:00Z" },
-              { order: 2, portCode: "USLAX", eta: "2025-09-15T20:00:00Z", etd: "2025-09-17T04:00:00Z" },
-              { order: 3, portCode: "USNYC", eta: "2025-09-24T12:00:00Z" },
-            ],
-          },
-        ],
-      },
-      {
-        serviceCode: "IND-EUR",
-        scheduleDescription: "India to Europe",
-        voyages: [
-          {
-            voyageNumber: "108S",
-            vesselName: "MV KALYPSO",
-            departure: "2025-10-05T06:00:00Z",
-            arrival: "2025-10-18T11:00:00Z",
-            portCalls: [
-              { order: 1, portCode: "INBOM", etd: "2025-10-05T06:00:00Z" },
-              { order: 2, portCode: "INBLR", eta: "2025-10-06T09:00:00Z", etd: "2025-10-06T18:00:00Z" },
-              { order: 3, portCode: "IEDUB", eta: "2025-10-13T14:30:00Z", etd: "2025-10-14T04:00:00Z" },
-              { order: 4, portCode: "DEBER", eta: "2025-10-18T11:00:00Z" },
-            ],
-          },
-        ],
-      },
+            arrival:   "2025-09-24T12:00:00Z",
+            "cutoffs": [
+              { "kind": "ERD",         "at": "2025-08-25T00:00:00Z" },
+              { "kind": "FCL_GATEIN",  "at": "2025-08-31T18:00:00Z", "facilityScheme": "SMDG", "facilityCode": "CNSHATS" }
+              // VGM/DOC_SI will be auto-created if omitted
+            ]
+          }
+        ]
+      }
     ];
+
+
     const blob = new Blob([JSON.stringify(sample, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "schedule-sample.json";
+    a.download = "voyage-sample.json";
     a.click();
   }
-
-  // Bulk import
-  const [bulkData, setBulkData] = useState<string>("");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [bulkMode, setBulkMode] = useState<"textarea" | "file">("textarea");
 
   async function importBulkVoyages(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
 
-    // helper: normalize ANY input into [{ serviceCode, scheduleDescription?, voyages: [...] }]
+    // Normalize input to: [{ serviceCode, scheduleDescription?, voyages: [{ voyageNumber, vesselName, polUnlocode, podUnlocode, departure?, arrival? }] }]
     function normalize(input: any): Array<{
-      serviceCode: string;
-      scheduleDescription?: string;
-      voyages: Array<{
-        voyageNumber: string;
-        vesselName: string;
-        departure?: string;
-        arrival?: string;
-        portCalls?: Array<{
-          order: number;
-          portCode: string;
-          eta?: string;
-          etd?: string;
-        }>;
-      }>;
-    }> {
-      const asArray = Array.isArray(input) ? input : [input];
+  serviceCode: string;
+  scheduleDescription?: string;
+  voyages: Array<{
+    voyageNumber: string;
+    vesselName: string;
+    polUnlocode: string;
+    podUnlocode: string;
+    departure?: string;
+    arrival?: string;
+    cutoffs?: BulkCutoff[];
+  }>;
+}> {
+  const U = (v: any) => (v == null ? "" : String(v).toUpperCase());
+  const asArray = Array.isArray(input) ? input : [input];
+  const looksNested = asArray.every((s) => Array.isArray(s?.voyages));
 
-      // If objects already have voyages[], assume “nested services” shape.
-      const looksNested = asArray.every((s) => Array.isArray(s?.voyages));
+  const mapCutoffs = (arr: any): BulkCutoff[] | undefined =>
+    Array.isArray(arr)
+      ? arr
+          .map((c: any) => ({
+            kind: U(c.kind) as CutoffKind,
+            at: String(c.at),
+            facilityScheme: c.facilityScheme ?? null,
+            facilityCode: c.facilityCode ?? null,
+            source: c.source ?? "MANUAL",
+          }))
+          .filter((c) => ["ERD", "FCL_GATEIN", "VGM", "DOC_SI"].includes(c.kind) && !!c.at)
+      : undefined;
 
-      if (looksNested) {
-        return asArray.map((s) => ({
-          serviceCode: String(s.serviceCode || s.code || "").toUpperCase(),
-          scheduleDescription: s.scheduleDescription ?? s.description ?? "",
-          voyages: (s.voyages || []).map((v: any) => ({
-            voyageNumber: String(v.voyageNumber || v.voyage || "").toUpperCase(),
-            vesselName: String(v.vesselName || v.vessel || ""),
-            departure: v.departure,
-            arrival: v.arrival,
-            portCalls: (v.portCalls || []).map((pc: any) => ({
-              order: Number(pc.order ?? pc.sequence),
-              portCode: String(pc.portCode ?? pc.unlocode ?? pc.portUnlocode ?? "").toUpperCase(),
-              eta: pc.eta,
-              etd: pc.etd,
-            })),
-          })),
-        }));
-      }
+  if (looksNested) {
+    return asArray.map((s) => ({
+      serviceCode: U(s.serviceCode || s.code),
+      scheduleDescription: s.scheduleDescription ?? s.description ?? "",
+      voyages: (s.voyages || []).map((v: any) => ({
+        voyageNumber: U(v.voyageNumber || v.voyage),
+        vesselName: String(v.vesselName || v.vessel || ""),
+        polUnlocode: U(v.polUnlocode || v.pol || v.loadPort || v.origin || v.polCode),
+        podUnlocode: U(v.podUnlocode || v.pod || v.dischargePort || v.destination || v.podCode),
+        departure: v.departure,
+        arrival: v.arrival,
+        cutoffs: mapCutoffs(v.cutoffs),
+      })),
+    }));
+  }
 
-      // Else: treat as “flat voyages” shape
-      return asArray.reduce((acc: any[], row: any) => {
-        const svc = String(row.serviceCode || row.code || "").toUpperCase();
-        if (!svc) return acc;
+  // flat shape
+  return asArray.reduce((acc: any[], row: any) => {
+    const svc = U(row.serviceCode || row.code);
+    if (!svc) return acc;
 
-        let svcRec = acc.find((x) => x.serviceCode === svc);
-        if (!svcRec) {
-          svcRec = { serviceCode: svc, scheduleDescription: row.scheduleDescription || row.description || "", voyages: [] };
-          acc.push(svcRec);
-        }
-        svcRec.voyages.push({
-          voyageNumber: String(row.voyageNumber || row.voyage || "").toUpperCase(),
-          vesselName: String(row.vesselName || row.vessel || ""),
-          departure: row.departure,
-          arrival: row.arrival,
-          portCalls: Array.isArray(row.portCalls)
-            ? row.portCalls.map((pc: any) => ({
-                order: Number(pc.order ?? pc.sequence),
-                portCode: String(pc.portCode ?? pc.unlocode ?? pc.portUnlocode ?? "").toUpperCase(),
-                eta: pc.eta,
-                etd: pc.etd,
-              }))
-            : [],
-        });
-        return acc;
-      }, []);
+    let group = acc.find((x) => x.serviceCode === svc);
+    if (!group) {
+      group = {
+        serviceCode: svc,
+        scheduleDescription: row.scheduleDescription || row.description || "",
+        voyages: [],
+      };
+      acc.push(group);
     }
+
+    group.voyages.push({
+      voyageNumber: U(row.voyageNumber || row.voyage),
+      vesselName: String(row.vesselName || row.vessel || ""),
+      polUnlocode: U(row.polUnlocode || row.pol || row.loadPort || row.origin || row.polCode),
+      podUnlocode: U(row.podUnlocode || row.pod || row.dischargePort || row.destination || row.podCode),
+      departure: row.departure,
+      arrival: row.arrival,
+      cutoffs: mapCutoffs(row.cutoffs),
+    });
+
+    return acc;
+  }, []);
+}
+
 
     try {
       // 1) Read input (file or textarea)
@@ -591,18 +484,17 @@ export function ServiceComponent() {
       const services = normalize(parsed).filter((s) => s.serviceCode && s.voyages?.length);
 
       if (!services.length) {
-        showMessage("error", "No valid services/voyages found in JSON. Check field names and structure.");
+        showMessage("error", "No valid services/voyages found in JSON.");
         return;
       }
 
-      // 2) Ensure we have schedules in memory
+      // 2) Ensure schedules list
       if (!allSchedules.length) {
         await fetchSchedules(1);
       }
 
       const scheduleCache: Record<string, string> = {};
       let voyagesCreated = 0;
-      let portCallsCreated = 0;
 
       for (const service of services) {
         // find or create schedule
@@ -623,7 +515,7 @@ export function ServiceComponent() {
           }
         }
 
-        // fetch existing voyages
+        // fetch existing voyages to avoid dups
         let existing: Voyage[] = [];
         try {
           const { data } = await axios.get<{ voyages: Voyage[] }>(
@@ -636,64 +528,44 @@ export function ServiceComponent() {
         }
 
         for (const v of service.voyages) {
+          // required fields
           if (!v.voyageNumber || !v.vesselName) {
-            showMessage("error", `Skipping voyage with missing fields under ${service.serviceCode}`);
+            showMessage("error", `Skipping voyage with missing number/vessel under ${service.serviceCode}`);
+            continue;
+          }
+          if (!UNLOCODE_5.test(v.polUnlocode || "")) {
+            showMessage("error", `Skipping ${v.voyageNumber}: invalid POL (needs 5 letters/digits)`);
+            continue;
+          }
+          if (!UNLOCODE_5.test(v.podUnlocode || "")) {
+            showMessage("error", `Skipping ${v.voyageNumber}: invalid POD (needs 5 letters/digits)`);
+            continue;
+          }
+          if (!v.departure || !v.arrival) {
+            showMessage("error", `Skipping ${v.voyageNumber}: departure & arrival required`);
             continue;
           }
 
-          // create voyage if not present
-          let voyageId: string;
+          // no dups by voyageNumber within schedule
           const found = existing.find((ev) => ev.voyageNumber === v.voyageNumber);
-          if (!found) {
-            const { data: created } = await axios.post<Voyage>(
-              `/api/seed/serviceschedules/${scheduleId}/voyages/post`,
-              {
-                voyageNumber: v.voyageNumber,
-                departure: v.departure ? new Date(v.departure).toISOString() : undefined,
-                arrival: v.arrival ? new Date(v.arrival).toISOString() : undefined,
-                vesselName: v.vesselName,
-              }
-            );
-            voyageId = created.id;
-            voyagesCreated += 1;
-          } else {
-            voyageId = found.id;
-          }
+          if (found) continue;
 
-          // create port calls
-          if (Array.isArray(v.portCalls)) {
-            const pcs = v.portCalls
-              .filter((pc) => pc.portCode && Number.isFinite(pc.order))
-              .sort((a, b) => a.order - b.order);
-
-            for (const pc of pcs) {
-              try {
-                await axios.post(
-                  `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/post`,
-                  {
-                    portUnlocode: pc.portCode.toUpperCase(),
-                    order: Number(pc.order),
-                    eta: pc.eta ? new Date(pc.eta).toISOString() : undefined,
-                    etd: pc.etd ? new Date(pc.etd).toISOString() : undefined,
-                  }
-                );
-                portCallsCreated += 1;
-              } catch (err: any) {
-                const msg =
-                  err?.response?.data?.error ||
-                  (err?.response?.data?.errors && JSON.stringify(err.response.data.errors)) ||
-                  err?.message ||
-                  "Failed to create a port call";
-                if (!/already exists/i.test(msg)) {
-                  showMessage("error", `PortCall o${pc.order} ${pc.portCode}: ${msg}`);
-                }
-              }
-            }
+          await axios.post<Voyage>(
+          `/api/seed/serviceschedules/${scheduleId}/voyages/post`,
+          {
+            voyageNumber: v.voyageNumber,
+            vesselName: v.vesselName,
+            polUnlocode: v.polUnlocode,
+            podUnlocode: v.podUnlocode,
+            departure: new Date(v.departure).toISOString(),
+            arrival: new Date(v.arrival).toISOString(),
           }
+        );
+          voyagesCreated += 1;
         }
       }
 
-      showMessage("success", `Imported ${voyagesCreated} voyage(s) and ${portCallsCreated} port call(s).`);
+      showMessage("success", `Imported ${voyagesCreated} voyage(s).`);
       setBulkData("");
       setUploadedFile(null);
       await fetchSchedules(1);
@@ -784,6 +656,10 @@ export function ServiceComponent() {
       id: voyageEditForm.id,
       voyageNumber: voyageEditForm.voyageNumber,
       vesselName: voyageEditForm.vesselName,
+      polUnlocode: voyageEditForm.polUnlocode, // NEW
+      podUnlocode: voyageEditForm.podUnlocode, // NEW
+      departure: voyageEditForm.departure,
+      arrival: voyageEditForm.arrival,
     };
     setIsUpdating(true);
     try {
@@ -791,7 +667,7 @@ export function ServiceComponent() {
       showMessage("success", "Voyage updated");
       setEditVoyageModal(false);
       await fetchVoyages(scheduleId);
-    } catch {
+    } catch (e) {
       showMessage("error", "Failed to update voyage");
     } finally {
       setIsUpdating(false);
@@ -799,121 +675,11 @@ export function ServiceComponent() {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Port calls viewer + cutoffs
+  // Voyage cutoffs (voyage-level)
   // ───────────────────────────────────────────────────────────────────────────
-  function closePortCalls() {
-    setPortCallsModalOpen(false);
-    setSelectedVoyage(null);
-    setSelectedPortCalls([]);
-    setCutoffsByPortCall({});
-  }
-
-  function defaultDocSiFromEtd(etdIso?: string | null) {
-    if (!etdIso) return "";
-    const t = new Date(etdIso).getTime();
-    if (Number.isNaN(t)) return "";
-    const suggested = new Date(t - 24 * 60 * 60 * 1000); // 24h before ETD
-    return suggested.toISOString();
-  }
-
-  async function fetchPortCalls(
-    scheduleId: string,
-    voyageId: string,
-    page: number = 1,
-    pageSize: number = 10,
-    filters: { portCode?: string } = {}
-  ) {
-    setIsLoadingPortCalls(true);
+  function fmtLocal(isoUtc: string, tz: string, locale?: string) {
     try {
-      const params: Record<string, any> = { page, pageSize };
-      if (filters.portCode) params.portUnlocode = filters.portCode;
-      const { data } = await axios.get<{
-        portCalls: Array<{ id: string; voyageId: string; portUnlocode: string; order: number; eta: string; etd: string }>;
-        total: number;
-        totalPages: number;
-      }>(`/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/get`, { params });
-
-      const calls = data.portCalls.map((pc) => ({
-        id: pc.id,
-        voyageId: pc.voyageId,
-        portCode: pc.portUnlocode,
-        order: pc.order,
-        eta: pc.eta,
-        etd: pc.etd,
-      }));
-
-      setSelectedPortCalls(calls);
-      setPortCallsTotal(data.total);
-      setPortCallsTotalPages(data.totalPages);
-
-      // FIXED PATHS: fetch cutoffs with full nested route
-      await fetchCutoffsFor(scheduleId, voyageId, calls);
-    } catch {
-      setSelectedPortCalls([]);
-      setPortCallsTotal(0);
-      setPortCallsTotalPages(1);
-      setCutoffsByPortCall({});
-    } finally {
-      setIsLoadingPortCalls(false);
-    }
-  }
-
-  const [cutoffIdsByPc, setCutoffIdsByPc] = useState<
-  Record<string, Partial<Record<CutoffKind, string>>>
->({});
-
-  // FIXED: include scheduleId & voyageId and correct 'portcalls' path + '/get'
-  async function fetchCutoffsFor(scheduleId: string, voyageId: string, calls: PortCall[]) {
-    const entries = await Promise.all(
-      calls.map(async (pc) => {
-        if (!pc.id) return null;
-        try {
-          const { data } = await axios.get(
-            `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${pc.id}/cutoffs/get`
-          );
-
-          const values: Partial<Record<CutoffKind, string>> = {};
-          const ids: Partial<Record<CutoffKind, string>> = {};
-
-          (data.cutoffs ?? []).forEach((c: any) => {
-            values[c.kind as CutoffKind] = c.at;
-            ids[c.kind as CutoffKind] = c.id; // <-- capture id
-          });
-
-          // keep your DOC_SI suggestion
-          if (!values.DOC_SI) {
-            const suggested = defaultDocSiFromEtd(pc.etd || undefined);
-            if (suggested) values.DOC_SI = suggested;
-          }
-
-          return [pc.id!, { tz: data.port?.timezone ?? "UTC", values, ids }] as const;
-        } catch {
-          const suggested = defaultDocSiFromEtd(pc.etd || undefined);
-          const values: Partial<Record<CutoffKind, string>> = {};
-          if (suggested) values.DOC_SI = suggested;
-          return [pc.id!, { tz: "UTC", values, ids: {} }] as const;
-        }
-      })
-    );
-
-    const valueMap: Record<string, { timezone?: string; values: Partial<Record<CutoffKind, string>> }> = {};
-    const idMap: Record<string, Partial<Record<CutoffKind, string>>> = {};
-
-    for (const e of entries) {
-      if (!e) continue;
-      const [id, { tz, values, ids }] = e;
-      valueMap[id] = { timezone: tz, values };
-      idMap[id] = ids;
-    }
-
-    setCutoffsByPortCall(valueMap);
-    setCutoffIdsByPc(idMap);
-  }
-
-
-  function fmtLocal(isoUtc: string, tz: string) {
-    try {
-      return new Intl.DateTimeFormat(undefined, {
+      return new Intl.DateTimeFormat(locale || undefined, {
         timeZone: tz,
         year: "numeric",
         month: "short",
@@ -930,168 +696,88 @@ export function ServiceComponent() {
     setCutoffRows((rows) => rows.map((r) => (r.kind === kind ? { ...r, at: atIso } : r)));
   }
 
-  async function openCutoffs(pc: PortCall) {
-    try {
-      setCutoffPortCall(pc);
-      setCutoffModalOpen(true);
-      if (!pc.id) return;
+async function openCutoffsForVoyage(v: Voyage) {
+  setSelectedVoyage(v);
+  setCutoffModalOpen(true);
+  setCutoffLoading(true);                    // ⬅️ start loading
+  // (optional) clear any stale rows while loading
+  setCutoffRows([
+    { kind: "ERD", at: "" },
+    { kind: "FCL_GATEIN", at: "" },
+    { kind: "VGM", at: "" },
+    { kind: "DOC_SI", at: "" },
+  ]);
 
-      const scheduleId = selectedVoyage?.service?.id ?? selectedSchedule?.id;
-      if (!scheduleId || !selectedVoyage?.id) throw new Error("Missing ids");
-
-      // FIXED: nested GET path
-      const { data } = await axios.get(
-        `/api/seed/serviceschedules/${scheduleId}/voyages/${selectedVoyage.id}/portcalls/${pc.id}/cutoffs/get`
-      );
-      setCutoffTimezone(data.port?.timezone ?? "UTC");
-
-      // seed rows with server values (or blanks)
-      const map = new Map<CutoffKind, string>();
-      (data.cutoffs ?? []).forEach((c: any) => map.set(c.kind, c.at));
-      let next = [
-        { kind: "ERD", at: "" },
-        { kind: "FCL_GATEIN", at: "" },
-        { kind: "VGM", at: "" },
-        { kind: "DOC_SI", at: "" },
-      ] as CutoffRow[];
-
-      next = next.map((row) => ({ ...row, at: map.get(row.kind) ?? "" }));
-
-      if (!map.get("DOC_SI")) {
-        const suggested = defaultDocSiFromEtd(pc.etd || undefined);
-        if (suggested) next = next.map((r) => (r.kind === "DOC_SI" ? { ...r, at: suggested } : r));
-      }
-
-      setCutoffRows(next);
-    } catch {
-      const suggested = defaultDocSiFromEtd(pc.etd || undefined);
-      setCutoffTimezone("UTC");
-      setCutoffRows([
-        { kind: "ERD", at: "" },
-        { kind: "FCL_GATEIN", at: "" },
-        { kind: "VGM", at: "" },
-        { kind: "DOC_SI", at: suggested || "" },
-      ]);
-      showMessage("error", "Failed to load cut-offs from server; showing defaults/suggestions.");
-    }
-  }
-
-  function closeCutoffs() {
-    setCutoffModalOpen(false);
-    setCutoffPortCall(null);
-  }
-
-  // FIXED: nested PATCH + refresh GET
-async function saveCutoffs() {
-  if (!cutoffPortCall?.id) return;
-  const scheduleId = selectedVoyage?.service?.id ?? selectedSchedule?.id;
-  const voyageId = selectedVoyage?.id;
-  if (!scheduleId || !voyageId) return showMessage("error", "Missing schedule/voyage id");
-
-  const idsForPc = cutoffIdsByPc[cutoffPortCall.id] || {};
-  const toSave = cutoffRows.filter((r) => r.at);
-
-  if (toSave.length === 0) {
-    showMessage("error", "No cut-offs to save");
-    return;
-  }
-
-  setCutoffSaving(true);
   try {
-    const results = await Promise.allSettled(
-      toSave.map((r) => {
-        const cutoffId = idsForPc[r.kind];
-        if (!cutoffId) {
-          // your API only supports update-by-id; no id means nothing to patch
-          return Promise.reject(new Error(`No existing ${r.kind} cutoff id to update.`));
-        }
-        return axios.patch(
-          `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${cutoffPortCall.id}/cutoffs/${cutoffId}/patch`,
-          { at: r.at, source: r.source ?? "MANUAL" }
-        );
-      })
+    const scheduleId = v.service?.id ?? selectedSchedule?.id;
+    if (!scheduleId) throw new Error("Missing schedule id");
+
+    const { data } = await axios.get(
+      `/api/seed/serviceschedules/${scheduleId}/voyages/${v.id}/cutoffs/get`
     );
 
-    const failed = results.filter((r) => r.status === "rejected");
-    if (failed.length) {
-      showMessage("error", `Some cut-offs failed: ${failed.length}. Check console/network.`);
-    } else {
-      showMessage("success", "Cut-offs saved");
-      setCutoffModalOpen(false);
-    }
+    setCutoffTimezone(data.timezone ?? "UTC");
 
-    // refresh inline data (values + ids)
-    try {
-      const { data } = await axios.get(
-        `/api/seed/serviceschedules/${scheduleId}/voyages/${voyageId}/portcalls/${cutoffPortCall.id}/cutoffs/get`
-      );
-      const values: Partial<Record<CutoffKind, string>> = {};
-      const ids2: Partial<Record<CutoffKind, string>> = {};
-      (data.cutoffs ?? []).forEach((c: any) => {
-        values[c.kind as CutoffKind] = c.at;
-        ids2[c.kind as CutoffKind] = c.id;
-      });
-      setCutoffsByPortCall((prev) => ({
-        ...prev,
-        [cutoffPortCall.id!]: { timezone: data.port?.timezone ?? "UTC", values },
-      }));
-      setCutoffIdsByPc((prev) => ({ ...prev, [cutoffPortCall.id!]: ids2 }));
-    } catch {
-      /* ignore */
-    }
-  } catch (e: any) {
-    const msg = axios.isAxiosError(e)
-      ? e.response?.data?.error || "Failed to save cut-offs"
-      : "Failed to save cut-offs";
-    showMessage("error", msg);
+    const map = new Map<CutoffKind, string>();
+    (data.cutoffs ?? []).forEach((c: any) => map.set(c.kind, c.at));
+
+    setCutoffRows([
+      { kind: "ERD", at: map.get("ERD") ?? "" },
+      { kind: "FCL_GATEIN", at: map.get("FCL_GATEIN") ?? "" },
+      { kind: "VGM", at: map.get("VGM") ?? "" },
+      { kind: "DOC_SI", at: map.get("DOC_SI") ?? "" },
+    ]);
+  } catch {
+    setCutoffTimezone("UTC");
+    setCutoffRows([
+      { kind: "ERD", at: "" },
+      { kind: "FCL_GATEIN", at: "" },
+      { kind: "VGM", at: "" },
+      { kind: "DOC_SI", at: "" },
+    ]);
+    showMessage("error", "Failed to load cut-offs for the voyage.");
   } finally {
-    setCutoffSaving(false);
+    setCutoffLoading(false);                 // ⬅️ stop loading
   }
 }
 
 
-  // NEW: Port call edit helpers
-  function openEditPortCall(pc: PortCall) {
-    setPcEditForm({ ...pc });
-    setPcEditModalOpen(true);
+  function closeCutoffs() {
+    setCutoffModalOpen(false);
   }
-  function closeEditPortCall() {
-    setPcEditModalOpen(false);
-    setPcEditForm(null);
-  }
-  async function saveEditPortCall() {
-    if (!pcEditForm?.id || !selectedVoyage) return;
-    const scheduleId = selectedVoyage.service?.id ?? selectedSchedule?.id;
-    if (!scheduleId) return showMessage("error", "Unable to determine schedule id");
 
-    const body: any = {
-      portUnlocode: pcEditForm.portCode?.trim()?.toUpperCase(),
-      order: Number(pcEditForm.order),
-      eta: pcEditForm.eta ? new Date(pcEditForm.eta).toISOString() : null,
-      etd: pcEditForm.etd ? new Date(pcEditForm.etd).toISOString() : null,
-    };
-    setIsUpdating(true);
+  async function saveCutoffs() {
+    if (!selectedVoyage) return;
+    const scheduleId = selectedVoyage.service?.id ?? selectedSchedule?.id;
+    if (!scheduleId) return showMessage("error", "Missing schedule/voyage id");
+
+    const toSave = cutoffRows.filter((r) => r.at);
+    if (toSave.length === 0) {
+      showMessage("error", "No cut-offs to save");
+      return;
+    }
+
+    setCutoffSaving(true);
     try {
       await axios.patch(
-        `/api/seed/serviceschedules/${scheduleId}/voyages/${selectedVoyage.id}/portcalls/${pcEditForm.id}/patch`,
-        body
+        `/api/seed/serviceschedules/${scheduleId}/voyages/${selectedVoyage.id}/cutoffs/patch`,
+        { cutoffs: toSave.map((r) => ({ ...r, source: r.source ?? "MANUAL" })) }
       );
-      showMessage("success", "Port call updated");
-      await fetchPortCalls(scheduleId, selectedVoyage.id, portCallsPage, portCallsPageSize, portCallsFilters);
-      await fetchVoyages(scheduleId);
-      closeEditPortCall();
-    } catch (err: any) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.error ||
-          (err.response?.data?.errors && JSON.stringify(err.response.data.errors)) ||
-          "Failed to update port call"
-        : "Failed to update port call";
+      showMessage("success", "Cut-offs saved");
+      setCutoffModalOpen(false);
+    } catch (e: any) {
+      const msg = axios.isAxiosError(e)
+        ? e.response?.data?.error || "Failed to save cut-offs"
+        : "Failed to save cut-offs";
       showMessage("error", msg);
     } finally {
-      setIsUpdating(false);
+      setCutoffSaving(false);
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Cards & UI
+  // ───────────────────────────────────────────────────────────────────────────
   function ScheduleCard({
     schedule: s,
     openVoyages,
@@ -1147,6 +833,7 @@ async function saveCutoffs() {
       </div>
     );
   }
+
   // ───────────────────────────────────────────────────────────────────────────
   // Render
   // ───────────────────────────────────────────────────────────────────────────
@@ -1185,7 +872,7 @@ async function saveCutoffs() {
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
             { key: "create-schedule", icon: <CalendarSync className="w-5 h-5" />, label: "Create Schedule" },
-            { key: "create-voyage-flow", icon: <Navigation className="w-5 h-5" />, label: "Create Voyage + Port Calls" },
+            { key: "create-voyage", icon: <Navigation className="w-5 h-5" />, label: "Create Voyage" },
             { key: "bulk-import", icon: <Upload className="w-5 h-5" />, label: "Bulk Import" },
             { key: "schedule-list", icon: <ListIcon className="w-5 h-5" />, label: "Schedule List" },
           ].map((tab) => (
@@ -1250,17 +937,17 @@ async function saveCutoffs() {
         </section>
       )}
 
-      {/* CREATE VOYAGE + PORT CALLS (departure/arrival derived from PCs) */}
-      {activeTab === "create-voyage-flow" && (
+      {/* CREATE VOYAGE */}
+      {activeTab === "create-voyage" && (
         <section className="px-6 md:px-16 mb-16">
           <div className="rounded-3xl p-8 border-2 shadow-[30px_30px_0_rgba(0,0,0,1)]" style={cardGradient}>
             <h2 className="text-3xl font-bold flex items-center gap-3 mb-6">
-              <Navigation className="text-cyan-400 w-8 h-8" /> Create Voyage + Port Calls
+              <Navigation className="text-cyan-400 w-8 h-8" /> Create Voyage
             </h2>
 
-            <form onSubmit={createVoyageAndPortCalls} className="space-y-8">
-              {/* Voyage fields (departure/arrival are derived and shown below) */}
+            <form onSubmit={createVoyage} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Schedule */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Service Schedule *</label>
                   <select
@@ -1271,9 +958,7 @@ async function saveCutoffs() {
                   >
                     <option value="">Select Schedule</option>
                     {isLoadingSchedules && <option value="" disabled>Loading schedules…</option>}
-                    {!isLoadingSchedules && allSchedules.length === 0 && (
-                      <option value="" disabled>No schedules found</option>
-                    )}
+                    {!isLoadingSchedules && allSchedules.length === 0 && <option value="" disabled>No schedules found</option>}
                     {allSchedules.map((s) => (
                       <option key={s.id} value={s.code}>
                         {s.code} – {s.description}
@@ -1282,6 +967,7 @@ async function saveCutoffs() {
                   </select>
                 </div>
 
+                {/* Voyage number */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Voyage Number *</label>
                   <input
@@ -1294,6 +980,7 @@ async function saveCutoffs() {
                   />
                 </div>
 
+                {/* Vessel */}
                 <div className="md:col-span-2 space-y-2">
                   <label className="text-sm font-semibold">Vessel Name *</label>
                   <input
@@ -1305,138 +992,67 @@ async function saveCutoffs() {
                     className="w-full px-4 py-3 bg-[#11235d] hover:text-[#00FFFF] hover:bg-[#1a307a] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[12px_10px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
                   />
                 </div>
-              </div>
 
-              {/* Derived window preview */}
-              <div className="bg-[#0b1b33] border border-white/20 rounded-xl p-4" style={cardGradient}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-slate-300">Voyage Departure (from origin ETD)</div>
-                    <div className="text-white font-mono mt-1">
-                      {derivedDeparture ? new Date(derivedDeparture).toLocaleString() : <span className="text-amber-300">— set ETD on call order 1</span>}
-                    </div>
+                {/* POL / POD */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:col-span-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold">POL (UN/LOCODE) *</label>
+                    <input
+                      type="text"
+                      value={voyageForm.polUnlocode || ""}
+                      onChange={(e) =>
+                        setVoyageForm((prev) => ({ ...prev, polUnlocode: e.target.value.toUpperCase() }))
+                      }
+                      placeholder="CNSHA"
+                      required
+                      maxLength={5}
+                      pattern="[A-Za-z0-9]{5}"
+                      title="UN/LOCODE (exactly 5 letters/numbers)"
+                      className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
+                    />
                   </div>
-                  <div>
-                    <div className="text-slate-300">Voyage Arrival (from final ETA)</div>
-                    <div className="text-white font-mono mt-1">
-                      {derivedArrival ? new Date(derivedArrival).toLocaleString() : <span className="text-amber-300">— set ETA on highest call order</span>}
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold">POD (UN/LOCODE) *</label>
+                    <input
+                      type="text"
+                      value={voyageForm.podUnlocode || ""}
+                      onChange={(e) =>
+                        setVoyageForm((prev) => ({ ...prev, podUnlocode: e.target.value.toUpperCase() }))
+                      }
+                      placeholder="USNYC"
+                      required
+                      maxLength={5}
+                      pattern="[A-Za-z0-9]{5}"
+                      title="UN/LOCODE (exactly 5 letters/numbers)"
+                      className="w-full px-4 py-3 bg-[#2D4D8B] hover:text-[#00FFFF] hover:bg-[#0A1A2F] shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow border border-black border-4 rounded-lg text-white mt-3 focus:border-white focus:outline-none"
+                    />
                   </div>
+                </div>
+
+                {/* Departure / Arrival */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Departure *</label>
+                  <input
+                    type="datetime-local"
+                    value={voyageForm.departure || ""}
+                    onChange={(e) => setVoyageForm((prev) => ({ ...prev, departure: e.target.value }))}
+                    required
+                    className="w-full px-4 py-3 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Arrival *</label>
+                  <input
+                    type="datetime-local"
+                    value={voyageForm.arrival || ""}
+                    onChange={(e) => setVoyageForm((prev) => ({ ...prev, arrival: e.target.value }))}
+                    required
+                    className="w-full px-4 py-3 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
+                  />
                 </div>
               </div>
 
-              {/* Port Calls rows */}
-              <div>
-                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                  <Anchor className="text-cyan-400 w-6 h-6" /> Port Calls
-                </h3>
-
-                <div className="space-y-4">
-                  {pcRows
-                    .slice()
-                    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
-                    .map((row) => {
-                      const ord = Number(row.order || 0);
-                      const final = isFinalRow(row);
-                      return (
-                        <div
-                          key={row.uid}
-                          className="relative grid grid-cols-1 md:grid-cols-12 gap-4 bg-[#121c2d] border border-slate-400 hover:border-cyan-400 rounded-xl p-4 shadow-[10px_10px_0_rgba(0,0,0,1)]"
-                          style={cardGradient}
-                        >
-                          {/* Order */}
-                          <div className="md:col-span-2 space-y-1">
-                            <label className="text-xs font-semibold">Call Order *</label>
-                            <input
-                              type="number"
-                              min={1}
-                              value={row.order }
-                              onChange={(e) => updatePcRow(row.uid, { order: e.target.value === "" ? "" : Number(e.target.value) })}
-                              className="w-full px-3 py-2 bg-[#2D4D8B] border-4 border-black rounded-lg text-white focus:border-white"
-                              required
-                            />
-                          </div>
-
-                          {/* Port code */}
-                          <div className="md:col-span-3 space-y-1">
-                            <label className="text-xs font-semibold">Port (UN/LOCODE) *</label>
-                            <input
-                              type="text"
-                              value={row.portCode}
-                              onChange={(e) => updatePcRow(row.uid, { portCode: e.target.value.toUpperCase() })}
-                              placeholder="SGSIN"
-                              className="w-full px-3 py-2 bg-[#2D4D8B] border-4 border-black rounded-lg text-white focus:border-white"
-                              required
-                            />
-                          </div>
-
-                          {/* ETA (hide for origin) */}
-                          {ord > 1 ? (
-                            <div className="md:col-span-3 space-y-1">
-                              <label className="text-xs font-semibold">ETA *</label>
-                              <input
-                                type="datetime-local"
-                                value={row.eta}
-                                onChange={(e) => updatePcRow(row.uid, { eta: e.target.value })}
-                                required
-                                className="w-full px-3 py-2 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
-                              />
-                            </div>
-                          ) : (
-                            <div className="md:col-span-3 flex items-end">
-                              <div className="text-xs text-white/70 italic">Origin call — ETA not required</div>
-                            </div>
-                          )}
-
-                          {/* ETD (optional only on final) */}
-                          <div className="md:col-span-3 space-y-1">
-                            <label className="text-xs font-semibold">
-                              ETD {final ? "(optional — final call)" : "*"}
-                            </label>
-                            <input
-                              type="datetime-local"
-                              value={row.etd}
-                              onChange={(e) => updatePcRow(row.uid, { etd: e.target.value })}
-                              required={!final}
-                              className="w-full px-3 py-2 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
-                            />
-                          </div>
-
-                          {/* Remove */}
-                          <div className="md:col-span-1 flex items-end justify-end">
-                            <button
-                              type="button"
-                              onClick={() => removePcRow(row.uid)}
-                              className="px-3 py-2 bg-[#1A2A4A] hover:bg-[#2A3A5A] rounded-lg shadow-[6px_6px_0_rgba(0,0,0,1)]"
-                              title="Remove row"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                  <div className="flex justify-between items-center">
-                    <button
-                      type="button"
-                      onClick={addPcRow}
-                      className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-6 py-2 rounded-lg flex items-center gap-2 text-white uppercase text-sm shadow-[8px_8px_0_rgba(0,0,0,1)] hover:shadow-[12px_12px_0_rgba(0,0,0,1)] transition-shadow"
-                    >
-                      <Plus className="w-4 h-4" /> Add Port Call
-                    </button>
-
-                    {/* Duplicate orders warning */}
-                    {duplicateOrders(pcRows).length > 0 && (
-                      <div className="text-xs text-amber-300 font-semibold">
-                        Duplicate call order(s): {duplicateOrders(pcRows).join(", ")}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit */}
               <div className="md:col-span-2 flex justify-center mt-6">
                 <button
                   type="submit"
@@ -1444,7 +1060,7 @@ async function saveCutoffs() {
                   className="bg-[#600f9e] hover:bg-[#491174] disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-lg font-semibold uppercase flex items-center gap-3 shadow-[10px_10px_0_rgba(0,0,0,1)] hover:shadow-[15px_15px_0_rgba(0,0,0,1)] transition-shadow"
                 >
                   {isLoading ? <Settings className="animate-spin w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                  Create Voyage & Port Calls
+                  Create Voyage
                 </button>
               </div>
             </form>
@@ -1457,7 +1073,7 @@ async function saveCutoffs() {
         <section className="px-6 md:px-16">
           <div className="rounded-3xl shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 border-2 border-white" style={cardGradient}>
             <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
-              <Upload className="w-8 h-8 text-cyan-400" /> Bulk Import Schedules, Voyages & Port Calls
+              <Upload className="w-8 h-8 text-cyan-400" /> Bulk Import Services&Voyages 
             </h2>
 
             <div className="flex gap-4 mb-6">
@@ -1496,7 +1112,8 @@ async function saveCutoffs() {
                 <Download className="w-5 h-5" /> Download Sample JSON
               </button>
               <p className="text-md text-slate-200 mt-5">
-                Download a <b>full example</b> covering schedule, voyage, and port call import.
+                JSON supports <b>serviceCode</b> and <b>voyages[]</b> with
+                <b> voyageNumber</b>, <b>vesselName</b>, <b>polUnlocode</b>, <b>podUnlocode</b>, <b>departure</b>, <b>arrival</b>.
               </p>
             </div>
 
@@ -1519,9 +1136,6 @@ async function saveCutoffs() {
                       <p className="text-sm text-slate-400">or drag and drop</p>
                     </label>
                   </div>
-                  <p className="text-xs font-bold text-white">
-                    File must be an array of <b>schedules</b> with nested voyages and port calls.
-                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1537,10 +1151,10 @@ async function saveCutoffs() {
       {
         "voyageNumber": "22N",
         "vesselName": "COSCO AFRICA",
-        "portCalls": [
-          { "order": 1, "portCode": "CNSHA", "etd": "2025-07-20T18:00:00Z" },
-          { "order": 2, "portCode": "SGSIN", "eta": "2025-07-22T08:00:00Z", "etd": "2025-07-22T20:00:00Z" }
-        ]
+        "polUnlocode": "CNSHA",
+        "podUnlocode": "USNYC",
+        "departure": "2025-07-20T18:00:00Z",
+        "arrival": "2025-07-22T08:00:00Z"
       }
     ]
   }
@@ -1549,27 +1163,6 @@ async function saveCutoffs() {
                     onChange={(e) => setBulkData(e.target.value)}
                     required
                   />
-                  <p className="text-md font-bold text-white">
-                    Paste an array of <b>schedules</b>, each with \`voyages\` (and \`portCalls\` inside).
-                  </p>
-                  <div className="bg-[#1A2A4A] rounded-lg p-4 border border-slate-600 mt-4" style={cardGradient}>
-                    <h4 className="text-lg font-semibold text-cyan-400 mb-3">JSON Format:</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 font-bold text-white">
-                      <div>• serviceCode (required)</div>
-                      <div>• scheduleDescription (optional)</div>
-                      <br />
-                      <br />
-                      <div className="col-span-2 md:col-span-3 mt-3">• voyages (array, required):</div>
-                      <div>— voyageNumber</div>
-                      <div>— vesselName</div>
-                      <div>— portCalls (derive dep/arr)</div>
-                      <br />
-                      <div className="col-span-2 md:col-span-3 mt-3">• portCalls (array):</div>
-                      <div>— order</div>
-                      <div>— portCode</div>
-                      <div>— eta, etd</div>
-                    </div>
-                  </div>
                 </div>
               )}
               <div className="flex justify-center">
@@ -1584,7 +1177,7 @@ async function saveCutoffs() {
                     </>
                   ) : (
                     <>
-                      <Upload className="w-5 h-5" /> Import Schedules
+                      <Upload className="w-5 h-5" /> Import Voyages
                     </>
                   )}
                 </button>
@@ -1753,26 +1346,35 @@ async function saveCutoffs() {
                             {new Date(v.departure).toLocaleDateString()}
                             {v.arrival && <> → {new Date(v.arrival).toLocaleDateString()}</>}
                           </div>
+                          <div className="text-xs text-white/80">{v.vesselName}</div>
+                          <div className="text-[11px] text-cyan-300/90 font-mono">
+                            {(v.polUnlocode || "-----")} → {(v.podUnlocode || "-----")}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="relative flex flex-col items-end">
+                      <div className="relative flex flex-col items-end gap-2">
                         <button
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedVoyage(v);
-                            setPortCallsModalOpen(true);
-                            const scheduleId = v.service?.id ?? selectedSchedule?.id;
-                            if (scheduleId && v.id) {
-                              await fetchPortCalls(scheduleId, v.id, portCallsPage, portCallsPageSize, portCallsFilters);
-                            }
+                            openEditVoyage(v);
                           }}
                           className="px-3 py-2 rounded bg-[#1A2A4A] hover:bg-[#0A1A2F] text-cyan-300 font-semibold uppercase shadow-[6px_6px_0_rgba(0,0,0,1)] border border-white/10"
-                          title="View Port Calls"
+                          title="Edit Voyage"
                         >
-                          <Anchor className="w-4 h-4 inline-block mr-1" /> Port Calls
+                          <Edit3 className="w-4 h-4 inline-block mr-1" /> Edit
                         </button>
-                        
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCutoffsForVoyage(v);
+                          }}
+                          className="px-3 py-2 rounded bg-[#1A2A4A] hover:bg-[#0A1A2F] text-cyan-300 font-semibold uppercase shadow-[6px_6px_0_rgba(0,0,0,1)] border border-white/10"
+                          title="View/Edit Cut-offs"
+                        >
+                          <Calendar className="w-4 h-4 inline-block mr-1" /> Cutoffs
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1783,111 +1385,7 @@ async function saveCutoffs() {
         </div>
       )}
 
-      {/* PORT CALLS VIEWER (with inline cut-offs) */}
-      {portCallsModalOpen && selectedVoyage && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto" style={cardGradient}>
-            <header className="flex justify-between mb-6">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <Anchor /> Port Calls — {selectedVoyage.voyageNumber}
-              </h3>
-              <button onClick={closePortCalls}>
-                <X className="w-6 h-6" />
-              </button>
-            </header>
-
-            {isLoadingPortCalls ? (
-              <div className="flex justify-center py-10">
-                <Settings className="animate-spin w-6 h-6 text-cyan-300" />
-              </div>
-            ) : selectedPortCalls.length === 0 ? (
-              <div className="text-center py-8 text-slate-400">No port calls defined</div>
-            ) : (
-              selectedPortCalls
-                .sort((a, b) => a.order - b.order)
-                .map((pc) => {
-                  const cut = pc.id ? cutoffsByPortCall[pc.id] : undefined;
-                  const tz = cut?.timezone ?? "UTC";
-                  return (
-                    <div
-                      key={pc.id ?? `${pc.portCode}-${pc.order}`}
-                      className="relative flex flex-col gap-3 bg-[#121c2d] border border-slate-400 hover:border-cyan-400 rounded-lg p-4 mb-6 transition-colors group cursor-default shadow-[12px_12px_0_rgba(0,0,0,1)] hover:shadow-[20px_20px_0_rgba(0,0,0,1)] transition-shadow"
-                      style={cardGradient}
-                    >
-                      {/* Order badge */}
-                      <div className="absolute -left-6 z-10">
-                        <div className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center text-lg font-extrabold shadow-[4px_4px_0_rgba(0,0,0,1)]">
-                          {pc.order}
-                        </div>
-                      </div>
-
-                      {/* Main line */}
-                      <div className="flex items-center justify-between pl-8">
-                        <div className="font-bold text-cyan-400 text-lg">{pc.portCode}</div>
-                        <div className="flex gap-2">
-                          {/* NEW: Edit Port Call */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditPortCall(pc);
-                            }}
-                            className="px-3 py-2 rounded bg-[#1A2A4A] hover:bg-[#0A1A2F] text-cyan-300 font-semibold uppercase shadow-[6px_6px_0_rgba(0,0,0,1)] border border-white/10"
-                            title="Edit Port Call"
-                          >
-                            <Edit3 className="w-4 h-4 inline-block mr-1" /> Edit
-                          </button>
-
-                          {/* Existing: Cutoffs */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openCutoffs(pc);
-                            }}
-                            className="px-3 py-2 rounded bg-[#1A2A4A] hover:bg-[#0A1A2F] text-cyan-300 font-semibold uppercase shadow-[6px_6px_0_rgba(0,0,0,1)] border border-white/10"
-                            title="View/Edit Cut-offs"
-                          >
-                            <Calendar className="w-4 h-4 inline-block mr-1" /> Cutoffs
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Times */}
-                      <div className="pl-8 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                        {pc.eta && <div>ETA: {new Date(pc.eta).toLocaleString()}</div>}
-                        {pc.etd && <div>ETD: {new Date(pc.etd).toLocaleString()}</div>}
-                      </div>
-
-                      {/* Inline cutoffs summary */}
-                      <div className="pl-8 pt-2">
-                        <div className="text-xs text-slate-300 mb-2">Cut-offs {cut?.timezone ? `(Local: ${tz})` : ""}</div>
-                        <div className="flex flex-wrap gap-2">
-                          {(["ERD", "FCL_GATEIN", "VGM", "DOC_SI"] as CutoffKind[]).map((k) => {
-                            const at = cut?.values?.[k];
-                            if (!at) return null;
-                            return (
-                              <span
-                                key={k}
-                                className="text-xs px-2 py-1 rounded-full border border-white/20 bg-white/10"
-                                title={`${CUTOFF_LABEL[k]} — ${at}`}
-                              >
-                                <b>{k}</b>: {fmtLocal(at, tz)}
-                              </span>
-                            );
-                          })}
-                          {!cut || Object.keys(cut.values || {}).length === 0 ? (
-                            <span className="text-xs text-slate-400 italic">No cut-offs yet</span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* EDIT VOYAGE MODAL (dep/arr readonly; edit via port calls) */}
+      {/* EDIT VOYAGE MODAL */}
       {editVoyageModal && voyageEditForm && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-[#121c2d] border-4 border-white rounded-3xl p-6 max-w-md w-full shadow-[25px_25px_0px_rgba(0,0,0,1)]" style={cardGradient}>
@@ -1903,22 +1401,6 @@ async function saveCutoffs() {
                 className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
               />
 
-              <label className="text-sm font-semibold">Departure (derived from origin ETD)</label>
-              <input
-                type="text"
-                value={new Date(voyageEditForm.departure).toLocaleString()}
-                readOnly
-                className="w-full px-4 py-3 bg-[#0A1A2F] text-white/80 mt-2 border-4 border-black rounded-lg"
-              />
-
-              <label className="text-sm font-semibold">Arrival (derived from final ETA)</label>
-              <input
-                type="text"
-                value={voyageEditForm.arrival ? new Date(voyageEditForm.arrival).toLocaleString() : ""}
-                readOnly
-                className="w-full px-4 py-3 bg-[#0A1A2F] text-white/80 mt-2 border-4 border-black rounded-lg"
-              />
-
               <label className="text-sm font-semibold">Vessel Name</label>
               <input
                 type="text"
@@ -1927,9 +1409,43 @@ async function saveCutoffs() {
                 className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
               />
 
-              <div className="text-xs text-slate-300">
-                To change departure/arrival, edit the <b>Port Calls</b> (origin ETD & final ETA).
-              </div>
+              <label className="text-sm font-semibold">POL (UN/LOCODE)</label>
+              <input
+                type="text"
+                value={voyageEditForm.polUnlocode || ""}
+                onChange={(e) => setVoyageEditForm({ ...voyageEditForm, polUnlocode: e.target.value.toUpperCase() })}
+                maxLength={5}
+                pattern="[A-Za-z0-9]{5}"
+                title="UN/LOCODE (exactly 5 letters/numbers)"
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold">POD (UN/LOCODE)</label>
+              <input
+                type="text"
+                value={voyageEditForm.podUnlocode || ""}
+                onChange={(e) => setVoyageEditForm({ ...voyageEditForm, podUnlocode: e.target.value.toUpperCase() })}
+                maxLength={5}
+                pattern="[A-Za-z0-9]{5}"
+                title="UN/LOCODE (exactly 5 letters/numbers)"
+                className="w-full px-4 py-3 bg-[#2D4D8B] hover:bg-[#0A1A2F] hover:text-[#00FFFF] mt-2 border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] hover:shadow-[10px_8px_0_rgba(0,0,0,1)] transition-shadow rounded-lg text-white placeholder-white/80 focus:border-white focus:outline-none"
+              />
+
+              <label className="text-sm font-semibold">Departure</label>
+              <input
+                type="datetime-local"
+                value={toLocalInputValue(voyageEditForm.departure)}
+                onChange={(e) => setVoyageEditForm({ ...voyageEditForm, departure: fromLocalInputValue(e.target.value) || voyageEditForm.departure })}
+                className="w-full px-4 py-3 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
+              />
+
+              <label className="text-sm font-semibold">Arrival</label>
+              <input
+                type="datetime-local"
+                value={toLocalInputValue(voyageEditForm.arrival)}
+                onChange={(e) => setVoyageEditForm({ ...voyageEditForm, arrival: fromLocalInputValue(e.target.value) || voyageEditForm.arrival })}
+                className="w-full px-4 py-3 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
+              />
             </div>
 
             <div className="flex justify-end gap-4 mt-4">
@@ -1947,144 +1463,78 @@ async function saveCutoffs() {
         </div>
       )}
 
-      {/* NEW: EDIT PORT CALL MODAL */}
-      {pcEditModalOpen && pcEditForm && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="bg-[#121c2d] border-2 border-white shadow-[30px_30px_0_rgba(0,0,0,1)] rounded-3xl p-6 w-full max-w-lg" style={cardGradient}>
-            <header className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <Edit3 className="w-5 h-5" /> Edit Port Call
-              </h3>
-              <button onClick={closeEditPortCall}><X className="w-6 h-6 text-white hover:text-[#00FFFF]" /></button>
-            </header>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Order */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">Order *</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={pcEditForm.order || ""}
-                  onChange={(e) => setPcEditForm((p) => (p ? { ...p, order: Number(e.target.value) } : p))}
-                  className="w-full px-3 py-2 bg-[#2D4D8B] border-4 border-black rounded-lg text-white focus:border-white"
-                />
-              </div>
-
-              {/* UN/LOCODE */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">Port (UN/LOCODE) *</label>
-                <input
-                  type="text"
-                  value={pcEditForm.portCode}
-                  onChange={(e) => setPcEditForm((p) => (p ? { ...p, portCode: e.target.value.toUpperCase() } : p))}
-                  className="w-full px-3 py-2 bg-[#2D4D8B] border-4 border-black rounded-lg text-white focus:border-white"
-                />
-              </div>
-
-              {/* ETA (not required for origin) */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">ETA</label>
-                <input
-                  type="datetime-local"
-                  value={pcEditForm.eta ? new Date(pcEditForm.eta).toISOString().slice(0, 16) : ""}
-                  onChange={(e) =>
-                    setPcEditForm((p) =>
-                      p ? { ...p, eta: e.target.value ? new Date(e.target.value).toISOString() : null } : p
-                    )
-                  }
-                  className="w-full px-3 py-2 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
-                />
-                <div className="text-[10px] text-slate-300">Required for non-origin calls.</div>
-              </div>
-
-              {/* ETD (optional for final call) */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">ETD</label>
-                <input
-                  type="datetime-local"
-                  value={pcEditForm.etd ? new Date(pcEditForm.etd).toISOString().slice(0, 16) : ""}
-                  onChange={(e) =>
-                    setPcEditForm((p) =>
-                      p ? { ...p, etd: e.target.value ? new Date(e.target.value).toISOString() : null } : p
-                    )
-                  }
-                  className="w-full px-3 py-2 bg-[#1d4595] border-4 border-black rounded-lg text-white focus:border-white"
-                />
-                <div className="text-[10px] text-slate-300">Required unless this is the final call.</div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={closeEditPortCall} className="px-4 py-2 rounded bg-slate-600 hover:bg-slate-500">
-                Cancel
-              </button>
-              <button
-                onClick={saveEditPortCall}
-                disabled={isUpdating}
-                className="px-4 py-2 rounded bg-[#22D3EE] text-black font-semibold hover:brightness-110 shadow-[6px_6px_0_rgba(0,0,0,1)] flex items-center gap-2"
-              >
-                {isUpdating ? <Settings className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
-              </button>
-            </div>
-
-            <div className="text-[11px] text-slate-400 mt-3">
-              Backend validation applies (chronology, window fit, existing UN/LOCODE, etc.).
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CUT-OFFS MODAL */}
-      {cutoffModalOpen && cutoffPortCall && (
+      {/* CUT-OFFS MODAL (voyage-level) */}
+      {cutoffModalOpen && selectedVoyage && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-2xl rounded-3xl bg-[#0A1A2F] text-white p-6 shadow-[20px_20px_0_rgba(0,0,0,1)] border border-white/10" style={cardGradient}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-xl font-bold text-cyan-300 flex items-center gap-2">
-                <Calendar className="w-5 h-5" /> Port Call Cut-offs — {cutoffPortCall.portCode}
+                <Calendar className="w-5 h-5" /> Voyage Cut-offs — {selectedVoyage.voyageNumber}
               </h3>
               <button onClick={closeCutoffs}><X className="w-6 h-6" /></button>
             </div>
 
-            <div className="space-y-4">
-              {cutoffRows.map((row) => (
-                <div key={row.kind} className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center bg-[#1A2A4A] p-4 rounded-xl border border-white/10">
-                  <div>
-                    <div className="text-sm text-slate-300">{CUTOFF_LABEL[row.kind]}</div>
-                    {row.at && (
-                      <div className="text-xs text-slate-400 mt-1">
-                        Local ({cutoffTimezone}): {fmtLocal(row.at, cutoffTimezone)}
-                      </div>
-                    )}
-                    {row.kind === "DOC_SI" && !row.at && (
-                      <div className="text-xs text-amber-300 mt-1">
-                        No DOC/SI from server — suggested is 24h before ETD (auto-filled if ETD known).
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    type="datetime-local"
-                    value={row.at ? new Date(row.at).toISOString().slice(0, 16) : ""}
-                    onChange={(e) => setCutoffAt(row.kind, new Date(e.target.value).toISOString())}
-                    className="w-full px-3 py-2 rounded bg-[#2D4D8B] border border-black shadow-[4px_4px_0_rgba(0,0,0,1)]"
-                  />
+            {cutoffLoading ? (
+              // 🔄 Loader while fetching
+              <div className="flex flex-col items-center justify-center py-16">
+                <Settings className="animate-spin w-8 h-8 text-cyan-400" />
+                <span className="mt-3 text-cyan-200 text-lg font-semibold">Loading cut-offs…</span>
+              </div>
+            ) : (
+              <>
+                <div className="text-xs text-slate-300 mb-3">
+                  Inputs are captured in <b>your local time</b> and saved as UTC.
+                  {cutoffTimezone ? <> Port local preview shown in <b>{cutoffTimezone}</b>.</> : null}
                 </div>
-              ))}
-            </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={closeCutoffs} className="px-4 py-2 rounded bg-slate-600 hover:bg-slate-500">Cancel</button>
-              <button
-                onClick={saveCutoffs}
-                disabled={cutoffSaving}
-                className="px-4 py-2 rounded bg-[#22D3EE] text-black font-semibold hover:brightness-110 shadow-[6px_6px_0_rgba(0,0,0,1)] flex items-center gap-2"
-              >
-                <Clock className="w-4 h-4" /> {cutoffSaving ? "Saving..." : "Save Cut-offs"}
-              </button>
+                <div className="space-y-4">
+                  {cutoffRows.map((row) => (
+                    <div key={row.kind} className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center bg-[#1A2A4A] p-4 rounded-xl border border-white/10">
+                      <div>
+                        <div className="text-sm text-slate-300">{CUTOFF_LABEL[row.kind]}</div>
+                        {row.at && (
+                          <>
+                            <div className="text-xs text-slate-400 mt-1">
+                              Port local ({cutoffTimezone}): {fmtLocal(row.at, cutoffTimezone)}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              UTC: {new Date(row.at).toISOString().slice(0, 16).replace("T", " ")}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <input
+                        type="datetime-local"
+                        value={toLocalInputValue(row.at)}
+                        onChange={(e) => {
+                          const isoUtc = fromLocalInputValue(e.target.value);
+                          setCutoffAt(row.kind, isoUtc ?? "");
+                        }}
+                        className="w-full px-3 py-2 rounded bg-[#2D4D8B] border border-black shadow-[4px_4px_0_rgba(0,0,0,1)]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                  <div className="flex justify-end gap-3 mt-6">
+                    <button onClick={closeCutoffs} className="px-4 py-2 rounded bg-slate-600 hover:bg-slate-500">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveCutoffs}
+                      disabled={cutoffSaving || cutoffLoading}  // ⬅️ also disable while loading
+                      className="px-4 py-2 rounded bg-[#22D3EE] text-black font-semibold hover:brightness-110 shadow-[6px_6px_0_rgba(0,0,0,1)] flex items-center gap-2 disabled:opacity-60"
+                    >
+                      <Clock className="w-4 h-4" /> {cutoffSaving ? "Saving..." : "Save Cut-offs"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+          )}
+
     </div>
   );
 }
+
