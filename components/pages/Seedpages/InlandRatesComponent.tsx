@@ -2,27 +2,9 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Truck,
-  DollarSign,
-  Upload,
-  List as ListIcon,
-  Search,
-  Filter,
-  Plus,
-  Settings,
-  CheckCircle,
-  AlertCircle,
-  MapPin,
-  Calendar,
-  Edit3,
-  X,
-  Save,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  Download,
-  Trash2,
-  Map
+  Truck, DollarSign, Upload, List as ListIcon, Filter, Plus, Settings,
+  CheckCircle, AlertCircle, MapPin, Calendar, Edit3, X, Save,
+  ChevronLeft, ChevronRight, Trash2, Map
 } from "lucide-react";
 import axios from "axios";
 
@@ -145,26 +127,12 @@ const cardGradient = {
 // —————————————————————————————————————————————————————————————————————————————
 
 export function InlandRatesComponent() {
-  // ──────────────────────────────────────────────────────
-  // TAB STATE
-  // ──────────────────────────────────────────────────────
+  // Tabs
   const [activeTab, setActiveTab] = useState<"zones" | "rates" | "bulk-import" | "rates-list">("zones");
   const [activeSubTab, setActiveSubTab] = useState<"create-zone" | "zone-list">("create-zone");
-  const [activeRateTab, setActiveRateTab] = useState<"create-rate" | "rate-list">("create-rate");
 
-  // ──────────────────────────────────────────────────────
-  // FORM & DATA STATE
-  // ──────────────────────────────────────────────────────
-  
-  // Zone management
-  const [zoneForm, setZoneForm] = useState<ZoneForm>({
-    country: "",
-    name: "",
-    postalPrefixes: "",
-    notes: ""
-  });
-
-  // Rate management
+  // Forms
+  const [zoneForm, setZoneForm] = useState<ZoneForm>({ country: "", name: "", postalPrefixes: "", notes: "" });
   const [rateForm, setRateForm] = useState<RateForm>({
     zoneId: "",
     portUnlocode: "",
@@ -193,18 +161,8 @@ export function InlandRatesComponent() {
   // Pagination & Filters
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [filters, setFilters] = useState<{
-    zoneId: string;
-    portUnlocode: string;
-    direction: string;
-    mode: string;
-    containerGroup: string;
-  }>({
-    zoneId: "",
-    portUnlocode: "",
-    direction: "",
-    mode: "",
-    containerGroup: ""
+  const [filters, setFilters] = useState<{ zoneId: string; portUnlocode: string; direction: string; mode: string; containerGroup: string; }>({
+    zoneId: "", portUnlocode: "", direction: "", mode: "", containerGroup: ""
   });
 
   // Edit modals
@@ -219,19 +177,13 @@ export function InlandRatesComponent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string; } | null>(null);
 
-  // Bulk import
-  const [bulkMode, setBulkMode] = useState<"textarea" | "file">("textarea");
-  const [bulkData, setBulkData] = useState<string>("");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const listRequestRef = useRef<AbortController | null>(null);
 
-  // ──────────────────────────────────────────────────────
+  // —————————————————————————————————————————————————
   // HELPERS
-  // ──────────────────────────────────────────────────────
+  // —————————————————————————————————————————————————
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
@@ -265,11 +217,10 @@ export function InlandRatesComponent() {
     }
   };
 
-  // ──────────────────────────────────────────────────────
+  // —————————————————————————————————————————————————
   // FETCHERS / CRUD
-  // ──────────────────────────────────────────────────────
+  // —————————————————————————————————————————————————
 
-  // ▶ fetch all zones
   async function fetchZones() {
     try {
       const res = await axios.get<{ items: InlandZone[]; total: number; }>("/api/seed/inland/zones/get");
@@ -280,7 +231,6 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ fetch all ports
   async function fetchPorts() {
     try {
       const res = await axios.get<{ items: Location[]; }>("/api/seed/locations/get?limit=500");
@@ -291,7 +241,6 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ fetch container types
   async function fetchContainerTypes(group?: ContainerGroup) {
     try {
       const params = group ? `?group=${group}` : "";
@@ -303,11 +252,9 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ create zone
   async function createZone(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
-
     try {
       const payload = {
         country: zoneForm.country,
@@ -315,18 +262,9 @@ export function InlandRatesComponent() {
         postalPrefixes: zoneForm.postalPrefixes.split(",").map(p => p.trim()).filter(Boolean),
         notes: zoneForm.notes || undefined
       };
-
       await axios.post("/api/seed/inland/zones/post", payload);
       showMessage("success", "Inland zone created successfully");
-      
-      // Reset form
-      setZoneForm({
-        country: "",
-        name: "",
-        postalPrefixes: "",
-        notes: ""
-      });
-      
+      setZoneForm({ country: "", name: "", postalPrefixes: "", notes: "" });
       fetchZones();
     } catch (err: any) {
       const msg = err.response?.data?.error || "Failed to create zone";
@@ -336,11 +274,9 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ create rate
   async function createRate(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
-
     try {
       const payload = {
         zoneId: rateForm.zoneId,
@@ -354,8 +290,8 @@ export function InlandRatesComponent() {
         flatAmount: rateForm.flatAmount ? parseFloat(rateForm.flatAmount) : undefined,
         perKmAmount: rateForm.perKmAmount ? parseFloat(rateForm.perKmAmount) : undefined,
         minCharge: rateForm.minCharge ? parseFloat(rateForm.minCharge) : undefined,
-        validFrom: rateForm.validFrom + "T00:00:00.000Z",
-        validTo: rateForm.validTo ? rateForm.validTo + "T00:00:00.000Z" : undefined,
+        validFrom: rateForm.validFrom, // backend accepts YYYY-MM-DD or ISO; normalizes
+        validTo: rateForm.validTo || undefined,
         maxDistanceKm: rateForm.maxDistanceKm ? parseInt(rateForm.maxDistanceKm) : undefined,
         maxWeightKg: rateForm.maxWeightKg ? parseInt(rateForm.maxWeightKg) : undefined,
         breaks: rateForm.breaks
@@ -363,8 +299,8 @@ export function InlandRatesComponent() {
 
       await axios.post("/api/seed/inland/rates/post", payload);
       showMessage("success", "Inland rate created successfully");
-      
-      // Reset form
+
+      // Reset form & go to list
       setRateForm({
         zoneId: "",
         portUnlocode: "",
@@ -383,6 +319,8 @@ export function InlandRatesComponent() {
         maxWeightKg: "",
         breaks: []
       });
+      setActiveTab("rates-list");
+      await fetchRates(1);
     } catch (err: any) {
       const msg = err.response?.data?.error || "Failed to create rate";
       showMessage("error", msg);
@@ -391,26 +329,23 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ fetch rates
-  const listRequestRef = useRef<AbortController | null>(null);
-
   async function fetchRates(page = 1) {
     setIsLoadingList(true);
-
+    // Abort previous request if any
     listRequestRef.current?.abort();
     const controller = new AbortController();
     listRequestRef.current = controller;
 
     try {
-      const params = {
+      const params: any = {
         page: String(page),
         limit: "20",
-        ...(filters.zoneId && { zoneId: filters.zoneId }),
-        ...(filters.portUnlocode && { portUnlocode: filters.portUnlocode }),
-        ...(filters.direction && { direction: filters.direction }),
-        ...(filters.mode && { mode: filters.mode }),
-        ...(filters.containerGroup && { containerGroup: filters.containerGroup }),
       };
+      if (filters.zoneId) params.zoneId = filters.zoneId;
+      if (filters.portUnlocode) params.portUnlocode = filters.portUnlocode;
+      if (filters.direction) params.direction = filters.direction;
+      if (filters.mode) params.mode = filters.mode;
+      if (filters.containerGroup) params.containerGroup = filters.containerGroup;
 
       const res = await axios.get<{
         items: InlandRate[];
@@ -431,7 +366,6 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ update zone
   async function updateZone() {
     if (!selectedZone) return;
     setIsUpdating(true);
@@ -442,7 +376,6 @@ export function InlandRatesComponent() {
         postalPrefixes: editZoneForm.postalPrefixes.split(",").map(p => p.trim()).filter(Boolean),
         notes: editZoneForm.notes || undefined
       };
-
       await axios.patch(`/api/seed/inland/zones/${selectedZone.id}/patch`, payload);
       showMessage("success", "Zone updated successfully");
       setEditZoneModalOpen(false);
@@ -455,7 +388,6 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ update rate
   async function updateRate() {
     if (!selectedRate) return;
     setIsUpdating(true);
@@ -463,14 +395,15 @@ export function InlandRatesComponent() {
       const payload = {
         currency: editRateForm.currency,
         basis: editRateForm.basis,
-        flatAmount: editRateForm.flatAmount,
-        perKmAmount: editRateForm.perKmAmount,
-        minCharge: editRateForm.minCharge,
-        validFrom: editRateForm.validFrom,
-        validTo: editRateForm.validTo,
-        maxDistanceKm: editRateForm.maxDistanceKm,
-        maxWeightKg: editRateForm.maxWeightKg,
-        breaks: editRateForm.breaks
+        flatAmount: editRateForm.flatAmount ?? null,
+        perKmAmount: editRateForm.perKmAmount ?? null,
+        minCharge: editRateForm.minCharge ?? null,
+        // send YYYY-MM-DD; backend normalizes
+        validFrom: editRateForm.validFrom?.slice(0,10),
+        validTo: editRateForm.validTo ? editRateForm.validTo.slice(0,10) : null,
+        maxDistanceKm: editRateForm.maxDistanceKm ?? null,
+        maxWeightKg: editRateForm.maxWeightKg ?? null,
+        breaks: editRateForm.breaks,
       };
 
       await axios.patch(`/api/seed/inland/rates/${selectedRate.id}/patch`, payload);
@@ -485,49 +418,37 @@ export function InlandRatesComponent() {
     }
   }
 
-  // ▶ delete zone
   async function deleteZone(zone: InlandZone) {
     if (!confirm(`Delete zone "${zone.name}"? This will also delete all associated rates.`)) return;
-    
     try {
       await axios.delete(`/api/seed/inland/zones/${zone.id}/delete`);
       showMessage("success", "Zone deleted successfully");
       fetchZones();
+      if (activeTab === "rates-list") fetchRates(currentPage);
     } catch (err: any) {
       const msg = err.response?.data?.error || "Failed to delete zone";
       showMessage("error", msg);
     }
   }
 
-  // ──────────────────────────────────────────────────────
-  // RATE BREAKS MANAGEMENT
-  // ──────────────────────────────────────────────────────
-  
+  // Rate breaks helpers
   const addBreak = () => {
     setRateForm(prev => ({
       ...prev,
       breaks: [...prev.breaks, { breakType: "WEIGHT", fromValue: 0, toValue: undefined, amount: 0 }]
     }));
   };
-
   const updateBreak = (index: number, field: keyof InlandRateBreak, value: any) => {
     setRateForm(prev => ({
       ...prev,
       breaks: prev.breaks.map((brk, i) => i === index ? { ...brk, [field]: value } : brk)
     }));
   };
-
   const removeBreak = (index: number) => {
-    setRateForm(prev => ({
-      ...prev,
-      breaks: prev.breaks.filter((_, i) => i !== index)
-    }));
+    setRateForm(prev => ({ ...prev, breaks: prev.breaks.filter((_, i) => i !== index) }));
   };
 
-  // ──────────────────────────────────────────────────────
-  // MODAL HELPERS
-  // ──────────────────────────────────────────────────────
-  
+  // Modals
   const openEditZone = (zone: InlandZone) => {
     setSelectedZone(zone);
     setEditZoneForm({
@@ -545,14 +466,17 @@ export function InlandRatesComponent() {
     setEditRateModalOpen(true);
   };
 
-  // ──────────────────────────────────────────────────────
+  // —————————————————————————————————————————————————
   // LIFECYCLE
-  // ──────────────────────────────────────────────────────
-  
+  // —————————————————————————————————————————————————
   useEffect(() => {
     fetchZones();
     fetchPorts();
     fetchContainerTypes();
+    return () => {
+      // abort any in-flight list fetch on unmount
+      listRequestRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -561,16 +485,26 @@ export function InlandRatesComponent() {
     }
   }, [rateForm.containerGroup]);
 
+  // when entering Rates List tab, or page changes, fetch
   useEffect(() => {
     if (activeTab === "rates-list") {
       fetchRates(currentPage);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentPage]);
 
-  // ──────────────────────────────────────────────────────
+  // auto-fetch when filters change (resets to page 1)
+  useEffect(() => {
+    if (activeTab === "rates-list") {
+      setCurrentPage(1);
+      fetchRates(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  // —————————————————————————————————————————————————
   // RENDER
-  // ──────────────────────────────────────────────────────
-  
+  // —————————————————————————————————————————————————
   return (
     <div className="w-full max-w-[1600px] mx-auto min-h-screen text-white uppercase">
       {/* HEADER */}
@@ -609,7 +543,7 @@ export function InlandRatesComponent() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
               className={`px-1 py-2 uppercase font-bold transition shadow border-2 border-black flex items-center justify-center gap-2 ${
-                activeTab === tab.key
+                activeTab === (tab.key as any)
                   ? "bg-gray-300 text-black rounded-3xl shadow-[13px_13px_0_rgba(0,0,0,1)]"
                   : "bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white rounded-lg shadow-[4px_4px_0_rgba(0,0,0,1)]"
               }`}
@@ -726,18 +660,8 @@ export function InlandRatesComponent() {
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="text-lg font-bold text-white">{zone.name}</h3>
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => openEditZone(zone)}
-                          className="text-cyan-400 hover:text-white"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteZone(zone)}
-                          className="text-red-400 hover:text-red-300"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <button onClick={() => openEditZone(zone)} className="text-cyan-400 hover:text-white"><Edit3 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteZone(zone)} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
 
@@ -753,9 +677,7 @@ export function InlandRatesComponent() {
                           <span className="text-slate-300">Prefixes:</span>
                           <div className="flex flex-wrap gap-1">
                             {zone.postalPrefixes.slice(0, 3).map(prefix => (
-                              <span key={prefix} className="bg-blue-900/30 text-blue-400 px-2 py-1 rounded text-xs">
-                                {prefix}
-                              </span>
+                              <span key={prefix} className="bg-blue-900/30 text-blue-400 px-2 py-1 rounded text-xs">{prefix}</span>
                             ))}
                             {zone.postalPrefixes.length > 3 && (
                               <span className="text-slate-400 text-xs">+{zone.postalPrefixes.length - 3} more</span>
@@ -962,11 +884,7 @@ export function InlandRatesComponent() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-bold text-white">Rate Breaks</h3>
-                    <button
-                      type="button"
-                      onClick={addBreak}
-                      className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-4 py-2 rounded-lg flex items-center gap-2 text-white"
-                    >
+                    <button type="button" onClick={addBreak} className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-4 py-2 rounded-lg flex items-center gap-2 text-white">
                       <Plus className="w-4 h-4" /> Add Break
                     </button>
                   </div>
@@ -1017,11 +935,7 @@ export function InlandRatesComponent() {
                       </div>
 
                       <div className="flex items-end">
-                        <button
-                          type="button"
-                          onClick={() => removeBreak(index)}
-                          className="w-full bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-white text-sm flex items-center justify-center gap-1"
-                        >
+                        <button type="button" onClick={() => removeBreak(index)} className="w-full bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-white text-sm flex items-center justify-center gap-1">
                           <Trash2 className="w-3 h-3" /> Remove
                         </button>
                       </div>
@@ -1119,7 +1033,7 @@ export function InlandRatesComponent() {
       "currency": "USD",
       "basis": "FLAT",
       "flatAmount": 250.00,
-      "validFrom": "2025-08-01T00:00:00Z"
+      "validFrom": "2025-08-01"
     }
   ]
 }`}
@@ -1128,10 +1042,7 @@ export function InlandRatesComponent() {
 
             <div className="text-center">
               <p className="text-slate-300 mb-4">Bulk import functionality would be implemented here</p>
-              <button
-                disabled
-                className="bg-slate-600 px-8 py-4 rounded-lg text-slate-400 cursor-not-allowed"
-              >
+              <button disabled className="bg-slate-600 px-8 py-4 rounded-lg text-slate-400 cursor-not-allowed">
                 Import (Coming Soon)
               </button>
             </div>
@@ -1159,9 +1070,7 @@ export function InlandRatesComponent() {
                   >
                     <option value="">All Zones</option>
                     {allZones.map(zone => (
-                      <option key={zone.id} value={zone.id}>
-                        {zone.name}
-                      </option>
+                      <option key={zone.id} value={zone.id}>{zone.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1175,9 +1084,7 @@ export function InlandRatesComponent() {
                   >
                     <option value="">All Ports</option>
                     {allPorts.map(port => (
-                      <option key={port.unlocode} value={port.unlocode}>
-                        {port.unlocode}
-                      </option>
+                      <option key={port.unlocode} value={port.unlocode}>{port.unlocode}</option>
                     ))}
                   </select>
                 </div>
@@ -1229,7 +1136,6 @@ export function InlandRatesComponent() {
                 <button
                   onClick={() => {
                     setFilters({ zoneId: "", portUnlocode: "", direction: "", mode: "", containerGroup: "" });
-                    fetchRates(1);
                   }}
                   className="bg-[#2a72dc] hover:bg-[#1e5bb8] px-6 py-2 rounded-lg flex items-center gap-2 text-white uppercase text-sm shadow-[8px_8px_0_rgba(0,0,0,1)] hover:shadow-[12px_12px_0_rgba(0,0,0,1)] transition-shadow"
                 >
@@ -1265,57 +1171,30 @@ export function InlandRatesComponent() {
                       </div>
 
                       <div className="space-y-2 text-sm mb-4">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Zone:</span>
-                          <span className="font-mono text-white">{rate.zone?.name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Port:</span>
-                          <span className="font-mono text-white">{rate.portUnlocode}</span>
-                        </div>
+                        <div className="flex justify-between"><span className="text-slate-400">Zone:</span><span className="font-mono text-white">{rate.zone?.name}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Port:</span><span className="font-mono text-white">{rate.portUnlocode}</span></div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Direction:</span>
-                          <span className={`font-mono ${rate.direction === 'IMPORT' ? 'text-green-400' : 'text-orange-400'}`}>
-                            {rate.direction}
-                          </span>
+                          <span className={`font-mono ${rate.direction === 'IMPORT' ? 'text-green-400' : 'text-orange-400'}`}>{rate.direction}</span>
                         </div>
                         
                         <div className="border-t border-slate-600 pt-2 mt-3">
-                          <div className="flex justify-between mb-1">
-                            <span className="text-slate-400">Basis:</span>
-                            <span className="text-white">{rate.basis}</span>
-                          </div>
-                          {rate.basis === "FLAT" && rate.flatAmount && (
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Amount:</span>
-                              <span className="text-white font-bold">{rate.currency} {Number(rate.flatAmount).toFixed(2)}</span>
-                            </div>
+                          <div className="flex justify-between mb-1"><span className="text-slate-400">Basis:</span><span className="text-white">{rate.basis}</span></div>
+                          {rate.basis === "FLAT" && rate.flatAmount != null && (
+                            <div className="flex justify-between"><span className="text-slate-400">Amount:</span><span className="text-white font-bold">{rate.currency} {Number(rate.flatAmount).toFixed(2)}</span></div>
                           )}
-                          {rate.basis === "PER_KM" && rate.perKmAmount && (
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Per KM:</span>
-                              <span className="text-white font-bold">{rate.currency} {Number(rate.perKmAmount).toFixed(2)}</span>
-                            </div>
+                          {rate.basis === "PER_KM" && rate.perKmAmount != null && (
+                            <div className="flex justify-between"><span className="text-slate-400">Per KM:</span><span className="text-white font-bold">{rate.currency} {Number(rate.perKmAmount).toFixed(2)}</span></div>
                           )}
                           {rate.basis === "BREAKS" && rate.breaks && (
-                            <div className="text-white">
-                              <span className="text-slate-400">Breaks:</span> {rate.breaks.length}
-                            </div>
+                            <div className="text-white"><span className="text-slate-400">Breaks:</span> {rate.breaks.length}</div>
                           )}
                         </div>
                       </div>
 
                       <div className="text-sm text-white/80 border-t border-slate-600 pt-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Calendar className="w-3 h-3" />
-                          <span>From: {new Date(rate.validFrom).toLocaleDateString()}</span>
-                        </div>
-                        {rate.validTo && (
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3 h-3" />
-                            <span>To: {new Date(rate.validTo).toLocaleDateString()}</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 mb-1"><Calendar className="w-3 h-3" /><span>From: {new Date(rate.validFrom).toLocaleDateString()}</span></div>
+                        {rate.validTo && (<div className="flex items-center gap-2"><Calendar className="w-3 h-3" /><span>To: {new Date(rate.validTo).toLocaleDateString()}</span></div>)}
                       </div>
 
                       <div className="mt-4 opacity-0 group-hover:opacity-100 text-xs flex items-center gap-2 text-cyan-400 transition-opacity">
@@ -1327,19 +1206,11 @@ export function InlandRatesComponent() {
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setCurrentPage(p => p - 1)}
-                    disabled={currentPage <= 1}
-                    className="bg-[#2a72dc] px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 text-white"
-                  >
+                  <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage <= 1} className="bg-[#2a72dc] px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 text-white">
                     <ChevronLeft className="w-4 h-4" /> Prev
                   </button>
                   <span>Page {currentPage} of {totalPages}</span>
-                  <button
-                    onClick={() => setCurrentPage(p => p + 1)}
-                    disabled={currentPage >= totalPages}
-                    className="bg-[#2a72dc] px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 text-white"
-                  >
+                  <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} className="bg-[#2a72dc] px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 text-white">
                     Next <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1352,17 +1223,10 @@ export function InlandRatesComponent() {
       {/* ═══════════════════════════════════ EDIT ZONE MODAL ═══════════════════════════════════ */}
       {editZoneModalOpen && selectedZone && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div
-            className="bg-[#121c2d] rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto text-white uppercase"
-            style={cardGradient}
-          >
+          <div className="bg-[#121c2d] rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto text-white uppercase" style={cardGradient}>
             <header className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Edit3 /> Edit Zone: {selectedZone.name}
-              </h3>
-              <button onClick={() => setEditZoneModalOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
+              <h3 className="text-2xl font-bold flex items-center gap-2"><Edit3 /> Edit Zone: {selectedZone.name}</h3>
+              <button onClick={() => setEditZoneModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
             </header>
 
             <form className="space-y-6">
@@ -1411,18 +1275,10 @@ export function InlandRatesComponent() {
             </form>
 
             <footer className="mt-8 flex justify-end gap-4">
-              <button
-                type="button"
-                onClick={() => setEditZoneModalOpen(false)}
-                className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-4 py-2 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg"
-              >
+              <button type="button" onClick={() => setEditZoneModalOpen(false)} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-4 py-2 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg">
                 Cancel
               </button>
-              <button
-                onClick={updateZone}
-                disabled={isUpdating}
-                className="bg-[#600f9e] hover:bg-[#491174] py-3 px-6 rounded-lg flex items-center gap-2 disabled:opacity-50 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow"
-              >
+              <button onClick={updateZone} disabled={isUpdating} className="bg-[#600f9e] hover:bg-[#491174] py-3 px-6 rounded-lg flex items-center gap-2 disabled:opacity-50 shadow-[7px_7px_0_rgba(0,0,0,1)] hover:shadow-[10px_10px_0_rgba(0,0,0,1)] transition-shadow">
                 {isUpdating ? <Settings className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
                 Save Changes
               </button>
@@ -1434,17 +1290,10 @@ export function InlandRatesComponent() {
       {/* ═══════════════════════════════════ EDIT RATE MODAL ═══════════════════════════════════ */}
       {editRateModalOpen && selectedRate && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div
-            className="bg-[#121c2d] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto text-white uppercase"
-            style={cardGradient}
-          >
+          <div className="bg-[#121c2d] rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto text-white uppercase" style={cardGradient}>
             <header className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Edit3 /> Edit Rate: {selectedRate.zone?.name} → {selectedRate.portUnlocode}
-              </h3>
-              <button onClick={() => setEditRateModalOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
+              <h3 className="text-2xl font-bold flex items-center gap-2"><Edit3 /> Edit Rate: {selectedRate.zone?.name} → {selectedRate.portUnlocode}</h3>
+              <button onClick={() => setEditRateModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-6 h-6" /></button>
             </header>
 
             <div className="space-y-6">
@@ -1452,22 +1301,10 @@ export function InlandRatesComponent() {
               <div className="bg-[#1A2A4A] rounded-lg p-4">
                 <h4 className="text-lg font-semibold mb-4">Rate Information (Read-only)</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-slate-400">Zone:</span>
-                    <div className="font-mono text-white">{editRateForm.zone?.name}</div>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Port:</span>
-                    <div className="font-mono text-white">{editRateForm.portUnlocode}</div>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Direction:</span>
-                    <div className="font-mono text-white">{editRateForm.direction}</div>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Mode:</span>
-                    <div className="font-mono text-white">{editRateForm.mode}</div>
-                  </div>
+                  <div><span className="text-slate-400">Zone:</span><div className="font-mono text-white">{editRateForm.zone?.name}</div></div>
+                  <div><span className="text-slate-400">Port:</span><div className="font-mono text-white">{editRateForm.portUnlocode}</div></div>
+                  <div><span className="text-slate-400">Direction:</span><div className="font-mono text-white">{editRateForm.direction}</div></div>
+                  <div><span className="text-slate-400">Mode:</span><div className="font-mono text-white">{editRateForm.mode}</div></div>
                 </div>
               </div>
 
@@ -1585,22 +1422,10 @@ export function InlandRatesComponent() {
                     <div className="space-y-2">
                       {editRateForm.breaks.map((brk, index) => (
                         <div key={index} className="grid grid-cols-4 gap-4 p-4 bg-[#1A2A4A] rounded-lg">
-                          <div>
-                            <span className="text-xs text-slate-400">Type:</span>
-                            <div className="text-white">{brk.breakType}</div>
-                          </div>
-                          <div>
-                            <span className="text-xs text-slate-400">From:</span>
-                            <div className="text-white">{brk.fromValue}</div>
-                          </div>
-                          <div>
-                            <span className="text-xs text-slate-400">To:</span>
-                            <div className="text-white">{brk.toValue || "∞"}</div>
-                          </div>
-                          <div>
-                            <span className="text-xs text-slate-400">Amount:</span>
-                            <div className="text-white">{editRateForm.currency} {Number(brk.amount).toFixed(2)}</div>
-                          </div>
+                          <div><span className="text-xs text-slate-400">Type:</span><div className="text-white">{brk.breakType}</div></div>
+                          <div><span className="text-xs text-slate-400">From:</span><div className="text-white">{brk.fromValue}</div></div>
+                          <div><span className="text-xs text-slate-400">To:</span><div className="text-white">{brk.toValue || "∞"}</div></div>
+                          <div><span className="text-xs text-slate-400">Amount:</span><div className="text-white">{editRateForm.currency} {Number(brk.amount).toFixed(2)}</div></div>
                         </div>
                       ))}
                     </div>
@@ -1612,18 +1437,10 @@ export function InlandRatesComponent() {
             </div>
 
             <footer className="mt-8 flex justify-end gap-4">
-              <button
-                type="button"
-                onClick={() => setEditRateModalOpen(false)}
-                className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-4 py-2 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow rounded-lg"
-              >
+              <button type="button" onClick={() => setEditRateModalOpen(false)} className="bg-[#1A2A4A] hover:bg-[#2A3A5A] px-4 py-2 shadow-[7px_7px_0_rgba(0,0,0,1)] hover:shadow-[10px_10px_0_rgba(0,0,0,1)] transition-shadow rounded-lg">
                 Cancel
               </button>
-              <button
-                onClick={updateRate}
-                disabled={isUpdating}
-                className="bg-[#600f9e] hover:bg-[#491174] py-3 px-6 rounded-lg flex items-center gap-2 disabled:opacity-50 shadow-[7px_7px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_rgba(0,0,0,1)] transition-shadow"
-              >
+              <button onClick={updateRate} disabled={isUpdating} className="bg-[#600f9e] hover:bg-[#491174] py-3 px-6 rounded-lg flex items-center gap-2 disabled:opacity-50 shadow-[7px_7px_0_rgba(0,0,0,1)] hover:shadow-[10px_10px_0_rgba(0,0,0,1)] transition-shadow">
                 {isUpdating ? <Settings className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
                 Save Changes
               </button>

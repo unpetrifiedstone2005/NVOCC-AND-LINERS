@@ -46,10 +46,6 @@ const menuData: MenuItem[] = [
     sub: [
       { key: "new_quote", label: "NEW QUOTE", pathPattern: "/main/quotes/newquote", roles: ["OPERATOR"] },
       { key: "my_quotations", label: "MY QUOTATIONS", pathPattern: "/main/quotes/myquotes", roles: ["OPERATOR", "ADMIN"] },
-      { key: "special_cargo", label: "SPECIAL CARGO QUOTES", pathPattern: "/main/quotes/special", roles: ["ADMIN"] },
-      { key: "tariffs", label: "TARIFFS", pathPattern: "/main/quotes/tariffs", roles: ["ADMIN"] },
-      { key: "demurrage", label: "DETENTION AND DEMURRAGE TARIFFS", pathPattern: "/main/quotes/demurrage", roles: ["ADMIN"] },
-      { key: "exchange_tariffs", label: "RATE OF EXCHANGE TARIFFS", pathPattern: "/main/quotes/exchange", roles: ["ADMIN"] },
     ],
   },
   {
@@ -67,11 +63,8 @@ const menuData: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR"],
     sub: [
       { key: "book_new", label: "CREATE BOOKING", pathPattern: "/main/book/createbooking", roles: ["OPERATOR"] },
-      { key: "book_templates", label: "BOOKING TEMPLATES", pathPattern: "/main/book/templates", roles: ["ADMIN"] },
       { key: "book_my", label: "MY BOOKINGS", pathPattern: "/main/book/mybookings", roles: ["OPERATOR", "CLIENT"] },
-      { key: "book_amendments", label: "BOOKING AMENDMENTS", pathPattern: "/main/book/amendments", roles: ["ADMIN"] },
-      { key: "book_additional_services", label: "ADDITIONAL SERVICES", pathPattern: "/main/book/additionalservices", roles: ["OPERATOR"] },
-      { key: "book_us_military", label: "US MILITARY BOOKING", pathPattern: "/main/book/usmilitary", roles: ["ADMIN"] },
+ 
     ],
   },
   {
@@ -81,13 +74,7 @@ const menuData: MenuItem[] = [
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
       { key: "my_shipment", label: "MY SHIPMENT", pathPattern: "/main/documentation/shipment", roles: ["CLIENT", "OPERATOR"] },
-      { key: "gross_mass", label: "VERIFIED GROSS MASS", pathPattern: "/main/documentation/mass", roles: ["OPERATOR"] },
-      { key: "shipping_instructions", label: "SHIPPING INSTRUCTIONS", pathPattern: "/main/documentation/instructions", roles: ["ADMIN"] },
-      { key: "bl_approval", label: "BL DRAFT APPROVAL", pathPattern: "/main/documentation/approval", roles: ["ADMIN"] },
-      { key: "customs_status", label: "CUSTOMS STATUS", pathPattern: "/main/documentation/customs-status", roles: ["OPERATOR"] },
-      { key: "customs_reference", label: "CUSTOMS REFERENCE", pathPattern: "/main/documentation/customs-ref", roles: ["OPERATOR"] },
-      { key: "cargo_claims", label: "CARGO CLAIMS", pathPattern: "/main/documentation/claims", roles: ["CLIENT"] },
-      { key: "e_bl", label: "ELECTRONIC BILL OF LADING", pathPattern: "/main/documentation/ebl", roles: ["CLIENT"] },
+      { key: "shipping_instructions", label: "SHIPPING INSTRUCTIONS", pathPattern: "/main/documentation/createSI", roles: ["ADMIN"] },
     ],
   },
   {
@@ -97,7 +84,6 @@ const menuData: MenuItem[] = [
     roles: ["ADMIN", "CLIENT"],
     sub: [
       { key: "my_invoice", label: "MY INVOICE", pathPattern: "/main/finance/invoice", roles: ["CLIENT"] },
-      { key: "my_disputes", label: "MY DISPUTES", pathPattern: "/main/finance/disputes", roles: ["CLIENT"] },
     ],
   },
   {
@@ -109,9 +95,6 @@ const menuData: MenuItem[] = [
       { key: "by_booking", label: "BY BOOKING", pathPattern: "/main/tracking/byBooking", roles: ["CLIENT", "OPERATOR"] },
       { key: "by_container", label: "BY CONTAINER", pathPattern: "/main/tracking/byContainer", roles: ["OPERATOR"] },
       { key: "by_vessel", label: "BY VESSEL", pathPattern: "/main/tracking/byVessel", roles: ["OPERATOR"] },
-      { key: "subscription", label: "SUBSCRIPTION", pathPattern: "/main/tracking/subscription", roles: ["CLIENT"] },
-      { key: "vessel_tracker", label: "VESSEL TRACKER", pathPattern: "/main/tracking/vesselTracker", roles: ["CLIENT"] },
-      { key: "live_position", label: "LIVE POSITION", pathPattern: "/main/tracking/livePosition", roles: ["CLIENT"] },
     ],
   },
   {

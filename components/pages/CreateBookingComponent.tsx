@@ -1,7 +1,6 @@
-// components/BookingComponent.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,65 +8,27 @@ import {
   Package,
   Info,
   Ship,
-  Container as ContainerIcon,
-  AlertTriangle,
+  Boxes as ContainerIcon, // ✅ reliable icon
   Shield,
   FileText,
-  Send
-} from 'lucide-react';
+  Send,
+} from "lucide-react";
 
-type DeliveryType = 'door' | 'terminal';
-type WeightUnit = 'kg' | 'lb';
-
-interface RoutingOption {
-  id: number;
-  mode: string;
-  pol: string;
-  service: string;
-  pod: string;
-  commodity: string;
-  type1: string;
-  type2: string;
-  type3: string;
+// Utilities
+function clsx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
 }
 
-interface ScheduleOption {
-  id: number;
-  pol: string;
-  date: string;
-  vessels: string[];
-  pod: string;
-  transitTime: number;
-}
-
-interface RouteDetail {
-  id: number;
-  location: string;
-  arrival: string;
-  departure: string;
-  vessel: string;
-  voyage: string;
-  service: string;
-}
+const cardGradient = {
+  backgroundImage: `
+    linear-gradient(to bottom left, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%),
+    linear-gradient(to bottom right, #0A1A2F 0%, #0A1A2F 15%, #22D3EE 100%)
+  `,
+  backgroundBlendMode: "overlay",
+};
 
 // ─── Page 3 Header Component ───────────────────────────────────────────────
-interface BookingSummaryHeaderProps {
-  quotationNo: string;
-  scheduleStart: string;
-  scheduleDate: string;
-  scheduleWeeks: string;
-  pickupType: DeliveryType;
-  via1: string;
-  via2: string;
-  endLocation: string;
-  exportMoT: string;
-  importMoT: string;
-  optimizeReefer: boolean;
-  onDateChange: (d: string) => void;
-  onWeeksChange: (w: string) => void;
-  onPickupTypeChange: (t: DeliveryType) => void;
-}
-export const BookingSummaryHeader: React.FC<BookingSummaryHeaderProps> = ({
+export const BookingSummaryHeader = ({
   quotationNo,
   scheduleStart,
   scheduleDate,
@@ -82,61 +43,90 @@ export const BookingSummaryHeader: React.FC<BookingSummaryHeaderProps> = ({
   onDateChange,
   onWeeksChange,
   onPickupTypeChange,
+}: {
+  quotationNo: string;
+  scheduleStart: string;
+  scheduleDate: string;
+  scheduleWeeks: string;
+  pickupType: "door" | "terminal";
+  via1: string;
+  via2: string;
+  endLocation: string;
+  exportMoT: string;
+  importMoT: string;
+  optimizeReefer: boolean;
+  onDateChange: (v: string) => void;
+  onWeeksChange: (v: string) => void;
+  onPickupTypeChange: (v: "door" | "terminal") => void;
 }) => (
-  <div className="bg-[#2D4D8B] border border-gray-300 rounded-xl p-6 mb-6">
+  <div className="bg-[#1A2A4A] border-4 border-white rounded-2xl p-8 mb-8 shadow-[20px_20px_0px_rgba(0,0,0,1)]">
     {/* Row 1 */}
-    <div className="grid md:grid-cols-5 gap-4 items-end">
+    <div className="grid md:grid-cols-5 gap-6 items-end">
       <div>
-        <label className="block font-bold mb-1">Quotation Number</label>
-        <div className="h-9 px-3 bg-white border rounded">{quotationNo}</div>
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Quotation Number
+        </label>
+        <div className="h-12 px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl flex items-center text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+          {quotationNo || "—"}
+        </div>
       </div>
       <div>
-        <label className="block font-bold mb-1">Start Location*</label>
-        <div className="h-9 px-3 bg-white border rounded">{scheduleStart}</div>
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Start Location*
+        </label>
+        <div className="h-12 px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl flex items-center text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+          {scheduleStart || "—"}
+        </div>
       </div>
       <div>
-        <label className="block font-bold mb-1">Start Date</label>
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Start Date
+        </label>
         <input
           type="date"
           value={scheduleDate}
-          onChange={e => onDateChange(e.target.value)}
-          className="h-9 w-full px-3 bg-white border rounded"
+          onChange={(e) => onDateChange(e.target.value)}
+          className="h-12 w-full px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
         />
       </div>
       <div>
-        <label className="block font-bold mb-1">Plus</label>
-        <div className="flex items-center space-x-2">
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Plus
+        </label>
+        <div className="flex items-center space-x-3">
           <select
             value={scheduleWeeks}
-            onChange={e => onWeeksChange(e.target.value)}
-            className="h-9 px-2 bg-white border rounded"
+            onChange={(e) => onWeeksChange(e.target.value)}
+            className="h-12 px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
           >
             {[...Array(8)].map((_, i) => (
-              <option key={i} value={i + 1}>
+              <option key={i} value={String(i + 1)}>
                 {i + 1}
               </option>
             ))}
           </select>
-          <span>week(s)</span>
+          <span className="text-[#faf9f6] font-bold">week(s)</span>
         </div>
       </div>
-      <div className="space-y-1">
-        <label className="block font-bold mb-1">Received at</label>
-        <label className="inline-flex items-center space-x-2">
+      <div className="space-y-3">
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Received at
+        </label>
+        <label className="flex items-center space-x-3 text-[#faf9f6] font-bold">
           <input
             type="radio"
-            checked={pickupType === 'door'}
-            onChange={() => onPickupTypeChange('door')}
-            className="accent-[#00FFFF]"
+            checked={pickupType === "door"}
+            onChange={() => onPickupTypeChange("door")}
+            className="w-5 h-5 accent-[#00FFFF] bg-[#0A1A2F] border-2 border-[#22D3EE]"
           />
           <span>your door (CH)</span>
         </label>
-        <label className="inline-flex items-center space-x-2">
+        <label className="flex items-center space-x-3 text-[#faf9f6] font-bold">
           <input
             type="radio"
-            checked={pickupType === 'terminal'}
-            onChange={() => onPickupTypeChange('terminal')}
-            className="accent-[#00FFFF]"
+            checked={pickupType === "terminal"}
+            onChange={() => onPickupTypeChange("terminal")}
+            className="w-5 h-5 accent-[#00FFFF] bg-[#0A1A2F] border-2 border-[#22D3EE]"
           />
           <span>container terminal (MH)</span>
         </label>
@@ -144,26 +134,43 @@ export const BookingSummaryHeader: React.FC<BookingSummaryHeaderProps> = ({
     </div>
 
     {/* Row 2 */}
-    <div className="grid md:grid-cols-3 gap-4 mt-6">
+    <div className="grid md:grid-cols-3 gap-6 mt-8">
       <div>
-        <label className="block font-bold mb-1">Via 1</label>
-        <div className="h-9 px-3 bg-white border rounded">{via1}</div>
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Via 1
+        </label>
+        <div className="h-12 px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl flex items-center text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+          {via1 || "—"}
+        </div>
       </div>
       <div>
-        <label className="block font-bold mb-1">Via 2</label>
-        <div className="h-9 px-3 bg-white border rounded">{via2}</div>
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Via 2
+        </label>
+        <div className="h-12 px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl flex items-center text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+          {via2 || "—"}
+        </div>
       </div>
       <div>
-        <label className="block font-bold mb-1">End Location*</label>
-        <div className="h-9 px-3 bg-white border rounded">{endLocation}</div>
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          End Location*
+        </label>
+        <div className="h-12 px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl flex items-center text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+          {endLocation || "—"}
+        </div>
       </div>
     </div>
 
     {/* Row 3 */}
-    <div className="grid md:grid-cols-3 gap-4 mt-6 items-center">
+    <div className="grid md:grid-cols-3 gap-6 mt-8 items-center">
       <div>
-        <label className="block font-bold mb-1">Export MoT</label>
-        <select value={exportMoT} onChange={() => {}} className="h-9 w-full px-3 bg-white border rounded">
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Export MoT
+        </label>
+        <select
+          defaultValue={exportMoT}
+          className="h-12 w-full px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+        >
           <option value="">—</option>
           <option>Road</option>
           <option>Rail</option>
@@ -171,29 +178,36 @@ export const BookingSummaryHeader: React.FC<BookingSummaryHeaderProps> = ({
         </select>
       </div>
       <div>
-        <label className="block font-bold mb-1">Import MoT</label>
-        <select value={importMoT} onChange={() => {}} className="h-9 w-full px-3 bg-white border rounded">
+        <label className="block font-bold mb-2 text-[#00FFFF] text-sm uppercase tracking-wide">
+          Import MoT
+        </label>
+        <select
+          defaultValue={importMoT}
+          className="h-12 w-full px-4 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl text-[#faf9f6] font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+        >
           <option value="">—</option>
           <option>Road</option>
           <option>Rail</option>
           <option>Sea</option>
         </select>
       </div>
-      <div className="flex items-center">
+      <div className="flex items-center space-x-3">
         <input
           type="checkbox"
           checked={optimizeReefer}
-          onChange={() => {}}
-          className="accent-[#00FFFF] mr-2"
+          readOnly // ✅ silence controlled-without-onChange warning
+          className="w-6 h-6 accent-[#00FFFF] bg-[#0A1A2F] border-2 border-[#22D3EE] rounded"
         />
-        <span>Optimize routing for reefer equipment</span>
+        <span className="text-[#faf9f6] font-bold">
+          Optimize routing for reefer equipment
+        </span>
       </div>
     </div>
   </div>
 );
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-export const CreateBookingComponent: React.FC = () => {
+export const CreateBookingComponent = () => {
   const [currentStep, setCurrentStep] = useState(0);
 
   // Step 0
@@ -216,10 +230,22 @@ NZ-2022`);
   const [hasSelectedRouting, setHasSelectedRouting] = useState(false);
   const [hasLookedUp, setHasLookedUp] = useState(false);
 
-  const [routingOptions] = useState<RoutingOption[]>([
-    { id: 1, mode: 'Terminal', pol: 'SYDNEY, NSW', service: 'WAX', pod: 'TEMA', commodity: 'FAK', type1: "20'STD", type2: "40'STD", type3: "40'HC" },
+  const [routingOptions] = useState([
+    {
+      id: 1,
+      mode: "Terminal",
+      pol: "SYDNEY, NSW",
+      service: "WAX",
+      pod: "TEMA",
+      commodity: "FAK",
+      type1: "20'STD",
+      type2: "40'STD",
+      type3: "40'HC",
+    },
   ]);
-  const [selectedRoutingId, setSelectedRoutingId] = useState<number | null>(null);
+  const [selectedRoutingId, setSelectedRoutingId] = useState<number | null>(
+    null
+  );
 
   // Page 2 form
   const [scheduleStart, setScheduleStart] = useState("");
@@ -228,64 +254,109 @@ NZ-2022`);
   const [via1, setVia1] = useState("");
   const [via2, setVia2] = useState("");
   const [endLocation, setEndLocation] = useState("");
-  const [pickupType, setPickupType] = useState<DeliveryType>("terminal");
+  const [pickupType, setPickupType] = useState<"terminal" | "door">("terminal");
   const [exportMoT, setExportMoT] = useState("");
   const [importMoT, setImportMoT] = useState("");
   const [optimizeReefer, setOptimizeReefer] = useState(false);
 
-  const [scheduleResults, setScheduleResults] = useState<ScheduleOption[]>([]);
-  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [scheduleResults, setScheduleResults] = useState<
+    {
+      id: number;
+      pol: string;
+      date: string;
+      vessels: string[];
+      pod: string;
+      transitTime: number;
+    }[]
+  >([]);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(
+    null
+  );
 
-  const [routeDetails] = useState<RouteDetail[]>([
-    { id:1, location: 'SYDNEY, NSW', arrival: '2022-12-12', departure: '—', vessel: 'APL BOSTON', voyage: '245N', service: 'SEA' },
-    { id:2, location: 'SINGAPORE', arrival: '2022-12-29', departure: '2023-01-04', vessel: 'SPIL KARTIKA', voyage: '005W', service: 'CGX' },
-    { id:3, location: 'ANTWERP', arrival: '2023-01-30', departure: '2023-02-02', vessel: 'SYNERGY ANTWERP', voyage: '2305S', service: 'WAX' },
-    { id:4, location: 'TEMA', arrival: '2023-02-19', departure: '—', vessel: '—', voyage: '—', service: '—' },
+  const [routeDetails] = useState<
+    {
+      id: number;
+      location: string;
+      arrival: string;
+      departure: string;
+      vessel: string;
+      voyage: string;
+      service: string;
+    }[]
+  >([
+    {
+      id: 1,
+      location: "SYDNEY, NSW",
+      arrival: "2022-12-12",
+      departure: "—",
+      vessel: "APL BOSTON",
+      voyage: "245N",
+      service: "SEA",
+    },
+    {
+      id: 2,
+      location: "SINGAPORE",
+      arrival: "2022-12-29",
+      departure: "2023-01-04",
+      vessel: "SPIL KARTIKA",
+      voyage: "005W",
+      service: "CGX",
+    },
+    {
+      id: 3,
+      location: "ANTWERP",
+      arrival: "2023-01-30",
+      departure: "2023-02-02",
+      vessel: "SYNERGY ANTWERP",
+      voyage: "2305S",
+      service: "WAX",
+    },
+    {
+      id: 4,
+      location: "TEMA",
+      arrival: "2023-02-19",
+      departure: "—",
+      vessel: "—",
+      voyage: "—",
+      service: "—",
+    },
   ]);
 
   // Steps 2–6 state
   const [startLocation, setStartLocation] = useState("");
   const [pickupDate, setPickupDate] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
-  const [deliveryType, setDeliveryType] = useState<DeliveryType>('terminal');
+  const [deliveryType, setDeliveryType] = useState<"terminal" | "door">(
+    "terminal"
+  );
+  const [remarks, setRemarks] = useState<string>("");
   const [shipperOwnedContainer, setShipperOwnedContainer] = useState(false);
-  const [containerType, setContainerType] = useState("40-general");
-  const [containerQty, setContainerQty] = useState("1");
   const [weight, setWeight] = useState("20000");
-  const [weightUnit, setWeightUnit] = useState<WeightUnit>("kg");
-  const [dangerousGoods, setDangerousGoods] = useState(false);
-  const [imoClass, setImoClass] = useState("");
-  const [unNumber, setUnNumber] = useState("");
-  const [commodity, setCommodity] = useState("FAK");
-  const [customsDetails, setCustomsDetails] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [filingAddress, setFilingAddress] = useState(""); 
+  const [weightUnit, setWeightUnit] = useState("kg");
+  const [dangerousGoods] = useState(false); // kept but fixed to avoid unused setState
 
-  const next = () => setCurrentStep(s => Math.min(s + 1, 6));
-  const prev = () => setCurrentStep(s => Math.max(s - 1, 0));
+  const next = () => setCurrentStep((s) => Math.min(s + 1, 6));
+  const prev = () => setCurrentStep((s) => Math.max(s - 1, 0));
 
+  const [containerRows, setContainerRows] = useState<
+    { qty: string; type: string }[]
+  >([{ qty: "", type: "" }, { qty: "", type: "" }, { qty: "", type: "" }, { qty: "", type: "" }]);
 
-  const [containerRows, setContainerRows] = useState(
-  Array.from({ length: 4 }, () => ({ qty: '', type: '' }))
-);
+  const [cargoDescription, setCargoDescription] = useState("");
+  const [hsParts, setHsParts] = useState<string[]>(["", "", ""]);
 
-const [cargoDescription, setCargoDescription] = useState('');
-// instead of const [hsCode, setHsCode] = useState('');
-const [hsParts, setHsParts] = useState<string[]>(['', '', '']);
+  const [newContainerType, setNewContainerType] = useState("");
+  const [releaseDate, setReleaseDate] = useState("");
+  const [releaseTime, setReleaseTime] = useState("");
+  const [hasAssignedDetails, setHasAssignedDetails] = useState(false);
 
-const [newContainerType, setNewContainerType] = useState('');
-const [releaseDate, setReleaseDate] = useState('');
-const [releaseTime, setReleaseTime] = useState('');
-const [hasAssignedDetails, setHasAssignedDetails] = useState(false);
-
-const [customsRefs, setCustomsRefs] = useState(
-  Array.from({ length: 5 }, () => ({ type: '', ref: '' }))
-);
-const [wantsBoL, setWantsBoL] = useState(false);
-const [boLCount, setBoLCount] = useState('');
-const [exportFiling, setExportFiling] = useState(false);
-const [filingBy, setFilingBy] = useState('');
-
+  const [customsRefs, setCustomsRefs] = useState<
+    { type: string; ref: string }[]
+  >([{ type: "", ref: "" }, { type: "", ref: "" }, { type: "", ref: "" }, { type: "", ref: "" }, { type: "", ref: "" }]);
+  const [wantsBoL, setWantsBoL] = useState(false);
+  const [boLCount, setBoLCount] = useState("");
+  const [exportFiling, setExportFiling] = useState(false);
+  const [filingBy, setFilingBy] = useState("");
 
   // Step 1 handlers
   const handleFindContract = () => {
@@ -296,94 +367,139 @@ const [filingBy, setFilingBy] = useState('');
     setHasFoundContract(true);
   };
   const handleClearContract = () => {
-    setQuotationNo(""); setValidTo("");
-    setContractualParty(""); setContractualAddress("");
+    setQuotationNo("");
+    setValidTo("");
+    setContractualParty("");
+    setContractualAddress("");
     setHasFoundContract(false);
     setHasSelectedRouting(false);
     setHasLookedUp(false);
-    setScheduleResults([]); setSelectedRoutingId(null);
+    setScheduleResults([]);
+    setSelectedRoutingId(null);
   };
   const selectRouting = () => {
     if (selectedRoutingId !== null) setHasSelectedRouting(true);
   };
 
-  const updateContainerRow = (idx: number, field: 'qty' | 'type', value: string) => {
-  setContainerRows(rows =>
-    rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
-  );
-};
+  const updateContainerRow = (
+    idx: number,
+    field: "qty" | "type",
+    value: string
+  ) => {
+    setContainerRows((rows) =>
+      rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
+    );
+  };
 
-const handleAssignDetails = () => {
-  const fullHsCode = hsParts.join('');
-  console.log('Assigning details:', {
-    containerRows,
-    shipperOwnedContainer,
-    cargoDescription,
-    hsCode: fullHsCode,
-    releaseDate,
-    releaseTime,
-  });
-  setHasAssignedDetails(true);      // ← show the “popup” and hide the buttons
-};
+  const handleAssignDetails = () => {
+    const fullHsCode = hsParts.join("");
+    console.log("Assigning details:", {
+      containerRows,
+      shipperOwnedContainer,
+      cargoDescription,
+      hsCode: fullHsCode,
+      releaseDate,
+      releaseTime,
+    });
+    setHasAssignedDetails(true);
+  };
 
-const handleClearCargo = () => {
-  setContainerRows(Array.from({ length: 4 }, () => ({ qty: '', type: '' })));
-  setShipperOwnedContainer(false);
-  setCargoDescription('');
-  setHsParts(['', '', '']);
-  setReleaseDate('');
-  setReleaseTime('');
-  setHasAssignedDetails(false);     // ← bring the buttons back
-};
+  const handleClearCargo = () => {
+    setContainerRows([
+      { qty: "", type: "" },
+      { qty: "", type: "" },
+      { qty: "", type: "" },
+      { qty: "", type: "" },
+    ]);
+    setShipperOwnedContainer(false);
+    setCargoDescription("");
+    setHsParts(["", "", ""]);
+    setReleaseDate("");
+    setReleaseTime("");
+    setHasAssignedDetails(false);
+  };
 
-
-const handleAddContainer = () => {
-  console.log('Adding container of type', newContainerType);
-  // → call API or push into containerRows array…
-};
+  const handleAddContainer = () => {
+    console.log("Adding container of type", newContainerType);
+  };
 
   const handleLookupSchedule = () => {
     setScheduleResults([
-      { id:1, pol:"SYDNEY, NSW | AU", date:"2022-12-12",
-        vessels:[
+      {
+        id: 1,
+        pol: "SYDNEY, NSW | AU",
+        date: "2022-12-12",
+        vessels: [
           "APL BOSTON / 245N / SEA",
           "SPIL KARTIKA / 005W / CGX",
-          "SYNERGY ANTWERP / 2305S / WAX"
+          "SYNERGY ANTWERP / 2305S / WAX",
         ],
-        pod:"TEMA | GH", transitTime:69 },
-      { id:2, pol:"SYDNEY, NSW | AU", date:"2022-12-20",
-        vessels:[
+        pod: "TEMA | GH",
+        transitTime: 69,
+      },
+      {
+        id: 2,
+        pol: "SYDNEY, NSW | AU",
+        date: "2022-12-20",
+        vessels: [
           "CONTI CONQUEST / 246N / SEA",
           "SEASPAN SAIGON / 006W / CGX",
-          "DALLAS EXPRESS / 2306S / WAX"
+          "DALLAS EXPRESS / 2306S / WAX",
         ],
-        pod:"TEMA | GH", transitTime:68 },
-      { id:3, pol:"SYDNEY, NSW | AU", date:"2022-12-16",
-        vessels:[
+        pod: "TEMA | GH",
+        transitTime: 68,
+      },
+      {
+        id: 3,
+        pol: "SYDNEY, NSW | AU",
+        date: "2022-12-16",
+        vessels: [
           "VENETIA / 2090N / SAL",
           "SEASPAN SAIGON / 006W / CGX",
-          "DALLAS EXPRESS / 2306S / WAX"
+          "DALLAS EXPRESS / 2306S / WAX",
         ],
-        pod:"TEMA | GH", transitTime:72 },
+        pod: "TEMA | GH",
+        transitTime: 72,
+      },
     ]);
     setHasLookedUp(true);
   };
   const handleClearSchedule = () => {
-    setScheduleResults([]); setSelectedScheduleId(null); setHasLookedUp(false);
+    setScheduleResults([]);
+    setSelectedScheduleId(null);
+    setHasLookedUp(false);
   };
 
-  const sectionStyle = "bg-[#0A1A2F] border-2 border-white rounded-xl p-8 mb-8";
-  const navButtonStyle = "bg-white rounded-xl px-4 py-2 font-bold hover:bg-gray-300 transition";
+  const inputStyle =
+    "w-full bg-[#0A1A2F] rounded-xl hover:bg-[#1A2A4A] hover:text-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] placeholder:font-light transition-shadow border-2 border-[#22D3EE] px-4 py-3 font-bold";
+  const selectStyle =
+    "w-full bg-[#0A1A2F] rounded-xl hover:bg-[#1A2A4A] hover:text-[#00FFFF] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow border-2 border-[#22D3EE] px-4 py-3 font-bold";
+  const buttonStyle =
+    "bg-[#0A1A2F] rounded-xl hover:bg-[#1A2A4A] hover:text-[#00FFFF] text-[#faf9f6] px-6 py-3 font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-[#22D3EE]";
+  const primaryButtonStyle =
+    "bg-[#00FFFF] text-black px-8 py-3 rounded-xl font-bold shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-all border-2 border-black hover:bg-[#22D3EE]";
+  const sectionStyle =
+    "max-w-[1600px] rounded-2xl shadow-[30px_30px_0px_rgba(0,0,0,1)] p-8 border-4 border-white";
+  const navButtonStyle =
+    "bg-white rounded-xl px-6 py-3 font-bold hover:bg-gray-300 transition-all shadow-[6px_6px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] border-2 border-black text-black";
 
   return (
-    <div className="font-bold text-[#faf9f6] p-6 max-w-[1600px] mx-auto">
+    <div className="max-w-[1600px] mx-auto px-6 py-10 font-bold text-[#faf9f6]">
       {/* Header */}
-      <div className="inline-flex items-center space-x-3 text-2xl bg-[#0A1A2F] border-2 border-white rounded-xl p-4 mb-8 ">
-        <Package size={32} /><span>NEW BOOKING REQUEST</span>
+      <div className="flex items-center justify-center mb-12">
+        <div
+          className="inline-flex items-center space-x-4 text-3xl bg-[#0A1A2F] border-4 border-white rounded-2xl p-6 shadow-[20px_20px_0px_rgba(0,0,0,1)]"
+          style={cardGradient}
+        >
+          <Package size={40} className="text-[#00FFFF]" />
+          <span className="text-[#faf9f6] font-bold uppercase tracking-wide">
+            NEW BOOKING REQUEST
+          </span>
+        </div>
       </div>
 
       {/* Stepper */}
-      <div className="flex items-center justify-between bg-[#0F1B2A] border-2 border-white rounded-xl px-6 py-4 mb-12">
+      <div className="flex items-center justify-between bg-[#0F1B2A] border-4 border-white rounded-2xl px-8 py-6 mb-16 shadow-[20px_20px_0px_rgba(0,0,0,1)]">
         {[
           "CONTACT & REFERENCE",
           "CONTRACT & QUOTATION",
@@ -391,86 +507,129 @@ const handleAddContainer = () => {
           "CARGO & EQUIPMENT",
           "CUSTOMS & REMARKS",
           "REVIEW & COMPLETE",
-          "BOOKING RECEIVED"
+          "BOOKING RECEIVED",
         ].map((label, idx) => (
           <React.Fragment key={label}>
-            <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
-                currentStep >= idx ? 'bg-white text-[#0F1B2A]' : 'bg-[#0F1B2A] text-[#faf9f6]'
-              } font-bold text-sm`}>
+            <div className="flex items-center gap-3">
+              <div
+                className={clsx(
+                  "w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold text-sm shadow-[2px_2px_0px_rgba(0,0,0,1)]",
+                  currentStep >= idx
+                    ? "bg-[#00FFFF] text-black border-black"
+                    : "bg-[#0F1B2A] text-[#faf9f6] border-[#22D3EE]"
+                )}
+              >
                 {idx + 1}
               </div>
-              <span className={currentStep >= idx ? 'text-white' : 'text-[#faf9f6]'}>
+              <span
+                className={clsx(
+                  "font-bold text-sm uppercase tracking-wide",
+                  currentStep >= idx ? "text-[#00FFFF]" : "text-[#faf9f6]"
+                )}
+              >
                 {label}
               </span>
             </div>
-            {idx < 6 && <div className="flex-1 h-1 bg-white mx-4" />}
+            {idx < 6 && (
+              <div className="flex-1 h-1 bg-[#22D3EE] mx-6 shadow-[0px_2px_0px_rgba(0,0,0,1)]" />
+            )}
           </React.Fragment>
         ))}
       </div>
 
       {/* Content */}
-      <div className={sectionStyle}>
+      <div className={sectionStyle} style={cardGradient}>
         {/* Step 0 */}
         {currentStep === 0 && (
-          <div className="grid md:grid-cols-2 gap-8 bg-[#0A1A2F] border-white rounded-xl p-6 mb-8">
-            {/* Left */}
-            <div className="space-y-4">
-              <label className="block font-bold">Customer</label>
-              <textarea
-                readOnly
-                value={`${customer}\n${customerAddress}`}
-                rows={5}
-                className="w-full bg-[#2D4D8B] rounded-xl p-3 text-[#faf9f6] shadow-inner resize-none"
-              />
-              <div className="grid grid-cols-1 gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+              <Info size={28} />
+              CONTACT & REFERENCE
+            </h2>
+
+            <div className="grid md:grid-cols-2 gap-10">
+              {/* Left */}
+              <div className="space-y-6">
                 <div>
-                  <label className="font-light">Customer Reference</label>
-                  <input
-                    type="text"
-                    value={contactReference}
-                    onChange={e => setContactReference(e.target.value)}
-                    className="w-full bg-[#2D4D8B] rounded-xl p-2"
+                  <label className="block font-bold text-[#00FFFF] mb-3 text-sm uppercase tracking-wide">
+                    Customer
+                  </label>
+                  <textarea
+                    readOnly
+                    value={`${customer}\n${customerAddress}`}
+                    rows={6}
+                    className="w-full bg-[#1A2A4A] rounded-xl p-4 text-[#faf9f6] shadow-[8px_8px_0px_rgba(0,0,0,1)] resize-none border-2 border-[#22D3EE] font-bold"
                   />
                 </div>
-                <div>
-                  <label className="font-light">Contact*</label>
-                  <input
-                    type="text"
-                    value={contactName}
-                    onChange={e => setContactName(e.target.value)}
-                    className="w-full bg-[#2D4D8B] rounded-xl p-2"
-                  />
-                </div>
-                <div>
-                  <label className="font-light">Phone</label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    className="w-full bg-[#2D4D8B] rounded-xl p-2"
-                  />
-                </div>
-                <div>
-                  <label className="font-light">Notification E-mail*</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className="w-full bg-[#2D4D8B] rounded-xl p-2"
-                  />
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                      Customer Reference
+                    </label>
+                    <input
+                      type="text"
+                      value={contactReference}
+                      onChange={(e) => setContactReference(e.target.value)}
+                      className={inputStyle}
+                      placeholder="Enter customer reference"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                      Contact*
+                    </label>
+                    <input
+                      type="text"
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      className={inputStyle}
+                      placeholder="Contact name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                      Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={inputStyle}
+                      placeholder="Phone number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                      Notification E-mail*
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={inputStyle}
+                      placeholder="Email address"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-            {/* Right */}
-            <div className="rounded-xl p-6 shadow-inner">
-              <div className="flex justify-between border-b border-white pb-2 mb-4">
-                <span className="font-bold">Your contact</span>
-                <Info size={16} />
+
+              {/* Right */}
+              <div className="bg-[#1A2A4A] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)] border-2 border-[#22D3EE]">
+                <div className="flex justify-between border-b-2 border-[#00FFFF] pb-4 mb-6">
+                  <span className="font-bold text-[#00FFFF] text-lg uppercase tracking-wide">
+                    Your Contact
+                  </span>
+                  <Info size={20} className="text-[#00FFFF]" />
+                </div>
+                <p className="text-[#faf9f6] font-bold leading-relaxed">
+                  Your contact data is prefilled with the information you
+                  already provided during web registration.
+                </p>
               </div>
-              <p className="text-sm">
-                Your contact data is prefilled with the information you already provided during web registration.
-              </p>
             </div>
           </div>
         )}
@@ -481,115 +640,154 @@ const handleAddContainer = () => {
             {/* Page 1 */}
             {!hasSelectedRouting && !hasLookedUp && (
               <>
-                <div className="grid md:grid-cols-2 gap-8 mb-6">
+                <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+                  <FileText size={28} />
+                  CONTRACT & QUOTATION
+                </h2>
+
+                <div className="grid md:grid-cols-2 gap-10 mb-8">
                   <div>
-                    <label className="block font-bold mb-2">Quotation / Contract No.*</label>
+                    <label className="block font-bold mb-3 text-[#00FFFF] text-sm uppercase tracking-wide">
+                      Quotation / Contract No.*
+                    </label>
                     <input
                       value={quotationNo}
-                      onChange={e => setQuotationNo(e.target.value)}
-                      className="w-full bg-[#2D4D8B] rounded-xl p-2 text-[#faf9f6]"
+                      onChange={(e) => setQuotationNo(e.target.value)}
+                      className={inputStyle}
+                      placeholder="Enter quotation number"
                     />
-                    <div className="flex gap-4 mt-4">
-                      <button
-                        onClick={handleFindContract}
-                        className="bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold"
-                      >
-                        Find
+                    <div className="flex gap-6 mt-6">
+                      <button onClick={handleFindContract} className={primaryButtonStyle}>
+                        Find Contract
                       </button>
-                      <button
-                        onClick={handleClearContract}
-                        className="bg-[#faf9f6] text-black px-6 py-2 rounded-xl font-bold"
-                      >
+                      <button onClick={handleClearContract} className={buttonStyle}>
                         Clear
                       </button>
                     </div>
                   </div>
-                  <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-                    <div className="flex justify-between border-b border-white pb-2 mb-4">
-                      <span className="font-bold">Base for Freight Charges</span>
-                      <Info size={16} />
+
+                  <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                    <div className="flex justify-between border-b-2 border-[#00FFFF] pb-4 mb-6">
+                      <span className="font-bold text-[#00FFFF] text-lg uppercase tracking-wide">
+                        Base for Freight Charges
+                      </span>
+                      <Info size={20} className="text-[#00FFFF]" />
                     </div>
-                    <p className="mb-2 text-sm">
-                      The freight basis is either a quotation or a (service-) contract you hold with Hapag-Lloyd.
-                    </p>
-                    <p className="mb-2 text-sm">
-                      Formats: <strong>W1209RTM00001</strong>, <strong>Q1209RTM00001</strong>, <strong>S19ABC001</strong>, <strong>4682727</strong>.
-                    </p>
-                    <p className="text-sm">
-                      If neither, use <span className="text-[#00FFFF] underline">Quick Quote</span> or contact your local <span className="text-[#00FFFF] underline">Sales Office</span>.
-                    </p>
+                    <div className="space-y-4 text-[#faf9f6] font-bold">
+                      <p>
+                        The freight basis is either a quotation or a
+                        (service-) contract you hold with Hapag-Lloyd.
+                      </p>
+                      <p>
+                        Formats:{" "}
+                        <span className="text-[#00FFFF]">W1209RTM00001</span>,{" "}
+                        <span className="text-[#00FFFF]">Q1209RTM00001</span>,{" "}
+                        <span className="text-[#00FFFF]">S19ABC001</span>,{" "}
+                        <span className="text-[#00FFFF]">4682727</span>.
+                      </p>
+                      <p>
+                        If neither, use{" "}
+                        <span className="text-[#00FFFF] underline cursor-pointer">
+                          Quick Quote
+                        </span>{" "}
+                        or contact your local{" "}
+                        <span className="text-[#00FFFF] underline cursor-pointer">
+                          Sales Office
+                        </span>
+                        .
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 {hasFoundContract && (
-                  <div className="space-y-6 mb-8">
-                    <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-                      <div className="font-bold mb-4">Validity</div>
-                      <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-8">
+                    <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                      <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
+                        Validity
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-8">
                         <div>
-                          <div className="font-light">Quotation / Contract No.*</div>
-                          <div>{quotationNo}</div>
+                          <div className="font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                            Quotation / Contract No.*
+                          </div>
+                          <div className="text-[#faf9f6] font-bold text-lg">
+                            {quotationNo}
+                          </div>
                         </div>
                         <div>
-                          <div className="font-light">Valid to</div>
-                          <div>{validTo}</div>
+                          <div className="font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                            Valid to
+                          </div>
+                          <div className="text-[#faf9f6] font-bold text-lg">
+                            {validTo}
+                          </div>
                         </div>
                       </div>
-                      <div className="mt-4">
-                        <div className="font-light mb-1">Contractual Party</div>
+                      <div className="mt-6">
+                        <div className="font-bold text-[#00FFFF] mb-3 text-sm uppercase tracking-wide">
+                          Contractual Party
+                        </div>
                         <textarea
                           readOnly
-                          rows={3}
+                          rows={4}
                           value={`${contractualParty}\n${contractualAddress}`}
-                          className="w-full bg-transparent resize-none"
+                          className="w-full bg-transparent text-[#faf9f6] font-bold resize-none"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <div className="font-bold mb-2">Routing as per Quotation</div>
-                      <div className="overflow-x-auto bg-[#2D4D8B] border-2 border-white rounded-xl p-4">
-                        <table className="min-w-full text-sm">
-                          <thead className="bg-white text-[#0A1A2F]">
+                      <div className="font-bold mb-4 text-[#00FFFF] text-xl uppercase tracking-wide">
+                        Routing as per Quotation
+                      </div>
+                      <div className="overflow-x-auto bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-6 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                        <table className="min-w-full">
+                          <thead className="bg-[#00FFFF] text-black">
                             <tr>
-                              <th className="px-2 py-1">Select</th>
-                              <th className="px-2 py-1">Export haulage</th>
-                              <th className="px-2 py-1">Port of Loading</th>
-                              <th className="px-2 py-1">Service</th>
-                              <th className="px-2 py-1">Port of Discharge</th>
-                              <th className="px-2 py-1">Commodity</th>
-                              <th className="px-2 py-1">Ctr. Type 1</th>
-                              <th className="px-2 py-1">Ctr. Type 2</th>
-                              <th className="px-2 py-1">Ctr. Type 3</th>
+                              <th className="px-4 py-3 font-bold text-sm">Select</th>
+                              <th className="px-4 py-3 font-bold text-sm">Export haulage</th>
+                              <th className="px-4 py-3 font-bold text-sm">Port of Loading</th>
+                              <th className="px-4 py-3 font-bold text-sm">Service</th>
+                              <th className="px-4 py-3 font-bold text-sm">Port of Discharge</th>
+                              <th className="px-4 py-3 font-bold text-sm">Commodity</th>
+                              <th className="px-4 py-3 font-bold text-sm">Ctr. Type 1</th>
+                              <th className="px-4 py-3 font-bold text-sm">Ctr. Type 2</th>
+                              <th className="px-4 py-3 font-bold text-sm">Ctr. Type 3</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {routingOptions.map(opt => (
-                              <tr key={opt.id} className={opt.id === selectedRoutingId ? 'bg-[#FFD58E]' : ''}>
-                                <td className="px-2 py-1 text-center">
+                            {routingOptions.map((opt) => (
+                              <tr
+                                key={opt.id}
+                                className={clsx(
+                                  "border-b border-[#22D3EE]",
+                                  opt.id === selectedRoutingId
+                                    ? "bg-[#00FFFF] text-black"
+                                    : "text-[#faf9f6]"
+                                )}
+                              >
+                                <td className="px-4 py-3 text-center">
                                   <input
                                     type="radio"
                                     checked={opt.id === selectedRoutingId}
                                     onChange={() => setSelectedRoutingId(opt.id)}
-                                    className="accent-[#00FFFF]"
+                                    className="w-5 h-5 accent-[#00FFFF]"
                                   />
                                 </td>
-                                <td className="px-2 py-1">{opt.mode}</td>
-                                <td className="px-2 py-1">{opt.pol}</td>
-                                <td className="px-2 py-1">{opt.service}</td>
-                                <td className="px-2 py-1">{opt.pod}</td>
-                                <td className="px-2 py-1">{opt.commodity}</td>
-                                <td className="px-2 py-1">{opt.type1}</td>
-                                <td className="px-2 py-1">{opt.type2}</td>
-                                <td className="px-2 py-1">{opt.type3}</td>
+                                <td className="px-4 py-3 font-bold">{opt.mode}</td>
+                                <td className="px-4 py-3 font-bold">{opt.pol}</td>
+                                <td className="px-4 py-3 font-bold">{opt.service}</td>
+                                <td className="px-4 py-3 font-bold">{opt.pod}</td>
+                                <td className="px-4 py-3 font-bold">{opt.commodity}</td>
+                                <td className="px-4 py-3 font-bold">{opt.type1}</td>
+                                <td className="px-4 py-3 font-bold">{opt.type2}</td>
+                                <td className="px-4 py-3 font-bold">{opt.type3}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                        <button
-                          onClick={selectRouting}
-                          className="mt-4 bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold"
-                        >
+                        <button onClick={selectRouting} className={`${primaryButtonStyle} mt-6`}>
                           Select Routing
                         </button>
                       </div>
@@ -601,135 +799,160 @@ const handleAddContainer = () => {
 
             {/* Page 2 */}
             {hasSelectedRouting && !hasLookedUp && (
-              <div className="space-y-6">
-                <div className="font-bold">Look-up Schedule</div>
-                <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6 grid md:grid-cols-3 gap-6">
-                  <div>
-                    <label>Start Location*</label>
-                    <input
-                      value={scheduleStart}
-                      onChange={e => setScheduleStart(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    />
-                  </div>
-                  <div>
-                    <label>Start Date</label>
-                    <input
-                      type="date"
-                      value={scheduleDate}
-                      onChange={e => setScheduleDate(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    />
-                  </div>
-                  <div>
-                    <label>Plus (weeks)</label>
-                    <select
-                      value={scheduleWeeks}
-                      onChange={e => setScheduleWeeks(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    >
-                      {[...Array(8)].map((_, i) => (
-                        <option key={i} value={i + 1}>
-                          {i + 1}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label>Via 1</label>
-                    <input
-                      value={via1}
-                      onChange={e => setVia1(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    />
-                  </div>
-                  <div>
-                    <label>Via 2</label>
-                    <input
-                      value={via2}
-                      onChange={e => setVia2(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    />
-                  </div>
-                  <div>
-                    <label>End Location*</label>
-                    <input
-                      value={endLocation}
-                      onChange={e => setEndLocation(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    />
-                  </div>
-                  <div className="md:col-span-3 flex gap-6">
-                    <label className="flex items-center gap-2">
+              <div>
+                <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+                  <Ship size={28} />
+                  LOOK-UP SCHEDULE
+                </h2>
+
+                <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        Start Location*
+                      </label>
                       <input
-                        type="radio"
-                        checked={pickupType === 'door'}
-                        onChange={() => setPickupType('door')}
-                        className="accent-[#00FFFF]"
+                        value={scheduleStart}
+                        onChange={(e) => setScheduleStart(e.target.value)}
+                        className={inputStyle}
+                        placeholder="Start location"
                       />
-                      Received at your door (CH)
-                    </label>
-                    <label className="flex items-center gap-2">
+                    </div>
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        Start Date
+                      </label>
                       <input
-                        type="radio"
-                        checked={pickupType === 'terminal'}
-                        onChange={() => setPickupType('terminal')}
-                        className="accent-[#00FFFF]"
+                        type="date"
+                        value={scheduleDate}
+                        onChange={(e) => setScheduleDate(e.target.value)}
+                        className={inputStyle}
                       />
-                      Received at container terminal (MH)
-                    </label>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        Plus (weeks)
+                      </label>
+                      <select
+                        value={scheduleWeeks}
+                        onChange={(e) => setScheduleWeeks(e.target.value)}
+                        className={selectStyle}
+                      >
+                        {[...Array(8)].map((_, i) => (
+                          <option key={i} value={String(i + 1)}>
+                            {i + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        Via 1
+                      </label>
+                      <input
+                        value={via1}
+                        onChange={(e) => setVia1(e.target.value)}
+                        className={inputStyle}
+                        placeholder="Via 1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        Via 2
+                      </label>
+                      <input
+                        value={via2}
+                        onChange={(e) => setVia2(e.target.value)}
+                        className={inputStyle}
+                        placeholder="Via 2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        End Location*
+                      </label>
+                      <input
+                        value={endLocation}
+                        onChange={(e) => setEndLocation(e.target.value)}
+                        className={inputStyle}
+                        placeholder="End location"
+                      />
+                    </div>
+
+                    <div className="md:col-span-3 flex gap-8 items-center">
+                      <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                        <input
+                          type="radio"
+                          checked={pickupType === "door"}
+                          onChange={() => setPickupType("door")}
+                          className="w-5 h-5 accent-[#00FFFF]"
+                        />
+                        Received at your door (CH)
+                      </label>
+                      <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                        <input
+                          type="radio"
+                          checked={pickupType === "terminal"}
+                          onChange={() => setPickupType("terminal")}
+                          className="w-5 h-5 accent-[#00FFFF]"
+                        />
+                        Received at container terminal (MH)
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        Export MoT
+                      </label>
+                      <select
+                        value={exportMoT}
+                        onChange={(e) => setExportMoT(e.target.value)}
+                        className={selectStyle}
+                      >
+                        <option value="">—</option>
+                        <option>Road</option>
+                        <option>Rail</option>
+                        <option>Sea</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
+                        Import MoT
+                      </label>
+                      <select
+                        value={importMoT}
+                        onChange={(e) => setImportMoT(e.target.value)}
+                        className={selectStyle}
+                      >
+                        <option value="">—</option>
+                        <option>Road</option>
+                        <option>Rail</option>
+                        <option>Sea</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={optimizeReefer}
+                        onChange={(e) => setOptimizeReefer(e.target.checked)}
+                        className="w-6 h-6 accent-[#00FFFF] rounded"
+                      />
+                      <span className="text-[#faf9f6] font-bold">
+                        Optimize routing for reefer equipment
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <label>Export MoT</label>
-                    <select
-                      value={exportMoT}
-                      onChange={e => setExportMoT(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    >
-                      <option value="">—</option>
-                      <option>Road</option>
-                      <option>Rail</option>
-                      <option>Sea</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label>Import MoT</label>
-                    <select
-                      value={importMoT}
-                      onChange={e => setImportMoT(e.target.value)}
-                      className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-                    >
-                      <option value="">—</option>
-                      <option>Road</option>
-                      <option>Rail</option>
-                      <option>Sea</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={optimizeReefer}
-                      onChange={e => setOptimizeReefer(e.target.checked)}
-                      className="accent-[#00FFFF]"
-                    />
-                    Optimize routing for reefer equipment
-                  </div>
-                  <div className="md:col-span-3 flex justify-end gap-4">
-                    <button
-                      onClick={handleLookupSchedule}
-                      className="bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold"
-                    >
-                      Find
+
+                  <div className="flex justify-end gap-6 mt-8">
+                    <button onClick={handleLookupSchedule} className={primaryButtonStyle}>
+                      Find Schedule
                     </button>
-                    <button
-                      onClick={handleClearSchedule}
-                      className="bg-[#faf9f6] text-black px-6 py-2 rounded-xl font-bold"
-                    >
+                    <button onClick={handleClearSchedule} className={buttonStyle}>
                       Clear
                     </button>
                     <button
                       onClick={() => setHasSelectedRouting(false)}
-                      className="underline text-sm text-[#faf9f6] hover:text-white"
+                      className="text-[#00FFFF] underline hover:text-white transition-colors font-bold"
                     >
                       Previous
                     </button>
@@ -758,88 +981,125 @@ const handleAddContainer = () => {
                   onPickupTypeChange={setPickupType}
                 />
 
-                <table className="min-w-full text-sm mb-4 bg-[#2D4D8B] text-[#faf9f6]">
-                  <thead className="bg-white text-[#0A1A2F]">
-                    <tr>
-                      <th className="px-2 py-1">Port of Loading</th>
-                      <th className="px-2 py-1">Transshipments</th>
-                      <th className="px-2 py-1">Vessels / Services</th>
-                      <th className="px-2 py-1">Port of Discharge</th>
-                      <th className="px-2 py-1">Transit Time (days)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleResults.map(opt => (
-                      <tr
-                        key={opt.id}
-                        className={opt.id === selectedScheduleId ? 'bg-[#FFD58E]' : 'bg-[#164070] hover:bg-[#1d4595]'}
-                      >
-                        <td className="px-2 py-1">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              checked={opt.id === selectedScheduleId}
-                              onChange={() => setSelectedScheduleId(opt.id)}
-                              className="accent-[#00FFFF]"
-                            />
-                            <div>
-                              <strong>{opt.pol}</strong><br/>{opt.date}
-                            </div>
-                          </label>
-                        </td>
-                        <td className="px-2 py-1 text-center">{opt.vessels.length}</td>
-                        <td className="px-2 py-1">{opt.vessels.map((v,i)=><div key={i}>{v}</div>)}</td>
-                        <td className="px-2 py-1">{opt.pod}</td>
-                        <td className="px-2 py-1 text-right">{opt.transitTime}</td>
+                <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#22D3EE] overflow-hidden shadow-[15px_15px_0px_rgba(0,0,0,1)] mb-8">
+                  <table className="min-w-full">
+                    <thead className="bg-[#00FFFF] text-black">
+                      <tr>
+                        <th className="px-4 py-3 font-bold">Port of Loading</th>
+                        <th className="px-4 py-3 font-bold">Transshipments</th>
+                        <th className="px-4 py-3 font-bold">Vessels / Services</th>
+                        <th className="px-4 py-3 font-bold">Port of Discharge</th>
+                        <th className="px-4 py-3 font-bold">Transit Time (days)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                <div className="flex gap-4 mb-4">
-                  <button className="bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold">Routing Details</button>
-                  <button
-                    disabled={!selectedScheduleId}
-                    className="bg-[#faf9f6] text-black px-6 py-2 rounded-xl font-bold disabled:opacity-50"
-                  >
-                    Select for Booking
-                  </button>
-                  <button className="bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold">Vessel Details</button>
-                  <button className="bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold">Vessel Tracing</button>
-                  <button className="bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold">Closings & Terminal Details</button>
+                    </thead>
+                    <tbody>
+                      {scheduleResults.map((opt) => (
+                        <tr
+                          key={opt.id}
+                          className={clsx(
+                            "border-b border-[#22D3EE] cursor-pointer transition-colors",
+                            opt.id === selectedScheduleId
+                              ? "bg-[#00FFFF] text-black"
+                              : "text-[#faf9f6] hover:bg-[#2D4D8B]"
+                          )}
+                        >
+                          <td className="px-4 py-4">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <input
+                                type="radio"
+                                checked={opt.id === selectedScheduleId}
+                                onChange={() => setSelectedScheduleId(opt.id)}
+                                className="w-5 h-5 accent-[#00FFFF]"
+                              />
+                              <div>
+                                <div className="font-bold">{opt.pol}</div>
+                                <div className="text-sm opacity-80">{opt.date}</div>
+                              </div>
+                            </label>
+                          </td>
+                          <td className="px-4 py-4 text-center font-bold">
+                            {opt.vessels.length}
+                          </td>
+                          <td className="px-4 py-4">
+                            {opt.vessels.map((v, i) => (
+                              <div key={i} className="font-bold text-sm mb-1">
+                                {v}
+                              </div>
+                            ))}
+                          </td>
+                          <td className="px-4 py-4 font-bold">{opt.pod}</td>
+                          <td className="px-4 py-4 text-right font-bold">
+                            {opt.transitTime}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
 
-                <div className="underline mb-2 text-sm">
+                <div className="flex flex-wrap gap-4 mb-8">
+                  {[
+                    "Routing Details",
+                    "Select for Booking",
+                    "Vessel Details",
+                    "Vessel Tracing",
+                    "Closings & Terminal Details",
+                  ].map((label, i) => (
+                    <button
+                      key={label}
+                      disabled={label === "Select for Booking" && !selectedScheduleId}
+                      className={clsx(
+                        "font-bold px-6 py-3 rounded-xl border-2 transition-all shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)]",
+                        i === 1
+                          ? "bg-[#00FFFF] text-black border-black hover:bg-[#22D3EE] disabled:opacity-50 disabled:cursor-not-allowed"
+                          : "bg-[#1A2A4A] text-[#00FFFF] border-[#22D3EE] hover:bg-[#2D4D8B]"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="text-[#00FFFF] underline mb-4 font-bold">
                   Selected routings not in accordance may incur extra charges
                 </div>
-                <table className="min-w-full text-sm bg-[#2D4D8B] text-[#faf9f6]">
-                  <thead className="bg-white text-[#0A1A2F]">
-                    <tr>
-                      <th className="px-2 py-1">Location</th>
-                      <th className="px-2 py-1">Arrival</th>
-                      <th className="px-2 py-1">Departure</th>
-                      <th className="px-2 py-1">Vessel / Mode</th>
-                      <th className="px-2 py-1">Voyage</th>
-                      <th className="px-2 py-1">Service</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {routeDetails.map(rd => (
-                      <tr key={rd.id} className="even:bg-[#1d4595] odd:bg-[#164070]">
-                        <td className="px-2 py-1">{rd.location}</td>
-                        <td className="px-2 py-1">{rd.arrival}</td>
-                        <td className="px-2 py-1">{rd.departure}</td>
-                        <td className="px-2 py-1">{rd.vessel}</td>
-                        <td className="px-2 py-1">{rd.voyage}</td>
-                        <td className="px-2 py-1">{rd.service}</td>
+
+                <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#22D3EE] overflow-hidden shadow-[15px_15px_0px_rgba(0,0,0,1)]">
+                  <table className="min-w-full">
+                    <thead className="bg-[#00FFFF] text-black">
+                      <tr>
+                        <th className="px-4 py-3 font-bold">Location</th>
+                        <th className="px-4 py-3 font-bold">Arrival</th>
+                        <th className="px-4 py-3 font-bold">Departure</th>
+                        <th className="px-4 py-3 font-bold">Vessel / Mode</th>
+                        <th className="px-4 py-3 font-bold">Voyage</th>
+                        <th className="px-4 py-3 font-bold">Service</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {routeDetails.map((rd) => (
+                        <tr
+                          key={rd.id}
+                          className="even:bg-[#2D4D8B] odd:bg-[#1A2A4A] text-[#faf9f6] border-b border-[#22D3EE]"
+                        >
+                          <td className="px-4 py-3 font-bold">{rd.location}</td>
+                          <td className="px-4 py-3 font-bold">{rd.arrival}</td>
+                          <td className="px-4 py-3 font-bold">{rd.departure}</td>
+                          <td className="px-4 py-3 font-bold">{rd.vessel}</td>
+                          <td className="px-4 py-3 font-bold">{rd.voyage}</td>
+                          <td className="px-4 py-3 font-bold">{rd.service}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 <button
-                  onClick={() => { setHasLookedUp(false); setHasSelectedRouting(true); }}
-                  className="underline text-sm text-[#faf9f6] hover:text-white mt-4"
+                  onClick={() => {
+                    setHasLookedUp(false);
+                    setHasSelectedRouting(true);
+                  }}
+                  className="text-[#00FFFF] underline hover:text-white transition-colors mt-6 font-bold"
                 >
                   Previous
                 </button>
@@ -850,705 +1110,879 @@ const handleAddContainer = () => {
 
         {/* Step 2 */}
         {currentStep === 2 && (
-  <>
-    {/* ── Step 1 Overview ────────────────────────────────── */}
-    <div className="mb-6 bg-[#F5F5F5] p-4 rounded-lg">
-      <p className="mb-2 font-bold">You have selected the following routing:</p>
-      <table className="min-w-full text-sm">
-        <thead className="bg-white text-[#0A1A2F]">
-          <tr>
-            <th className="px-2 py-1b">Location</th>
-            <th className="px-2 py-1">Arrival</th>
-            <th className="px-2 py-1">Departure</th>
-            <th className="px-2 py-1">Vessel / Mode of transport</th>
-            <th className="px-2 py-1">Voyage No.</th>
-            <th className="px-2 py-1">Service</th>
-          </tr>
-        </thead>
-        <tbody>
-          {routeDetails.map(rd => (
-            <tr key={rd.id} className="even:bg-white odd:bg-[#F9F9F9]">
-              <td className="px-2 py-1">{rd.location}</td>
-              <td className="px-2 py-1">{rd.arrival}</td>
-              <td className="px-2 py-1">{rd.departure}</td>
-              <td className="px-2 py-1">{rd.vessel}</td>
-              <td className="px-2 py-1">{rd.voyage}</td>
-              <td className="px-2 py-1">{rd.service}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          <>
+            <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+              <Ship size={28} />
+              ROUTING & SCHEDULE
+            </h2>
 
-    {/* ── Routing & Schedule Form ────────────────────────── */}
-    <div>
-      <h2 className="text-xl mb-6 flex items-center gap-2">
-        <Ship size={24} /> ROUTING & SCHEDULE
-      </h2>
-      <div className="grid md:grid-cols-2 gap-6 mb-4">
-        <div>
-          <label className="block mb-1">Start Location*</label>
-          <input
-            type="text"
-            value={startLocation}
-            onChange={e => setStartLocation(e.target.value)}
-            className="w-full bg-[#2D4D8B] rounded-xl p-2"
-          />
-        </div>
-        <div>
-          <label className="block mb-1">Pickup Date</label>
-          <input
-            type="date"
-            value={pickupDate}
-            onChange={e => setPickupDate(e.target.value)}
-            className="w-full bg-[#2D4D8B] rounded-xl p-2"
-          />
-        </div>
-        <div>
-          <label className="block mb-1">Delivery Date</label>
-          <input
-            type="date"
-            value={deliveryDate}
-            onChange={e => setDeliveryDate(e.target.value)}
-            className="w-full bg-[#2D4D8B] rounded-xl p-2"
-          />
-        </div>
-        <div>
-          <label className="block mb-1">Delivered at</label>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={deliveryType === 'door'}
-                onChange={() => setDeliveryType('door')}
-                className="accent-[#00FFFF]"
-              />
-              Door
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={deliveryType === 'terminal'}
-                onChange={() => setDeliveryType('terminal')}
-                className="accent-[#00FFFF]"
-              />
-              Terminal
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>
-  </>
-)}
+            {/* Step 1 Overview */}
+            <div className="mb-8 bg-[#1A2A4A] p-6 rounded-2xl border-2 border-[#22D3EE] shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <p className="mb-4 font-bold text-[#00FFFF] text-lg">
+                You have selected the following routing:
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-[#00FFFF] text-black">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Location</th>
+                      <th className="px-4 py-3 font-bold">Arrival</th>
+                      <th className="px-4 py-3 font-bold">Departure</th>
+                      <th className="px-4 py-3 font-bold">Vessel / Mode of transport</th>
+                      <th className="px-4 py-3 font-bold">Voyage No.</th>
+                      <th className="px-4 py-3 font-bold">Service</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {routeDetails.map((rd) => (
+                      <tr
+                        key={rd.id}
+                        className="even:bg-[#2D4D8B] odd:bg-[#1A2A4A] text-[#faf9f6] border-b border-[#22D3EE]"
+                      >
+                        <td className="px-4 py-3 font-bold">{rd.location}</td>
+                        <td className="px-4 py-3 font-bold">{rd.arrival}</td>
+                        <td className="px-4 py-3 font-bold">{rd.departure}</td>
+                        <td className="px-4 py-3 font-bold">{rd.vessel}</td>
+                        <td className="px-4 py-3 font-bold">{rd.voyage}</td>
+                        <td className="px-4 py-3 font-bold">{rd.service}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-    {/* Step 3 */}
-{currentStep === 3 && (
-  <div className="space-y-8">
-    <h2 className="text-xl mb-6 flex items-center gap-2">
-      <ContainerIcon size={24} /> CARGO & EQUIPMENT
-    </h2>
-
-    {/* ── Container Type & Equipment Owner ── */}
-    <div className="grid md:grid-cols-2 gap-6">
-      {/* Container Type */}
-      <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-        <div className="font-bold mb-4">Container Type</div>
-        {containerRows.map((row, idx) => (
-          <div key={idx} className="flex gap-4 items-center mb-4">
-            <input
-              type="text"
-              placeholder="Qty*"
-              value={row.qty}
-              onChange={e => updateContainerRow(idx, 'qty', e.target.value)}
-              className="w-20 bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-            />
-            <select
-              value={row.type}
-              onChange={e => updateContainerRow(idx, 'type', e.target.value)}
-              className="flex-1 bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-            >
-              <option value="">--</option>
-              {/* map your available container types here */}
-            </select>
-          </div>
-        ))}
-
-        
-      </div>
-
-      {/* Equipment Owned */}
-      <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-        <div className="font-bold mb-4">Equipment owned by</div>
-        <label className="flex items-center gap-2 mb-2">
-          <input
-            type="radio"
-            checked={!shipperOwnedContainer}
-            onChange={() => setShipperOwnedContainer(false)}
-            className="accent-[#00FFFF]"
-          />
-          <span>Hapag-Lloyd Container</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={shipperOwnedContainer}
-            onChange={() => setShipperOwnedContainer(true)}
-            className="accent-[#00FFFF]"
-          />
-          <span>Shipper’s own Container</span>
-        </label>
-      </div>
-    </div>
-
-    {/* ── Cargo Description, HS-Code & Depot Release ── */}
-    <div className="grid md:grid-cols-2 gap-6">
-      {/* Cargo */}
-      <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-        <div className="font-bold mb-4">Cargo</div>
-        <label className="block mb-1">Description</label>
-        <input
-          type="text"
-          value={cargoDescription}
-          onChange={e => setCargoDescription(e.target.value)}
-          className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6] mb-4"
-        />
-
-        <label className="block mb-1">HS Code</label>
-        <div className="flex gap-2 mb-4">
-          {hsParts.map((part, idx) => (
-            <input
-              key={idx}
-              type="text"
-              maxLength={2}
-              value={part}
-              onChange={e => {
-                const tmp = [...hsParts];
-                tmp[idx] = e.target.value.toUpperCase();
-                setHsParts(tmp);
-              }}
-              className="w-16 bg-[#1d4595] rounded-xl p-2 text-center text-[#faf9f6]"
-            />
-          ))}
-          <button
-            type="button"
-            onClick={() => console.log('Lookup HS code', hsParts.join(''))}
-            className="bg-[#00FFFF] px-4 rounded font-bold"
-          >
-            🔍
-          </button>
-        </div>
-      </div>
-
-      {/* Empty Container from Depot */}
-      <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-        <div className="font-bold mb-4">Empty Container from Depot</div>
-        <label className="block mb-1">Release*</label>
-        <div className="flex gap-2 items-center mb-4">
-          <input
-            type="date"
-            value={releaseDate}
-            onChange={e => setReleaseDate(e.target.value)}
-            className="bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-          />
-          <input
-            type="time"
-            value={releaseTime}
-            onChange={e => setReleaseTime(e.target.value)}
-            className="bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-          />
-        </div>
-        <p className="text-sm mb-2">
-          The depot information will be provided with the final booking confirmation.
-        </p>
-        <p className="text-sm">
-          Please note free time regulations in our{' '}
-          <span className="underline text-[#00FFFF]">
-            Detention &amp; Demurrage Tariff Information
-          </span>.
-        </p>
-      </div>
-    </div>
-    {/* Buttons: Clear, Previous, Assign */}
-        {!hasAssignedDetails && (
-          <div className="mt-4 flex justify-end gap-4">
-            <button
-              onClick={handleClearCargo}
-              className="bg-[#faf9f6] text-black px-6 py-2 rounded-xl font-bold"
-            >
-              Clear
-            </button>
-            <button
-              onClick={() => prev()}
-              className="bg-[#faf9f6] text-black px-6 py-2 rounded-xl font-bold"
-            >
-              Previous
-            </button>
-            <button
-              onClick={handleAssignDetails}
-              className="bg-[#00FFFF] text-black px-6 py-2 rounded-xl font-bold"
-            >
-              Assign Details
-            </button>
-          </div>
+            {/* Routing & Schedule Form */}
+            <div className="grid md:grid-cols-2 gap-8">
+              <div>
+                <label className="block mb-3 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                  Start Location*
+                </label>
+                <input
+                  type="text"
+                  value={startLocation}
+                  onChange={(e) => setStartLocation(e.target.value)}
+                  className={inputStyle}
+                  placeholder="Start location"
+                />
+              </div>
+              <div>
+                <label className="block mb-3 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                  Pickup Date
+                </label>
+                <input
+                  type="date"
+                  value={pickupDate}
+                  onChange={(e) => setPickupDate(e.target.value)}
+                  className={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="block mb-3 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                  Delivery Date
+                </label>
+                <input
+                  type="date"
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
+                  className={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="block mb-3 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                  Delivered at
+                </label>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                    <input
+                      type="radio"
+                      checked={deliveryType === "door"}
+                      onChange={() => setDeliveryType("door")}
+                      className="w-5 h-5 accent-[#00FFFF]"
+                    />
+                    Door
+                  </label>
+                  <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                    <input
+                      type="radio"
+                      checked={deliveryType === "terminal"}
+                      onChange={() => setDeliveryType("terminal")}
+                      className="w-5 h-5 accent-[#00FFFF]"
+                    />
+                    Terminal
+                  </label>
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
-    {/* ── Pop-up summary after Assign Details ── */}
-    {hasAssignedDetails && (
-      <div className="bg-white border border-gray-300 rounded-xl p-6 mt-8">
-        <div className="text-gray-700 font-semibold mb-4">Container 1</div>
-        <div className="overflow-x-auto">
-          <table className="table-auto mx-auto text-sm">
-            <thead className="bg-gray-100 text-gray-800">
-              <tr>
-                <th className="px-2 py-1 text-left">Container Type</th>
-                <th className="px-2 py-1 text-left">Cargo Description *</th>
-                <th className="px-2 py-1 text-left">HS Code</th>
-                <th className="px-2 py-1 text-left">Cargo Weight *</th>
-                <th className="px-2 py-1 text-left">Unit *</th>
-                <th className="px-2 py-1 text-left">DG Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {containerRows.map((row, i) => (
-                <tr key={i} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
-                  <td className="px-2 py-1">
+        {/* Step 3 */}
+        {currentStep === 3 && (
+          <div className="space-y-10">
+            <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+              <ContainerIcon size={28} />
+              CARGO & EQUIPMENT
+            </h2>
+
+            {/* Container Type & Equipment Owner */}
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Container Type */}
+              <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Container Type
+                </div>
+                {containerRows.map((row, idx) => (
+                  <div key={idx} className="flex gap-4 items-center mb-4">
                     <input
                       type="text"
-                      value={row.type}
-                      onChange={e => updateContainerRow(i, 'type', e.target.value)}
-                      className="w-24 bg-white border rounded p-1 text-sm"
+                      placeholder="Qty*"
+                      value={row.qty}
+                      onChange={(e) => updateContainerRow(idx, "qty", e.target.value)}
+                      className="w-24 bg-[#0A1A2F] rounded-xl p-3 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
                     />
-                  </td>
-                  <td className="px-2 py-1">
+                    <select
+                      value={row.type}
+                      onChange={(e) => updateContainerRow(idx, "type", e.target.value)}
+                      className="flex-1 bg-[#0A1A2F] rounded-xl p-3 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+                    >
+                      <option value="">-- Select Container Type --</option>
+                      <option value="20STD">20' Standard</option>
+                      <option value="40STD">40' Standard</option>
+                      <option value="40HC">40' High Cube</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Equipment Owned */}
+              <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Equipment owned by
+                </div>
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                    <input
+                      type="radio"
+                      checked={!shipperOwnedContainer}
+                      onChange={() => setShipperOwnedContainer(false)}
+                      className="w-5 h-5 accent-[#00FFFF]"
+                    />
+                    <span>Hapag-Lloyd Container</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                    <input
+                      type="radio"
+                      checked={shipperOwnedContainer}
+                      onChange={() => setShipperOwnedContainer(true)}
+                      className="w-5 h-5 accent-[#00FFFF]"
+                    />
+                    <span>Shipper's own Container</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Cargo Description, HS-Code & Depot Release */}
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Cargo */}
+              <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Cargo
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block mb-2 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                      Description
+                    </label>
                     <input
                       type="text"
                       value={cargoDescription}
-                      onChange={e => setCargoDescription(e.target.value)}
-                      className="w-40 bg-white border rounded p-1 text-sm"
+                      onChange={(e) => setCargoDescription(e.target.value)}
+                      className={inputStyle}
+                      placeholder="Cargo description"
                     />
-                  </td>
-                  <td className="px-2 py-1">
-                    <div className="flex items-center justify-center gap-1">
-                      {hsParts.map((part, j) => (
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                      HS Code
+                    </label>
+                    <div className="flex gap-2">
+                      {hsParts.map((part, idx) => (
                         <input
-                          key={j}
+                          key={idx}
                           type="text"
                           maxLength={2}
                           value={part}
-                          onChange={e => {
-                            const tmp = [...hsParts];
-                            tmp[j] = e.target.value.toUpperCase();
+                          onChange={(e) => {
+                            const tmp = [...(hsParts as string[])];
+                            tmp[idx] = e.target.value.toUpperCase();
                             setHsParts(tmp);
                           }}
-                          className="w-8 bg-white border rounded p-1 text-center text-sm"
+                          className="w-16 bg-[#0A1A2F] rounded-xl p-3 text-center text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
                         />
                       ))}
                       <button
                         type="button"
-                        onClick={() => console.log('Lookup HS', hsParts.join(''))}
-                        className="px-2 bg-gray-200 border rounded text-sm"
+                        onClick={() => console.log("Lookup HS code", hsParts.join(""))}
+                        className="bg-[#00FFFF] px-4 rounded-xl font-bold text-black border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
                       >
                         🔍
                       </button>
                     </div>
-                  </td>
-                  <td className="px-2 py-1">
-                    <input
-                      type="number"
-                      value={weight}
-                      onChange={e => setWeight(e.target.value)}
-                      className="w-24 bg-white border rounded p-1 text-sm"
-                    />
-                  </td>
-                  <td className="px-2 py-1">
-                    <select
-                      value={weightUnit}
-                      onChange={e => setWeightUnit(e.target.value as WeightUnit)}
-                      className="w-20 bg-white border rounded p-1 text-sm"
-                    >
-                      <option value="kg">kg</option>
-                      <option value="lb">lb</option>
-                    </select>
-                  </td>
-                  <td className="px-2 py-1 text-center">
-                    <button
-                      type="button"
-                      onClick={() => console.log('Open DG details for row', i)}
-                      className="px-2 bg-gray-200 border rounded text-sm"
-                    >
-                      🔍
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              </div>
 
-        <div className="flex justify-center gap-4 mt-6 mb-2">
-          <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">
-            Copy Container with Cargo
-          </button>
-          <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">
-            Copy This Cargo to all Containers
-          </button>
-        </div>
-        <div className="flex justify-center gap-4 mb-6">
-          <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">
-            Out-Of-Gauge
-          </button>
-          <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">
-            Change Type
-          </button>
-          <button className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">
-            Remove
-          </button>
-        </div>
-      </div>
-    )}
+              {/* Empty Container from Depot */}
+              <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Empty Container from Depot
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block mb-2 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                      Release*
+                    </label>
+                    <div className="flex gap-3">
+                      <input
+                        type="date"
+                        value={releaseDate}
+                        onChange={(e) => setReleaseDate(e.target.value)}
+                        className="bg-[#0A1A2F] rounded-xl p-3 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+                      />
+                      <input
+                        type="time"
+                        value={releaseTime}
+                        onChange={(e) => setReleaseTime(e.target.value)}
+                        className="bg-[#0A1A2F] rounded-xl p-3 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+                      />
+                    </div>
+                  </div>
 
-    {/* ── Add Container Bar (only after assigning) ── */}
-    {hasAssignedDetails && (
-      <div className="flex justify-center items-center gap-4 mt-6 mb-8">
-        <select
-          value={newContainerType}
-          onChange={e => setNewContainerType(e.target.value)}
-          className="bg-white border border-gray-300 rounded-lg p-2"
-        >
-          <option value="">-- select container --</option>
-          {/* TODO: map your real types here */}
-        </select>
-        <button
-          onClick={handleAddContainer}
-          className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-bold"
-        >
-          Add Container
-        </button>
-        <button
-          onClick={handleClearCargo}
-          className="bg-[#faf9f6] text-black px-6 py-2 rounded-xl font-bold"
-        >
-          Clear
-        </button>
-      </div>
-    )}
-  </div>
-)}
+                  <div className="space-y-2 text-[#faf9f6] font-bold text-sm">
+                    <p>
+                      The depot information will be provided with the final booking
+                      confirmation.
+                    </p>
+                    <p>
+                      Please note free time regulations in our{" "}
+                      <span className="underline text-[#00FFFF] cursor-pointer">
+                        Detention &amp; Demurrage Tariff Information
+                      </span>
+                      .
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            {!hasAssignedDetails && (
+              <div className="flex justify-end gap-6">
+                <button onClick={handleClearCargo} className={buttonStyle}>
+                  Clear
+                </button>
+                <button onClick={() => prev()} className={buttonStyle}>
+                  Previous
+                </button>
+                <button onClick={handleAssignDetails} className={primaryButtonStyle}>
+                  Assign Details
+                </button>
+              </div>
+            )}
+
+            {/* Pop-up summary after Assign Details */}
+            {hasAssignedDetails && (
+              <div className="bg-white border-4 border-black rounded-2xl p-8 shadow-[20px_20px_0px_rgba(0,0,0,1)]">
+                <div className="text-black font-bold mb-6 text-xl">Container 1</div>
+                <div className="overflow-x-auto">
+                  <table className="table-auto w-full">
+                    <thead className="bg-gray-200 text-black">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-bold">Container Type</th>
+                        <th className="px-4 py-3 text-left font-bold">Cargo Description *</th>
+                        <th className="px-4 py-3 text-left font-bold">HS Code</th>
+                        <th className="px-4 py-3 text-left font-bold">Cargo Weight *</th>
+                        <th className="px-4 py-3 text-left font-bold">Unit *</th>
+                        <th className="px-4 py-3 text-left font-bold">DG Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {containerRows.map((row, i) => (
+                        <tr key={i} className={i % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={row.type}
+                              onChange={(e) => updateContainerRow(i, "type", e.target.value)}
+                              className="w-full bg-white border-2 border-black rounded-lg p-2 font-bold"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={cargoDescription}
+                              onChange={(e) => setCargoDescription(e.target.value)}
+                              className="w-full bg-white border-2 border-black rounded-lg p-2 font-bold"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              {hsParts.map((part, j) => (
+                                <input
+                                  key={j}
+                                  type="text"
+                                  maxLength={2}
+                                  value={part}
+                                  onChange={(e) => {
+                                    const tmp = [...(hsParts as string[])];
+                                    tmp[j] = e.target.value.toUpperCase();
+                                    setHsParts(tmp);
+                                  }}
+                                  className="w-10 bg-white border-2 border-black rounded-lg p-1 text-center font-bold"
+                                />
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => console.log("Lookup HS", hsParts.join(""))}
+                                className="px-2 bg-gray-200 border-2 border-black rounded-lg font-bold"
+                              >
+                                🔍
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              value={weight}
+                              onChange={(e) => setWeight(e.target.value)}
+                              className="w-full bg-white border-2 border-black rounded-lg p-2 font-bold"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={weightUnit}
+                              onChange={(e) => setWeightUnit(e.target.value)}
+                              className="w-full bg-white border-2 border-black rounded-lg p-2 font-bold"
+                            >
+                              <option value="kg">kg</option>
+                              <option value="lb">lb</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => console.log("Open DG details for row", i)}
+                              className="px-2 bg-gray-200 border-2 border-black rounded-lg font-bold"
+                            >
+                              🔍
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex justify-center gap-4 mt-8">
+                  <button className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black">
+                    Copy Container with Cargo
+                  </button>
+                  <button className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black">
+                    Copy This Cargo to all Containers
+                  </button>
+                </div>
+
+                <div className="flex justify-center gap-4 mt-4">
+                  <button className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black">
+                    Out-Of-Gauge
+                  </button>
+                  <button className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black">
+                    Change Type
+                  </button>
+                  <button className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Add Container Bar */}
+            {hasAssignedDetails && (
+              <div className="flex justify-center items-center gap-6 bg-[#1A2A4A] p-6 rounded-2xl border-2 border-[#22D3EE] shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                <select
+                  value={newContainerType}
+                  onChange={(e) => setNewContainerType(e.target.value)}
+                  className="bg-white border-2 border-black rounded-xl p-3 font-bold text-black"
+                >
+                  <option value="">-- select container --</option>
+                  <option value="20STD">20' Standard</option>
+                  <option value="40STD">40' Standard</option>
+                  <option value="40HC">40' High Cube</option>
+                </select>
+                <button
+                  onClick={handleAddContainer}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black"
+                >
+                  Add Container
+                </button>
+                <button onClick={handleClearCargo} className={buttonStyle}>
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Step 4 */}
         {currentStep === 4 && (
-  <div className="space-y-8">
-    <h2 className="text-xl mb-6 flex items-center gap-2">
-      <Shield size={24} /> CUSTOMS & REMARKS
-    </h2>
+          <div className="space-y-10">
+            <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+              <Shield size={28} />
+              CUSTOMS & REMARKS
+            </h2>
 
-    {/* ── Customs References ── */}
-    <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-      <div className="font-bold mb-4">Customs References</div>
-      <div className="grid grid-cols-5 gap-4">
-        {customsRefs.map((cr, idx) => (
-          <React.Fragment key={idx}>
-            <select
-              value={cr.type}
-              onChange={e => {
-                const tmp = [...customsRefs]
-                tmp[idx].type = e.target.value
-                setCustomsRefs(tmp)
-              }}
-              className="bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-            >
-              <option value="">--</option>
-              {/* … */}
-            </select>
-            <input
-              type="text"
-              value={cr.ref}
-              onChange={e => {
-                const tmp = [...customsRefs]
-                tmp[idx].ref = e.target.value
-                setCustomsRefs(tmp)
-              }}
-              className="bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-            />
-          </React.Fragment>
-        ))}
-      </div>
-    </div>
+            {/* Customs References */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
+                Customs References
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                {customsRefs.map((cr, idx) => (
+                  <React.Fragment key={idx}>
+                    <select
+                      value={cr.type}
+                      onChange={(e) => {
+                        const tmp = [...customsRefs];
+                        tmp[idx].type = e.target.value;
+                        setCustomsRefs(tmp);
+                      }}
+                      className={selectStyle}
+                    >
+                      <option value="">-- Select Type --</option>
+                      <option value="BOL">Bill of Lading</option>
+                      <option value="INV">Invoice</option>
+                      <option value="PO">Purchase Order</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={cr.ref}
+                      onChange={(e) => {
+                        const tmp = [...customsRefs];
+                        tmp[idx].ref = e.target.value;
+                        setCustomsRefs(tmp);
+                      }}
+                      className={inputStyle}
+                      placeholder="Reference number"
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
 
-    {/* ── Bill of Lading Numbers ── */}
-    <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-      <div className="font-bold mb-2">Bill of Lading Numbers</div>
-      <p className="text-sm mb-4">
-        You may receive the bill of lading numbers with the booking confirmation. How many do you need?
-      </p>
-      <div className="flex items-center gap-6">
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={!wantsBoL}
-            onChange={() => setWantsBoL(false)}
-            className="accent-[#00FFFF]"
-          />
-          <span>Not needed with Booking confirmation</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={wantsBoL}
-            onChange={() => setWantsBoL(true)}
-            className="accent-[#00FFFF]"
-          />
-          <span>No. of Bill of lading numbers:</span>
-        </label>
-        <input
-        type="text"
-        inputMode="numeric"
-        value={boLCount}
-        onChange={e => {
-          // Remove all non-digit characters
-          const value = e.target.value.replace(/[^0-9]/g, '');
-          setBoLCount(value);
-        }}
-        disabled={!wantsBoL}
-        placeholder="0"
-        className="w-20 bg-[#1d4595] rounded-xl p-2 text-[#faf9f6]"
-      />
-      </div>
-    </div>
+            {/* Bill of Lading Numbers */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="font-bold mb-4 text-[#00FFFF] text-xl uppercase tracking-wide">
+                Bill of Lading Numbers
+              </div>
+              <p className="text-[#faf9f6] font-bold mb-6">
+                You may receive the bill of lading numbers with the booking confirmation. How many do you need?
+              </p>
+              <div className="flex items-center gap-8">
+                <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                  <input
+                    type="radio"
+                    checked={!wantsBoL}
+                    onChange={() => setWantsBoL(false)}
+                    className="w-5 h-5 accent-[#00FFFF]"
+                  />
+                  <span>Not needed with Booking confirmation</span>
+                </label>
+                <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
+                  <input
+                    type="radio"
+                    checked={wantsBoL}
+                    onChange={() => setWantsBoL(true)}
+                    className="w-5 h-5 accent-[#00FFFF]"
+                  />
+                  <span>No. of Bill of lading numbers:</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={boLCount}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, "");
+                    setBoLCount(value);
+                  }}
+                  disabled={!wantsBoL}
+                  placeholder="0"
+                  className="w-24 bg-[#0A1A2F] rounded-xl p-3 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow disabled:opacity-50"
+                />
+              </div>
+            </div>
 
-    {/* ── Export Customs Filing ── */}
-    <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-      <div className="font-bold mb-4">Export Customs Filing</div>
-      <div className="flex items-start gap-4">
-        <label className="flex items-center gap-2 pt-1">
-          <input
-            type="checkbox"
-            checked={exportFiling}
-            onChange={e => setExportFiling(e.target.checked)}
-            className="accent-[#00FFFF]"
-          />
-          <span>Export customs filing performed by third party.</span>
-        </label>
-        <div className="flex-1">
-          <label className="block mb-1">Performed by (address):</label>
-          <textarea
-            value={filingBy}
-            onChange={e => setFilingBy(e.target.value)}
-            rows={3}
-            className="w-full bg-[#1d4595] rounded-xl p-2 text-[#faf9f6] resize-none"
-          />
-        </div>
-      </div>
-    </div>
+            {/* Export Customs Filing */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
+                Export Customs Filing
+              </div>
+              <div className="flex items-start gap-6">
+                <label className="flex items-center gap-3 pt-1 text-[#faf9f6] font-bold">
+                  <input
+                    type="checkbox"
+                    checked={exportFiling}
+                    onChange={(e) => setExportFiling(e.target.checked)}
+                    className="w-6 h-6 accent-[#00FFFF] rounded"
+                  />
+                  <span>Export customs filing performed by third party.</span>
+                </label>
+                <div className="flex-1">
+                  <label className="block mb-2 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                    Performed by (address):
+                  </label>
+                  <textarea
+                    value={filingBy}
+                    onChange={(e) => setFilingBy(e.target.value)}
+                    rows={4}
+                    className="w-full bg-[#0A1A2F] rounded-xl p-4 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow resize-none"
+                    placeholder="Enter address..."
+                  />
+                </div>
+              </div>
+            </div>
 
-    {/* ── Remarks ── */}
-    <div className="bg-[#2D4D8B] border-2 border-white rounded-xl p-6">
-      <div className="font-bold mb-2">Remarks (optional Shipper/Consignee address)</div>
-      <textarea
-        value={remarks}
-        onChange={e => setRemarks(e.target.value)}
-        rows={6}
-        className="w-full bg-[#1d4595] rounded-xl p-3 text-[#faf9f6] resize-none"
-        placeholder="Enter any remarks here…"
-      />
-    </div>
-  </div>
-)}
+            {/* Remarks */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="font-bold mb-4 text-[#00FFFF] text-xl uppercase tracking-wide">
+                Remarks (optional Shipper/Consignee address)
+              </div>
+              <textarea
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                rows={8}
+                className="w-full bg-[#0A1A2F] rounded-xl p-4 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow resize-none"
+                placeholder="Enter any remarks here…"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Step 5 */}
         {currentStep === 5 && (
-  <div className="space-y-8">
-    {/* Contact & Reference */}
-    <div className="bg-[#F5F5F5] border border-gray-300 rounded-xl p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-bold text-lg">Contact &amp; Reference</h2>
-        <button
-          onClick={() => setCurrentStep(0)}
-          className="bg-[#FF6600] text-white px-4 py-2 rounded-lg font-bold"
-        >
-          Edit Contact &amp; Reference
-        </button>
-      </div>
-      <div className="grid md:grid-cols-2 gap-4 text-sm">
-        <div>
-          <div><strong>Customer</strong></div>
-          <div>{customer}</div>
-          <div>{customerAddress.split('\n').map((l,i) => <div key={i}>{l}</div>)}</div>
-        </div>
-        <div>
-          <div><strong>Customer Reference</strong> {contactReference}</div>
-          <div><strong>Contact*</strong> {contactName}</div>
-          <div><strong>Phone</strong> {phone}</div>
-          <div><strong>Notification E-mail*</strong> {email}</div>
-        </div>
-      </div>
-    </div>
+          <div className="space-y-10">
+            <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+              <CheckCircle size={28} />
+              REVIEW & COMPLETE
+            </h2>
 
-    {/* Contract & Quotation */}
-    <div className="bg-[#F5F5F5] border border-gray-300 rounded-xl p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-bold text-lg">Contract &amp; Quotation</h2>
-        <button
-          onClick={() => setCurrentStep(1)}
-          className="bg-[#FF6600] text-white px-4 py-2 rounded-lg font-bold"
-        >
-          Edit Contract &amp; Quotation
-        </button>
-      </div>
-      <div className="grid md:grid-cols-2 gap-4 text-sm">
-        <div>
-          <div><strong>Quotation / Contract No.*</strong> {quotationNo}</div>
-          <div><strong>Valid to</strong> {validTo}</div>
-        </div>
-        <div>
-          <div><strong>Contractual Party</strong></div>
-          <div>{contractualParty}</div>
-          <div>{contractualAddress.split('\n').map((l,i) => <div key={i}>{l}</div>)}</div>
-        </div>
-      </div>
-    </div>
+            {/* Contact & Reference */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Contact &amp; Reference
+                </h3>
+                <button
+                  onClick={() => setCurrentStep(0)}
+                  className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black hover:bg-orange-700"
+                >
+                  Edit Contact &amp; Reference
+                </button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-8 text-[#faf9f6] font-bold">
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[#00FFFF]">Customer:</span> {customer}
+                  </div>
+                  <div className="ml-4">
+                    {customerAddress.split("\n").map((l, i) => (
+                      <div key={i}>{l}</div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[#00FFFF]">Customer Reference:</span>{" "}
+                    {contactReference || "—"}
+                  </div>
+                  <div>
+                    <span className="text-[#00FFFF]">Contact:</span> {contactName}
+                  </div>
+                  <div>
+                    <span className="text-[#00FFFF]">Phone:</span> {phone || "—"}
+                  </div>
+                  <div>
+                    <span className="text-[#00FFFF]">Notification E-mail:</span>{" "}
+                    {email || "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-    {/* Routing & Schedule */}
-    <div className="bg-[#F5F5F5] border border-gray-300 rounded-xl p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-bold text-lg">Routing &amp; Schedule</h2>
-        <button
-          onClick={() => setCurrentStep(2)}
-          className="bg-[#FF6600] text-white px-4 py-2 rounded-lg font-bold"
-        >
-          Edit Schedule
-        </button>
-      </div>
-      <div className="text-sm mb-4">
-        <div><strong>Pickup:</strong> {pickupType === 'door' ? 'Received at your door (CH)' : 'Received at container terminal (MH)'}</div>
-        <div><strong>Delivery:</strong> {deliveryType === 'door' ? 'Delivered at your door (CH)' : 'Delivered at container terminal (MH)'}</div>
-      </div>
-      <table className="min-w-full text-sm">
-        <thead className="bg-white text-[#0A1A2F]">
-          <tr>
-            <th className="px-2 py-1">Location</th>
-            <th className="px-2 py-1">Arrival</th>
-            <th className="px-2 py-1">Departure</th>
-            <th className="px-2 py-1">Vessel / Mode</th>
-            <th className="px-2 py-1">Voyage No.</th>
-            <th className="px-2 py-1">Service</th>
-          </tr>
-        </thead>
-        <tbody>
-          {routeDetails.map((rd, i) => (
-            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F9F9F9]'}>
-              <td className="px-2 py-1">{rd.location}</td>
-              <td className="px-2 py-1">{rd.arrival}</td>
-              <td className="px-2 py-1">{rd.departure}</td>
-              <td className="px-2 py-1">{rd.vessel || '—'}</td>
-              <td className="px-2 py-1">{rd.voyage || '—'}</td>
-              <td className="px-2 py-1">{rd.service || '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+            {/* Contract & Quotation */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Contract &amp; Quotation
+                </h3>
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black hover:bg-orange-700"
+                >
+                  Edit Contract &amp; Quotation
+                </button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-8 text-[#faf9f6] font-bold">
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[#00FFFF]">Quotation / Contract No.:</span>{" "}
+                    {quotationNo}
+                  </div>
+                  <div>
+                    <span className="text-[#00FFFF]">Valid to:</span> {validTo}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[#00FFFF]">Contractual Party:</span>
+                  </div>
+                  <div className="ml-4">{contractualParty}</div>
+                  <div className="ml-4">
+                    {contractualAddress.split("\n").map((l, i) => (
+                      <div key={i}>{l}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-    {/* Cargo & Equipment */}
-    <div className="bg-[#F5F5F5] border border-gray-300 rounded-xl p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-bold text-lg">Cargo &amp; Equipment</h2>
-        <button
-          onClick={() => setCurrentStep(3)}
-          className="bg-[#FF6600] text-white px-4 py-2 rounded-lg font-bold"
-        >
-          Edit Cargo &amp; Equipment
-        </button>
-      </div>
-      <div className="grid md:grid-cols-2 gap-4 text-sm">
-        <div>
-          <div><strong>Equipment owned by</strong> {shipperOwnedContainer ? "Shipper’s own Container" : "Hapag-Lloyd Container"}</div>
-          <div><strong>Release</strong> {releaseDate} {releaseTime}</div>
-        </div>
-        <div>
-          <div className="flex gap-4">
-            <div><strong>Container Type</strong> {containerRows[0].type || '—'}</div>
-            <div><strong>Cargo Description*</strong> {cargoDescription}</div>
-            <div><strong>HS Code</strong> {hsParts.join('')}</div>
-            <div><strong>Cargo Weight*</strong> {weight}</div>
-            <div><strong>Unit*</strong> {weightUnit}</div>
-            <div><strong>DG Details</strong> {dangerousGoods ? 'Yes' : 'No'}</div>
-          </div>
-        </div>
-      </div>
-    </div>
+            {/* Routing & Schedule */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Routing &amp; Schedule
+                </h3>
+                <button
+                  onClick={() => setCurrentStep(2)}
+                  className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black hover:bg-orange-700"
+                >
+                  Edit Schedule
+                </button>
+              </div>
+              <div className="text-[#faf9f6] font-bold mb-6 space-y-2">
+                <div>
+                  <span className="text-[#00FFFF]">Pickup:</span>{" "}
+                  {pickupType === "door"
+                    ? "Received at your door (CH)"
+                    : "Received at container terminal (MH)"}
+                </div>
+                <div>
+                  <span className="text-[#00FFFF]">Delivery:</span>{" "}
+                  {deliveryType === "door"
+                    ? "Delivered at your door (CH)"
+                    : "Delivered at container terminal (MH)"}
+                </div>
+              </div>
 
-    {/* Customs & Remarks */}
-    <div className="bg-[#F5F5F5] border border-gray-300 rounded-xl p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-bold text-lg">Customs &amp; Remarks</h2>
-        <button
-          onClick={() => setCurrentStep(4)}
-          className="bg-[#FF6600] text-white px-4 py-2 rounded-lg font-bold"
-        >
-          Edit Customs &amp; Remarks
-        </button>
-      </div>
-      <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
-        <div>
-          <div><strong>Bill of Lading Numbers:</strong> {wantsBoL ? boLCount : 'Not needed'}</div>
-        </div>
-        <div>
-          <div className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={exportFiling}
-              onChange={e => setExportFiling(e.target.checked)}
-              className="mt-1"
-            />
-            <div>
-              <strong>Export customs filing performed by third party</strong>
-              {exportFiling && <div className="mt-2"><strong>Performed by (address):</strong> {filingAddress}</div>}
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-[#00FFFF] text-black">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Location</th>
+                      <th className="px-4 py-3 font-bold">Arrival</th>
+                      <th className="px-4 py-3 font-bold">Departure</th>
+                      <th className="px-4 py-3 font-bold">Vessel / Mode</th>
+                      <th className="px-4 py-3 font-bold">Voyage No.</th>
+                      <th className="px-4 py-3 font-bold">Service</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {routeDetails.map((rd, i) => (
+                      <tr
+                        key={i}
+                        className={clsx(
+                          "border-b border-[#22D3EE] text-[#faf9f6] font-bold",
+                          i % 2 === 0 ? "bg-[#2D4D8B]" : "bg-[#1A2A4A]"
+                        )}
+                      >
+                        <td className="px-4 py-3">{rd.location}</td>
+                        <td className="px-4 py-3">{rd.arrival}</td>
+                        <td className="px-4 py-3">{rd.departure}</td>
+                        <td className="px-4 py-3">{rd.vessel || "—"}</td>
+                        <td className="px-4 py-3">{rd.voyage || "—"}</td>
+                        <td className="px-4 py-3">{rd.service || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Cargo & Equipment */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Cargo &amp; Equipment
+                </h3>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black hover:bg-orange-700"
+                >
+                  Edit Cargo &amp; Equipment
+                </button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-8 text-[#faf9f6] font-bold">
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[#00FFFF]">Equipment owned by:</span>{" "}
+                    {shipperOwnedContainer
+                      ? "Shipper's own Container"
+                      : "Hapag-Lloyd Container"}
+                  </div>
+                  <div>
+                    <span className="text-[#00FFFF]">Release:</span> {releaseDate}{" "}
+                    {releaseTime}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <span className="text-[#00FFFF]">Container Type:</span>{" "}
+                      {containerRows[0].type || "—"}
+                    </div>
+                    <div>
+                      <span className="text-[#00FFFF]">Cargo Description:</span>{" "}
+                      {cargoDescription || "—"}
+                    </div>
+                    <div>
+                      <span className="text-[#00FFFF]">HS Code:</span>{" "}
+                      {hsParts.join("") || "—"}
+                    </div>
+                    <div>
+                      <span className="text-[#00FFFF]">Cargo Weight:</span>{" "}
+                      {weight}
+                    </div>
+                    <div>
+                      <span className="text-[#00FFFF]">Unit:</span> {weightUnit}
+                    </div>
+                    <div>
+                      <span className="text-[#00FFFF]">DG Details:</span>{" "}
+                      {dangerousGoods ? "Yes" : "No"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Customs & Remarks */}
+            <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-[#00FFFF] text-xl uppercase tracking-wide">
+                  Customs &amp; Remarks
+                </h3>
+                <button
+                  onClick={() => setCurrentStep(4)}
+                  className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all border-2 border-black hover:bg-orange-700"
+                >
+                  Edit Customs &amp; Remarks
+                </button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-8 text-[#faf9f6] font-bold mb-6">
+                <div>
+                  <div>
+                    <span className="text-[#00FFFF]">Bill of Lading Numbers:</span>{" "}
+                    {wantsBoL ? boLCount || "0" : "Not needed"}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={exportFiling}
+                      onChange={(e) => setExportFiling(e.target.checked)}
+                      className="mt-1 w-5 h-5 accent-[#00FFFF]"
+                      disabled
+                    />
+                    <div>
+                      <span className="text-[#00FFFF]">
+                        Export customs filing performed by third party
+                      </span>
+                      {exportFiling && (
+                        <div className="mt-2">
+                          <span className="text-[#00FFFF]">Performed by (address):</span>{" "}
+                          {filingBy}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="mb-3">
+                  <span className="text-[#00FFFF] font-bold">
+                    Remarks (optional Shipper/Consignee address)
+                  </span>
+                </div>
+                <div className="bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl p-4 min-h-[120px] text-[#faf9f6] font-bold shadow-inner">
+                  {remarks || "—"}
+                </div>
+              </div>
+            </div>
+
+            {/* Final Submit */}
+            <div className="border-t-4 border-[#00FFFF] pt-10 text-center">
+              <p className="text-[#faf9f6] font-bold mb-8 text-lg leading-relaxed max-w-4xl mx-auto">
+                By clicking on "Submit Booking", you acknowledge that you have
+                accepted the Hapag-Lloyd Bill of Lading or Sea Waybill Terms and
+                Conditions and agree to place a legally binding booking request.
+              </p>
+              <button
+                onClick={() => alert("Booking Submitted Successfully!")}
+                className="bg-[#00FFFF] text-black px-12 py-4 rounded-2xl font-bold text-xl shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[16px_16px_0px_rgba(0,0,0,1)] transition-all border-4 border-black hover:bg-[#22D3EE]"
+              >
+                <Send size={24} className="inline mr-3" />
+                SUBMIT BOOKING
+              </button>
             </div>
           </div>
-        </div>
-      </div>
-      <div>
-        <div><strong>Remarks (optional Shipper/Consignee address)</strong></div>
-        <div className="mt-2 bg-white border rounded p-4 min-h-[100px] text-sm">
-          {remarks || '—'}
-        </div>
-      </div>
-    </div>
-
-    {/* Final Submit */}
-    <div className="border-t border-gray-400 pt-6 text-center">
-      <p className="text-sm mb-4">
-        By clicking on “Submit Booking”, you acknowledge that you have accepted the Hapag-Lloyd Bill of Lading or Sea Waybill Terms and Conditions and agree to place a legally binding booking request.
-      </p>
-      <button
-        onClick={() => alert('Booking Submitted')}
-        className="bg-[#00FFFF] text-black px-8 py-3 rounded-xl font-bold"
-      >
-        Submit Booking
-      </button>
-    </div>
-  </div>
-)}
+        )}
 
         {/* Step 6 */}
         {currentStep === 6 && (
-          <div className="text-center">
-            <CheckCircle size={64} className="text-[#00FFFF] mx-auto mb-4" />
-            <h2 className="text-2xl mb-2">BOOKING RECEIVED</h2>
-            <p>Your booking request has been successfully submitted.</p>
+          <div className="text-center py-20">
+            <CheckCircle
+              size={80}
+              className="text-[#00FFFF] mx-auto mb-8 drop-shadow-lg"
+            />
+            <h2 className="text-4xl mb-6 text-[#00FFFF] font-bold uppercase tracking-wide">
+              BOOKING RECEIVED
+            </h2>
+            <p className="text-xl text-[#faf9f6] font-bold">
+              Your booking request has been successfully submitted.
+            </p>
           </div>
         )}
       </div>
 
       {/* Navigation Buttons */}
-      <div className="flex justify-between max-w-[1600px] mx-auto">
-        <button onClick={prev} disabled={currentStep === 0} className={navButtonStyle}>
-          <ArrowLeft size={20} className="inline-block mr-1"/> PREVIOUS
+      <div className="flex justify-between mt-16">
+        <button
+          onClick={prev}
+          disabled={currentStep === 0}
+          className={clsx(
+            navButtonStyle,
+            currentStep === 0 && "opacity-50 cursor-not-allowed"
+          )}
+        >
+          <ArrowLeft size={20} className="inline-block mr-2" />
+          PREVIOUS
         </button>
         {currentStep < 6 && (
           <button onClick={next} className={navButtonStyle}>
-            NEXT <ArrowRight size={20} className="inline-block ml-1"/>
+            NEXT
+            <ArrowRight size={20} className="inline-block ml-2" />
           </button>
         )}
       </div>
