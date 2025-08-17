@@ -24,7 +24,7 @@ export async function POST(
       );
     }
     throw err;
-  }
+  } 
 
   const { bookingId } = params;
 
