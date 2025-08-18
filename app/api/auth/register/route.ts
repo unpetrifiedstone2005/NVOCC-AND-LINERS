@@ -15,7 +15,7 @@ const RegisterSchema = z.object({
   lastName:    z.string().min(1, "Last name is required"),
   email:       z.string().email("Invalid email address"),
   password:    z.string().min(8, "Password must be at least 8 characters"),
-  countryCode: z.string().min(1, "Country code is required"),
+  countryCode: z.string().regex(/^\+?\d{1,4}$/, "Use phone code like +971"),
   phoneNumber: z.string().min(1, "Phone number is required"),
 
   companyName: z.string().min(1, "Company name is required"),
