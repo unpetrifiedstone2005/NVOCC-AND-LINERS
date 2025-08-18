@@ -221,7 +221,7 @@ model User {
   role           Role                 @default(CLIENT)
   firstName      String
   lastName       String
-  countryCode    String               @db.Char(3)
+  countryCode    String               @db.Char(5)
   phoneNumber    String
   companyName    String
   vatNumber      String?
