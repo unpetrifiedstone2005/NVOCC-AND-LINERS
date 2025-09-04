@@ -44,8 +44,18 @@ const menuData: MenuItem[] = [
     icon: <FileText size={24} />,
     roles: ["ADMIN", "OPERATOR"],
     sub: [
-      { key: "new_quote", label: "NEW QUOTE", pathPattern: "/main/quotes/newquote", roles: ["OPERATOR"] },
-      { key: "my_quotations", label: "MY QUOTATIONS", pathPattern: "/main/quotes/myquotes", roles: ["OPERATOR", "ADMIN"] },
+      {
+        key: "new_quote",
+        label: "NEW QUOTE",
+        pathPattern: "/main/quotes/newquote",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "my_quotations",
+        label: "MY QUOTATIONS",
+        pathPattern: "/main/quotes/myquotes",
+        roles: ["OPERATOR", "ADMIN"],
+      },
     ],
   },
   {
@@ -62,9 +72,18 @@ const menuData: MenuItem[] = [
     icon: <Book size={24} />,
     roles: ["ADMIN", "OPERATOR"],
     sub: [
-      { key: "book_new", label: "CREATE BOOKING", pathPattern: "/main/book/createbooking", roles: ["OPERATOR"] },
-      { key: "book_my", label: "MY BOOKINGS", pathPattern: "/main/book/mybookings", roles: ["OPERATOR", "CLIENT"] },
- 
+      {
+        key: "book_new",
+        label: "CREATE BOOKING",
+        pathPattern: "/main/book/createbooking",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "book_my",
+        label: "MY BOOKINGS",
+        pathPattern: "/main/book/mybookings",
+        roles: ["OPERATOR", "CLIENT"],
+      },
     ],
   },
   {
@@ -73,8 +92,18 @@ const menuData: MenuItem[] = [
     icon: <ClipboardList size={24} />,
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
-      { key: "my_shipment", label: "MY SHIPMENT", pathPattern: "/main/documentation/shipment", roles: ["CLIENT", "OPERATOR"] },
-      { key: "shipping_instructions", label: "SHIPPING INSTRUCTIONS", pathPattern: "/main/documentation/createSI", roles: ["ADMIN"] },
+      {
+        key: "my_shipment",
+        label: "MY SHIPMENT",
+        pathPattern: "/main/documentation/shipment",
+        roles: ["CLIENT", "OPERATOR"],
+      },
+      {
+        key: "shipping_instructions",
+        label: "SHIPPING INSTRUCTIONS",
+        pathPattern: "/main/documentation/createSI",
+        roles: ["ADMIN"],
+      },
     ],
   },
   {
@@ -83,7 +112,12 @@ const menuData: MenuItem[] = [
     icon: <DollarSign size={24} />,
     roles: ["ADMIN", "CLIENT"],
     sub: [
-      { key: "my_invoice", label: "MY INVOICE", pathPattern: "/main/finance/invoice", roles: ["CLIENT"] },
+      {
+        key: "my_invoice",
+        label: "INVOICE",
+        pathPattern: "/main/finance/invoice",
+        roles: ["CLIENT"],
+      },
     ],
   },
   {
@@ -92,9 +126,24 @@ const menuData: MenuItem[] = [
     icon: <Map size={24} />,
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
-      { key: "by_booking", label: "BY BOOKING", pathPattern: "/main/tracking/byBooking", roles: ["CLIENT", "OPERATOR"] },
-      { key: "by_container", label: "BY CONTAINER", pathPattern: "/main/tracking/byContainer", roles: ["OPERATOR"] },
-      { key: "by_vessel", label: "BY VESSEL", pathPattern: "/main/tracking/byVessel", roles: ["OPERATOR"] },
+      {
+        key: "by_booking",
+        label: "BY BOOKING",
+        pathPattern: "/main/tracking/byBooking",
+        roles: ["CLIENT", "OPERATOR"],
+      },
+      {
+        key: "by_container",
+        label: "BY CONTAINER",
+        pathPattern: "/main/tracking/byContainer",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "by_vessel",
+        label: "BY VESSEL",
+        pathPattern: "/main/tracking/byVessel",
+        roles: ["OPERATOR"],
+      },
     ],
   },
   {
@@ -103,12 +152,42 @@ const menuData: MenuItem[] = [
     icon: <SignpostBig size={24} />,
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
-      { key: "seed_containers", label: "CONTAINERS", pathPattern: "/main/seed/containers", roles: ["CLIENT", "OPERATOR"] },
-      { key: "seed_locations", label: "LOCATIONS", pathPattern: "/main/seed/locations", roles: ["CLIENT"] },
-      { key: "seed_serviceschedule", label: "SERVICE SCHEDULE & VOYAGES", pathPattern: "/main/seed/serviceschedules", roles: ["OPERATOR"] },
-      { key: "seed_surcharges", label: "SURCHARGES", pathPattern: "/main/seed/surcharges", roles: ["OPERATOR"] },
-      { key: "seed_tariffs", label: "TARRIFFS", pathPattern: "/main/seed/tariffs", roles: ["CLIENT"] },
-      { key: "seed_inland", label: "INLAND RATES", pathPattern: "/main/seed/inlandrates", roles: ["CLIENT"] },
+      {
+        key: "seed_containers",
+        label: "CONTAINERS",
+        pathPattern: "/main/seed/containers",
+        roles: ["CLIENT", "OPERATOR"],
+      },
+      {
+        key: "seed_locations",
+        label: "LOCATIONS",
+        pathPattern: "/main/seed/locations",
+        roles: ["CLIENT"],
+      },
+      {
+        key: "seed_serviceschedule",
+        label: "SERVICE SCHEDULE & VOYAGES",
+        pathPattern: "/main/seed/serviceschedules",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "seed_surcharges",
+        label: "SURCHARGES",
+        pathPattern: "/main/seed/surcharges",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "seed_tariffs",
+        label: "TARRIFFS",
+        pathPattern: "/main/seed/tariffs",
+        roles: ["CLIENT"],
+      },
+      {
+        key: "veseel_container",
+        label: "VESSEL CONTAINER",
+        pathPattern: "/main/seed/veseelcontainer",
+        roles: ["CLIENT"],
+      },
     ],
   },
 ];
@@ -120,7 +199,8 @@ function isPathActive(current: string, target: string) {
 
 function getActiveMenuKey(pathname: string): string | null {
   for (const menu of menuData) {
-    if (menu.pathPattern && isPathActive(pathname, menu.pathPattern)) return menu.key;
+    if (menu.pathPattern && isPathActive(pathname, menu.pathPattern))
+      return menu.key;
     for (const sub of menu.sub) {
       if (isPathActive(pathname, sub.pathPattern)) return menu.key;
     }
@@ -129,8 +209,9 @@ function getActiveMenuKey(pathname: string): string | null {
 }
 
 function isMenuItemActive(pathname: string, menuItem: MenuItem): boolean {
-  if (menuItem.pathPattern && isPathActive(pathname, menuItem.pathPattern)) return true;
-  return menuItem.sub.some(sub => isPathActive(pathname, sub.pathPattern));
+  if (menuItem.pathPattern && isPathActive(pathname, menuItem.pathPattern))
+    return true;
+  return menuItem.sub.some((sub) => isPathActive(pathname, sub.pathPattern));
 }
 
 // --- MAIN LAYOUT ---------------------------------------------------------
@@ -195,7 +276,7 @@ export default function MainLayout({
   };
 
   const handleSidebarToggle = () => {
-    setIsOpen(o => {
+    setIsOpen((o) => {
       const next = !o;
       if (next) setSidebarJustOpened(true);
       else {
@@ -217,7 +298,8 @@ export default function MainLayout({
     "flex rounded-lg items-center justify-center w-full h-[60px] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] transition-shadow border-black border-4 font-bold px-0";
 
   const highlightClass = "bg-[#1A2F4E] text-[#00FFFF] font-bold";
-  const normalClass = "bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]";
+  const normalClass =
+    "bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]";
 
   return (
     <div
@@ -231,7 +313,13 @@ export default function MainLayout({
       {/* Header */}
       <div className="flex items-center gap-4 third-container-texture-bg justify-between px-6 py-4 w-full shadow-[0px_16px_0px_0px_rgba(0,0,0,0.8)]">
         <div className="flex items-center">
-          <Image src="/logo.png" width={70} height={70} alt="SCMT Logo" style={{ objectFit: "contain" }} />
+          <Image
+            src="/logo.png"
+            width={70}
+            height={70}
+            alt="SCMT Logo"
+            style={{ objectFit: "contain" }}
+          />
           <div className="font-bold text-4xl text-[#162f5c] ml-2">SCMT</div>
         </div>
         <div className="flex items-center gap-4">
@@ -256,16 +344,28 @@ export default function MainLayout({
               <Search size={24} />
             </button>
           )}
-          <button onClick={() => router.push("/")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+          <button
+            onClick={() => router.push("/")}
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+          >
             home
           </button>
-          <button onClick={() => router.push("/main/services&info")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+          <button
+            onClick={() => router.push("/main/services&info")}
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+          >
             services and information
           </button>
-          <button onClick={() => router.push("/main/aboutus")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow hover:shadow-[10px_8px_0px_rgba(0,0,0,1)]">
+          <button
+            onClick={() => router.push("/main/aboutus")}
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow hover:shadow-[10px_8px_0px_rgba(0,0,0,1)]"
+          >
             about us
           </button>
-          <button onClick={() => router.push("/main/dashboard")} className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow">
+          <button
+            onClick={() => router.push("/main/dashboard")}
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white border-black border-4 px-6 py-2 font-bold shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow"
+          >
             dashboard
           </button>
         </div>
@@ -279,11 +379,18 @@ export default function MainLayout({
                 {session.user.firstName?.charAt(0) || "U"}
               </div>
               <span className="uppercase">Hello {session.user.firstName}</span>
-              <ChevronDown size={16} className={`transition-transform duration-300 ${userMenuOpen ? "rotate-180" : ""}`} />
+              <ChevronDown
+                size={16}
+                className={`transition-transform duration-300 ${
+                  userMenuOpen ? "rotate-180" : ""
+                }`}
+              />
             </button>
             <div
               className={`absolute right-0 top-full mt-2 w-full bg-white rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] border-4 border-black z-50 transition-all duration-300 ease-in-out origin-top ${
-                userMenuOpen ? "opacity-100 scale-y-100 translate-y-0" : "opacity-0 scale-y-0 -translate-y-2 pointer-events-none"
+                userMenuOpen
+                  ? "opacity-100 scale-y-100 translate-y-0"
+                  : "opacity-0 scale-y-0 -translate-y-2 pointer-events-none"
               }`}
             >
               <div className="py-2">
@@ -370,7 +477,11 @@ export default function MainLayout({
                       }}
                       className={`
                         border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 transition-shadow w-full flex items-center justify-between
-                        ${isMenuItemActive(pathname, item) ? highlightClass : normalClass}
+                        ${
+                          isMenuItemActive(pathname, item)
+                            ? highlightClass
+                            : normalClass
+                        }
                       `}
                     >
                       <div className="flex items-center gap-2">
@@ -378,13 +489,21 @@ export default function MainLayout({
                         <span>{item.label}</span>
                       </div>
                       {item.sub.length > 0 &&
-                        (openMenu === item.key ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+                        (openMenu === item.key ? (
+                          <ChevronDown size={18} />
+                        ) : (
+                          <ChevronRight size={18} />
+                        ))}
                     </button>
 
                     <div
                       className={`
                         ml-8 transition-all duration-300
-                        ${openMenu === item.key ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}
+                        ${
+                          openMenu === item.key
+                            ? "max-h-[500px] opacity-100"
+                            : "max-h-0 opacity-0 overflow-hidden"
+                        }
                       `}
                     >
                       {item.sub.map((sub) => {
@@ -395,7 +514,11 @@ export default function MainLayout({
                             onClick={() => router.push(sub.pathPattern)}
                             className={`
                               ${subButtonStyle} text-md font-bold
-                              ${active ? "border-l-4 border-[#00FFFF] pl-4 bg-[#00FFFF]/20 text-[#2D4D8B]" : "border-l border-white/20 pl-4"}
+                              ${
+                                active
+                                  ? "border-l-4 border-[#00FFFF] pl-4 bg-[#00FFFF]/20 text-[#2D4D8B]"
+                                  : "border-l border-white/20 pl-4"
+                              }
                             `}
                           >
                             {sub.label}
@@ -413,9 +536,13 @@ export default function MainLayout({
                     }}
                     className={`
                       ${collapsedButtonStyle}
-                      ${isMenuItemActive(pathname, item)
-                        ? highlightClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
-                        : normalClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"}
+                      ${
+                        isMenuItemActive(pathname, item)
+                          ? highlightClass +
+                            " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
+                          : normalClass +
+                            " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
+                      }
                     `}
                     title={item.label}
                   >
@@ -431,7 +558,11 @@ export default function MainLayout({
               className="absolute top-2 -right-8 w-8 h-8 bg-[#2D4D8B] text-white rounded-r-full shadow z-50"
               aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
-              {isOpen ? <ArrowBigLeft size={24} /> : <ArrowBigRight size={24} />}
+              {isOpen ? (
+                <ArrowBigLeft size={24} />
+              ) : (
+                <ArrowBigRight size={24} />
+              )}
             </button>
           </div>
         </div>
@@ -455,12 +586,24 @@ export default function MainLayout({
         <div className="flex justify-center py-6 px-6 relative">
           <div className="flex items-center space-x-10">
             <div className="flex items-center space-x-3 font-bold text-4xl text-[#162f5c]">
-              <Image src="/logo.png" width={70} height={70} alt="SCMT Logo" style={{ objectFit: "contain" }} />
+              <Image
+                src="/logo.png"
+                width={70}
+                height={70}
+                alt="SCMT Logo"
+                style={{ objectFit: "contain" }}
+              />
               <span className="align-middle">SCMT</span>
             </div>
-            <div className="text-black font-bold text-lg uppercase hover:underline cursor-pointer">terms and conditions</div>
-            <div className="text-black font-bold text-lg uppercase hover:underline cursor-pointer">privacy policy</div>
-            <div className="text-black font-bold text-lg uppercase hover:underline cursor-pointer">cookie policy</div>
+            <div className="text-black font-bold text-lg uppercase hover:underline cursor-pointer">
+              terms and conditions
+            </div>
+            <div className="text-black font-bold text-lg uppercase hover:underline cursor-pointer">
+              privacy policy
+            </div>
+            <div className="text-black font-bold text-lg uppercase hover:underline cursor-pointer">
+              cookie policy
+            </div>
           </div>
         </div>
         <div className="text-white py-2 border-t-2 border-b-2 font-bold text-md uppercase flex justify-center items-center bg-[#1e3a8a]">

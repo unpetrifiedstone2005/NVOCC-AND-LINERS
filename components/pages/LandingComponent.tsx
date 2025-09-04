@@ -50,12 +50,42 @@ const menuData: MenuItem[] = [
     icon: <FileText size={24} />,
     roles: ["ADMIN", "OPERATOR"],
     sub: [
-      { key: "new_quote", label: "NEW QUOTE", pathPattern: "/main/quotes/newquote", roles: ["OPERATOR"] },
-      { key: "my_quotations", label: "MY QUOTATIONS", pathPattern: "/main/quotes/myquotes", roles: ["OPERATOR", "ADMIN"] },
-      { key: "special_cargo", label: "SPECIAL CARGO QUOTES", pathPattern: "/main/quotes/special", roles: ["ADMIN"] },
-      { key: "tariffs", label: "TARIFFS", pathPattern: "/main/quotes/tariffs", roles: ["ADMIN"] },
-      { key: "demurrage", label: "DETENTION AND DEMURRAGE TARIFFS", pathPattern: "/main/quotes/demurrage", roles: ["ADMIN"] },
-      { key: "exchange_tariffs", label: "RATE OF EXCHANGE TARIFFS", pathPattern: "/main/quotes/exchange", roles: ["ADMIN"] },
+      {
+        key: "new_quote",
+        label: "NEW QUOTE",
+        pathPattern: "/main/quotes/newquote",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "my_quotations",
+        label: "MY QUOTATIONS",
+        pathPattern: "/main/quotes/myquotes",
+        roles: ["OPERATOR", "ADMIN"],
+      },
+      {
+        key: "special_cargo",
+        label: "SPECIAL CARGO QUOTES",
+        pathPattern: "/main/quotes/special",
+        roles: ["ADMIN"],
+      },
+      {
+        key: "tariffs",
+        label: "TARIFFS",
+        pathPattern: "/main/quotes/tariffs",
+        roles: ["ADMIN"],
+      },
+      {
+        key: "demurrage",
+        label: "DETENTION AND DEMURRAGE TARIFFS",
+        pathPattern: "/main/quotes/demurrage",
+        roles: ["ADMIN"],
+      },
+      {
+        key: "exchange_tariffs",
+        label: "RATE OF EXCHANGE TARIFFS",
+        pathPattern: "/main/quotes/exchange",
+        roles: ["ADMIN"],
+      },
     ],
   },
   {
@@ -72,8 +102,18 @@ const menuData: MenuItem[] = [
     icon: <Book size={24} />,
     roles: ["ADMIN", "OPERATOR"],
     sub: [
-      { key: "book_new", label: "CREATE BOOKING", pathPattern: "/main/book/createbooking", roles: ["OPERATOR"] },
-      { key: "book_my", label: "MY BOOKINGS", pathPattern: "/main/book/mybookings", roles: ["OPERATOR", "CLIENT"] },
+      {
+        key: "book_new",
+        label: "CREATE BOOKING",
+        pathPattern: "/main/book/createbooking",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "book_my",
+        label: "MY BOOKINGS",
+        pathPattern: "/main/book/mybookings",
+        roles: ["OPERATOR", "CLIENT"],
+      },
     ],
   },
   {
@@ -82,9 +122,18 @@ const menuData: MenuItem[] = [
     icon: <ClipboardList size={24} />,
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
-      { key: "my_shipment", label: "MY SHIPMENT", pathPattern: "/main/documentation/shipment", roles: ["CLIENT", "OPERATOR"] },
-      { key: "shipping_instructions", label: "SHIPPING INSTRUCTIONS", pathPattern: "/main/documentation/createSI", roles: ["ADMIN"] },
-  
+      {
+        key: "my_shipment",
+        label: "MY SHIPMENT",
+        pathPattern: "/main/documentation/shipment",
+        roles: ["CLIENT", "OPERATOR"],
+      },
+      {
+        key: "shipping_instructions",
+        label: "SHIPPING INSTRUCTIONS",
+        pathPattern: "/main/documentation/createSI",
+        roles: ["ADMIN"],
+      },
     ],
   },
   {
@@ -93,7 +142,12 @@ const menuData: MenuItem[] = [
     icon: <DollarSign size={24} />,
     roles: ["ADMIN", "CLIENT"],
     sub: [
-      { key: "my_invoice", label: "MY INVOICE", pathPattern: "/main/finance/invoice", roles: ["CLIENT"] },
+      {
+        key: "my_invoice",
+        label: "INVOICE",
+        pathPattern: "/main/finance/invoice",
+        roles: ["CLIENT"],
+      },
     ],
   },
   {
@@ -102,9 +156,24 @@ const menuData: MenuItem[] = [
     icon: <Map size={24} />,
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
-      { key: "by_booking", label: "BY BOOKING", pathPattern: "/main/tracking/byBooking", roles: ["CLIENT", "OPERATOR"] },
-      { key: "by_container", label: "BY CONTAINER", pathPattern: "/main/tracking/byContainer", roles: ["OPERATOR"] },
-      { key: "by_vessel", label: "BY VESSEL", pathPattern: "/main/tracking/byVessel", roles: ["OPERATOR"] },
+      {
+        key: "by_booking",
+        label: "BY BOOKING",
+        pathPattern: "/main/tracking/byBooking",
+        roles: ["CLIENT", "OPERATOR"],
+      },
+      {
+        key: "by_container",
+        label: "BY CONTAINER",
+        pathPattern: "/main/tracking/byContainer",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "by_vessel",
+        label: "BY VESSEL",
+        pathPattern: "/main/tracking/byVessel",
+        roles: ["OPERATOR"],
+      },
     ],
   },
   {
@@ -113,12 +182,42 @@ const menuData: MenuItem[] = [
     icon: <SignpostBig size={24} />,
     roles: ["ADMIN", "OPERATOR", "CLIENT"],
     sub: [
-      { key: "seed_containers", label: "CONTAINERS", pathPattern: "/main/seed/containers", roles: ["CLIENT", "OPERATOR"] },
-      { key: "seed_locations", label: "LOCATIONS", pathPattern: "/main/seed/locations", roles: ["CLIENT"] },
-      { key: "seed_serviceschedule", label: "SERVICE SCHEDULE & VOYAGES", pathPattern: "/main/seed/serviceschedules", roles: ["OPERATOR"] },
-      { key: "seed_surcharges", label: "SURCHARGES", pathPattern: "/main/seed/surcharges", roles: ["OPERATOR"] },
-      { key: "seed_tariffs", label: "TARRIFFS", pathPattern: "/main/seed/tariffs", roles: ["CLIENT"] },
-      { key: "seed_inland", label: "INLAND RATES", pathPattern: "/main/seed/inlandrates", roles: ["CLIENT"] },
+      {
+        key: "seed_containers",
+        label: "CONTAINERS",
+        pathPattern: "/main/seed/containers",
+        roles: ["CLIENT", "OPERATOR"],
+      },
+      {
+        key: "seed_locations",
+        label: "LOCATIONS",
+        pathPattern: "/main/seed/locations",
+        roles: ["CLIENT"],
+      },
+      {
+        key: "seed_serviceschedule",
+        label: "SERVICE SCHEDULE & VOYAGES",
+        pathPattern: "/main/seed/serviceschedules",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "seed_surcharges",
+        label: "SURCHARGES",
+        pathPattern: "/main/seed/surcharges",
+        roles: ["OPERATOR"],
+      },
+      {
+        key: "seed_tariffs",
+        label: "TARRIFFS",
+        pathPattern: "/main/seed/tariffs",
+        roles: ["CLIENT"],
+      },
+      {
+        key: "veseel_container",
+        label: "VESSEL CONTAINER",
+        pathPattern: "/main/seed/veseelcontainer",
+        roles: ["CLIENT"],
+      },
     ],
   },
 ];
@@ -130,7 +229,8 @@ function isPathActive(current: string, target: string) {
 
 function getActiveMenuKey(pathname: string): string | null {
   for (const menu of menuData) {
-    if (menu.pathPattern && isPathActive(pathname, menu.pathPattern)) return menu.key;
+    if (menu.pathPattern && isPathActive(pathname, menu.pathPattern))
+      return menu.key;
     for (const sub of menu.sub) {
       if (isPathActive(pathname, sub.pathPattern)) return menu.key;
     }
@@ -139,8 +239,9 @@ function getActiveMenuKey(pathname: string): string | null {
 }
 
 function isMenuItemActive(pathname: string, menuItem: MenuItem): boolean {
-  if (menuItem.pathPattern && isPathActive(pathname, menuItem.pathPattern)) return true;
-  return menuItem.sub.some(sub => isPathActive(pathname, sub.pathPattern));
+  if (menuItem.pathPattern && isPathActive(pathname, menuItem.pathPattern))
+    return true;
+  return menuItem.sub.some((sub) => isPathActive(pathname, sub.pathPattern));
 }
 
 // --- MAIN COMPONENT ------------------------------------------------------
@@ -158,7 +259,9 @@ export function LandingComponent() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [delayedOpenMenu, setDelayedOpenMenu] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({});
+  const [visibleSections, setVisibleSections] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     const ids = [
@@ -229,7 +332,8 @@ export function LandingComponent() {
     "flex rounded-lg items-center justify-center w-full h-[60px] bg-[#2D4D8B] hover:bg-[#1A2F4E] hover:text-[#00FFFF] text-white shadow-[-8px_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[-12px_6px_16px_rgba(0,0,0,0.5)] transition-shadow border-black border-4 font-bold px-0";
 
   const highlightClass = "bg-[#1A2F4E] text-[#00FFFF] font-bold";
-  const normalClass = "bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]";
+  const normalClass =
+    "bg-[#2D4D8B] text-white hover:bg-[#1A2F4E] hover:text-[#00FFFF]";
 
   return (
     <div
@@ -277,25 +381,25 @@ export function LandingComponent() {
           )}
           <button
             onClick={() => router.push("/")}
-            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             home
           </button>
           <button
             onClick={() => router.push("/main/services&info")}
-            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             services and information
           </button>
           <button
             onClick={() => router.push("/main/aboutus")}
-            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             about us
           </button>
           <button
             onClick={() => router.push("/main/dashboard")}
-            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
+            className="uppercase bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl hover:text-[#00FFFF] text-white  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-6 py-2 font-bold"
           >
             dashboard
           </button>
@@ -304,34 +408,53 @@ export function LandingComponent() {
           <div className="relative">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-3 bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl text-white hover:text-[#00FFFF] shadow shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-4 py-2 font-bold w-full"
+              className="flex items-center gap-3 bg-[#2D4D8B] hover:bg-[#1A2F4E] rounded-2xl text-white hover:text-[#00FFFF]  shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)] transition-shadow border-black border-4 px-4 py-2 font-bold w-full"
             >
               <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-black font-bold text-lg">
                 {session.user.firstName?.charAt(0) || "U"}
               </div>
               <span className="uppercase">Hello {session.user.firstName}</span>
-              <ChevronDown size={16} className={`transition-transform duration-300 ${userMenuOpen ? "rotate-180" : ""}`} />
+              <ChevronDown
+                size={16}
+                className={`transition-transform duration-300 ${
+                  userMenuOpen ? "rotate-180" : ""
+                }`}
+              />
             </button>
             <div
               className={`absolute right-0 top-full mt-2 w-full bg-white rounded-lg shadow-[8px_8px_0px_rgba(0,0,0,1)] border-4 border-black z-50 transition-all duration-300 ease-in-out origin-top ${
-                userMenuOpen ? "opacity-100 scale-y-100 translate-y-0" : "opacity-0 scale-y-0 -translate-y-2 pointer-events-none"
+                userMenuOpen
+                  ? "opacity-100 scale-y-100 translate-y-0"
+                  : "opacity-0 scale-y-0 -translate-y-2 pointer-events-none"
               }`}
             >
               <div className="py-2">
-                <button onClick={() => setUserMenuOpen(false)} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200">
+                <button
+                  onClick={() => setUserMenuOpen(false)}
+                  className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200"
+                >
                   <div className="w-4 h-4 bg-gray-400 rounded"></div>
                   Personal Information
                 </button>
-                <button onClick={() => setUserMenuOpen(false)} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200">
+                <button
+                  onClick={() => setUserMenuOpen(false)}
+                  className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex items-center gap-3 transition-colors duration-200"
+                >
                   <div className="w-4 h-4 bg-gray-400 rounded"></div>
                   Account Settings
                 </button>
-                <button onClick={() => setUserMenuOpen(false)} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex	items-center	gap-3 transition-colors duration-200">
+                <button
+                  onClick={() => setUserMenuOpen(false)}
+                  className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex	items-center	gap-3 transition-colors duration-200"
+                >
                   <div className="w-4 h-4 bg-gray-400 rounded"></div>
                   Company Details
                 </button>
                 {session.user.role !== "CLIENT" && (
-                  <button onClick={() => setUserMenuOpen(false)} className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex	items-center gap-3 transition-colors duration-200">
+                  <button
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 font-medium flex	items-center gap-3 transition-colors duration-200"
+                  >
                     <div className="w-4 h-4 bg-gray-400 rounded"></div>
                     User List
                   </button>
@@ -368,7 +491,8 @@ export function LandingComponent() {
           style={{
             width: "var(--sbw)" as any,
             transition: "width 300ms cubic-bezier(0.4,0,0.2,1)",
-            boxShadow: "inset 0 0 20px 20px rgba(0,0,0,0.7), -15px 20px 0 rgba(0,0,0,1)",
+            boxShadow:
+              "inset 0 0 20px 20px rgba(0,0,0,0.7), -15px 20px 0 rgba(0,0,0,1)",
             willChange: "width",
             transform: "translateZ(0)",
           }}
@@ -388,7 +512,11 @@ export function LandingComponent() {
                       }}
                       className={`
                         border-black border-4 px-4 py-2 font-bold shadow-md shadow-black/100 transition-shadow w-full flex items-center justify-between
-                        ${isMenuItemActive(pathname, item) ? highlightClass : normalClass}
+                        ${
+                          isMenuItemActive(pathname, item)
+                            ? highlightClass
+                            : normalClass
+                        }
                       `}
                     >
                       <div className="flex items-center gap-2">
@@ -396,13 +524,21 @@ export function LandingComponent() {
                         <span>{item.label}</span>
                       </div>
                       {item.sub.length > 0 &&
-                        (openMenu === item.key ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+                        (openMenu === item.key ? (
+                          <ChevronDown size={18} />
+                        ) : (
+                          <ChevronRight size={18} />
+                        ))}
                     </button>
 
                     <div
                       className={`
                         ml-8 transition-all duration-300
-                        ${openMenu === item.key ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}
+                        ${
+                          openMenu === item.key
+                            ? "max-h-[500px] opacity-100"
+                            : "max-h-0 opacity-0 overflow-hidden"
+                        }
                       `}
                     >
                       {item.sub.map((sub) => {
@@ -413,7 +549,11 @@ export function LandingComponent() {
                             onClick={() => router.push(sub.pathPattern)}
                             className={`
                               ${subButtonStyle} text-md font-bold
-                              ${active ? "border-l-4 border-[#00FFFF] pl-4 bg-[#00FFFF]/20 text-[#2D4D8B]" : "border-l border-white/20 pl-4"}
+                              ${
+                                active
+                                  ? "border-l-4 border-[#00FFFF] pl-4 bg-[#00FFFF]/20 text-[#2D4D8B]"
+                                  : "border-l border-white/20 pl-4"
+                              }
                             `}
                           >
                             {sub.label}
@@ -431,9 +571,13 @@ export function LandingComponent() {
                     }}
                     className={`
                       ${collapsedButtonStyle}
-                      ${isMenuItemActive(pathname, item)
-                        ? highlightClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
-                        : normalClass + " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"}
+                      ${
+                        isMenuItemActive(pathname, item)
+                          ? highlightClass +
+                            " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
+                          : normalClass +
+                            " shadow-[-8px_4px_12px_rgba(0,0,0,0.4)]"
+                      }
                     `}
                     title={item.label}
                   >
@@ -445,11 +589,15 @@ export function LandingComponent() {
 
             {/* Toggle button pinned to the sidebar edge (exactly like your layout) */}
             <button
-              onClick={() => setIsOpen(o => !o)}
+              onClick={() => setIsOpen((o) => !o)}
               className="absolute top-2 -right-8 w-8 h-8 bg-[#2D4D8B] text-white rounded-r-full shadow z-50"
               aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
-              {isOpen ? <ArrowBigLeft size={24} /> : <ArrowBigRight size={24} />}
+              {isOpen ? (
+                <ArrowBigLeft size={24} />
+              ) : (
+                <ArrowBigRight size={24} />
+              )}
             </button>
           </div>
         </div>
@@ -467,7 +615,10 @@ export function LandingComponent() {
           <div className="max-w-[1600.24px] mx-auto w-full px-4 items-center">
             <div className="flex flex-col font-bold gap-4">
               <div className="flex justify-center gap-8">
-                <div id="card-tracking" className="transition-all duration-1000">
+                <div
+                  id="card-tracking"
+                  className="transition-all duration-1000"
+                >
                   <TrackingCard />
                 </div>
                 <div id="card-booking" className="transition-all duration-1000">
@@ -476,10 +627,16 @@ export function LandingComponent() {
               </div>
               <br />
               <div className="flex justify-center gap-8 mt-4">
-                <div id="card-schedules" className="transition-all duration-1000">
+                <div
+                  id="card-schedules"
+                  className="transition-all duration-1000"
+                >
                   <SchedulesCard />
                 </div>
-                <div id="card-quotation" className="transition-all duration-1000">
+                <div
+                  id="card-quotation"
+                  className="transition-all duration-1000"
+                >
                   <QuotationCard />
                 </div>
               </div>
@@ -489,7 +646,10 @@ export function LandingComponent() {
             <br />
             <br />
             <br />
-            <div id="about-section" className="max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000">
+            <div
+              id="about-section"
+              className="max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000"
+            >
               <div
                 className="bg-[#0F1B2A] rounded-xl shadow-[30px_30px_0px_rgba(0,0,0,1)] border-4 border-black p-10 flex flex-col items-center text-center relative overflow-hidden"
                 style={{
@@ -501,15 +661,21 @@ export function LandingComponent() {
                 }}
               >
                 <div className="bg-white rounded-full border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] p-2 mb-4">
-                  <img src="/logo.png" alt="SCMT Logo" className="w-20 h-20 object-contain" />
+                  <img
+                    src="/logo.png"
+                    alt="SCMT Logo"
+                    className="w-20 h-20 object-contain"
+                  />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-bold text-[#00FFFF] mb-4 tracking-wide drop-shadow-lg">
                   About State Company for Maritime Transport
                 </h2>
                 <p className="text-white/90 text-lg md:text-xl mb-6 max-w-3xl mx-auto font-semibold">
-                  Since 1952, SCMT has stood as Iraq’s national shipping lifeline, connecting local trade to global
-                  markets with a modern fleet, advanced logistics, and a legacy of reliability. Backed by the Ministry of
-                  Transportation, our mission is to deliver secure, efficient, and world-class maritime services—
+                  Since 1952, SCMT has stood as Iraq’s national shipping
+                  lifeline, connecting local trade to global markets with a
+                  modern fleet, advanced logistics, and a legacy of reliability.
+                  Backed by the Ministry of Transportation, our mission is to
+                  deliver secure, efficient, and world-class maritime services—
                   empowering Iraq’s growth at sea.
                 </p>
                 <button
@@ -525,7 +691,10 @@ export function LandingComponent() {
             <br />
             <br />
             <br />
-            <div id="stats-section" className="max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000">
+            <div
+              id="stats-section"
+              className="max-w-[1600.24px] mx-auto w-full px-4 mb-8 transition-all duration-1000"
+            >
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {[
                   { n: "150+", t: "Global Ports" },
@@ -544,16 +713,26 @@ export function LandingComponent() {
                       backgroundBlendMode: "overlay",
                     }}
                   >
-                    <div className="text-3xl font-bold text-[#00FFFF] mb-2">{it.n}</div>
-                    <div className="text-white font-bold uppercase text-sm">{it.t}</div>
+                    <div className="text-3xl font-bold text-[#00FFFF] mb-2">
+                      {it.n}
+                    </div>
+                    <div className="text-white font-bold uppercase text-sm">
+                      {it.t}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* VIDEO */}
-            <div id="video-section" className="transition-all duration-1000 p-12">
-              <Video src={SCMT} className="shadow-[40px_40px_0px_rgba(0,0,0,1)]" />
+            <div
+              id="video-section"
+              className="transition-all duration-1000 p-12"
+            >
+              <Video
+                src={SCMT}
+                className="shadow-[40px_40px_0px_rgba(0,0,0,1)]"
+              />
             </div>
 
             {/* FEATURED SERVICES */}
@@ -571,7 +750,9 @@ export function LandingComponent() {
                   backgroundBlendMode: "overlay",
                 }}
               >
-                <h2 className="text-3xl font-bold text-white mb-6 text-center">FEATURED SERVICES</h2>
+                <h2 className="text-3xl font-bold text-white mb-6 text-center">
+                  FEATURED SERVICES
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div
                     className="bg-[#0A1A2F] rounded-xl p-6 border-4 border-[#2D4D8B] shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_rgba(0,0,0,1)] transition-shadow"
@@ -584,8 +765,13 @@ export function LandingComponent() {
                     }}
                   >
                     <Map size={48} className="text-[#00FFFF] mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-3">CONTAINER TRACKING</h3>
-                    <p className="text-white/80 mb-4">Real-time tracking of your containers with GPS precision and automated notifications.</p>
+                    <h3 className="text-xl font-bold text-white mb-3">
+                      CONTAINER TRACKING
+                    </h3>
+                    <p className="text-white/80 mb-4">
+                      Real-time tracking of your containers with GPS precision
+                      and automated notifications.
+                    </p>
                     <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
                       LEARN MORE
                     </button>
@@ -602,8 +788,13 @@ export function LandingComponent() {
                     }}
                   >
                     <Book size={48} className="text-[#00FFFF] mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-3">INSTANT BOOKING</h3>
-                    <p className="text-white/80 mb-4">Book your cargo space instantly with our automated booking system and get confirmation in seconds.</p>
+                    <h3 className="text-xl font-bold text-white mb-3">
+                      INSTANT BOOKING
+                    </h3>
+                    <p className="text-white/80 mb-4">
+                      Book your cargo space instantly with our automated booking
+                      system and get confirmation in seconds.
+                    </p>
                     <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
                       LEARN MORE
                     </button>
@@ -620,8 +811,13 @@ export function LandingComponent() {
                     }}
                   >
                     <DollarSign size={48} className="text-[#00FFFF] mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-3">COMPETITIVE RATES</h3>
-                    <p className="text-white/80 mb-4">Get the best shipping rates with our dynamic pricing engine and volume discounts.</p>
+                    <h3 className="text-xl font-bold text-white mb-3">
+                      COMPETITIVE RATES
+                    </h3>
+                    <p className="text-white/80 mb-4">
+                      Get the best shipping rates with our dynamic pricing
+                      engine and volume discounts.
+                    </p>
                     <button className="bg-[#2D4D8B] hover:bg-[#1A2F4E] text-white hover:text-[#00FFFF] px-4 py-2 rounded-lg font-bold border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow">
                       LEARN MORE
                     </button>
@@ -640,12 +836,25 @@ export function LandingComponent() {
           <div className="flex justify-center py-6 px-6 relative">
             <div className="flex items-center space-x-10">
               <div className="flex items-center space-x-3 font-bold text-4xl text-[#162f5c]">
-                <Image src="/logo.png" width={70} height={70} alt="SCMT Logo" className="inline-block align-middle mb-2" style={{ objectFit: "contain" }} />
+                <Image
+                  src="/logo.png"
+                  width={70}
+                  height={70}
+                  alt="SCMT Logo"
+                  className="inline-block align-middle mb-2"
+                  style={{ objectFit: "contain" }}
+                />
                 <span className="align-middle">SCMT</span>
               </div>
-              <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">terms and conditions</div>
-              <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">privacy policy</div>
-              <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">cookie policy</div>
+              <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">
+                terms and conditions
+              </div>
+              <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">
+                privacy policy
+              </div>
+              <div className="text-black font-bold text-md uppercase hover:underline cursor-pointer">
+                cookie policy
+              </div>
             </div>
           </div>
           <div className="text-white py-2 border-t-2 border-b-2 font-bold text-md uppercase flex justify-center items-center bg-[#1e3a8a]">
