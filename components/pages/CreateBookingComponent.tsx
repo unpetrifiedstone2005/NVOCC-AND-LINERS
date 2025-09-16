@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -206,18 +206,34 @@ export const BookingSummaryHeader = ({
   </div>
 );
 
+type Location = {
+  id: string;
+  unlocode: string;
+  name: string;
+  city: string;
+  country: string;
+  type: "PORT" | "INLAND";
+  doorPickupAllowed?: boolean;
+  doorDeliveryAllowed?: boolean;
+  doorNotes?: string;
+};
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 export const CreateBookingComponent = () => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   // Step 0
-  const [customer] = useState("DHL GLOBAL, AUCKLAND");
+  const [customer, setCustomer] = useState("");
   const [customerAddress] = useState(`18 VERISSIMO DRIVE
 WESTNEY INDUSTRY PARK
 AUCKLAND
 NZ-2022`);
   const [contactReference, setContactReference] = useState("");
-  const [contactName, setContactName] = useState("OCEANIA, HAPAG LLOYD");
+  const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
@@ -322,6 +338,77 @@ NZ-2022`);
     },
   ]);
 
+  const fetchLocations = async () => {
+    setLoading(true);
+    try {
+      // Use query params if your API expects pagination
+      const url = new URL("/api/seed/locations/get", window.location.origin);
+      url.searchParams.set("page", "1");
+      url.searchParams.set("limit", "1000"); // get all rows at once (or adjust)
+
+      const res = await fetch(url.toString());
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+      const data = await res.json();
+      console.log("location data", data);
+
+      setLocations(data.items || []);
+      setTotalPages(data.totalPages || 1);
+      setCurrentPage(data.currentPage || 1);
+    } catch (err) {
+      console.error("Failed to fetch locations:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  const prevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
+  const nextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
+
+  const [voyages, setVoyages] = useState<any[]>([]);
+  const [loadingVoyages, setLoadingVoyages] = useState(false);
+  const [voyagePage, setVoyagePage] = useState(1);
+  const [voyageTotalPages, setVoyageTotalPages] = useState(1);
+
+  const fetchVoyages = async (page = 1) => {
+    setLoadingVoyages(true);
+    try {
+      const url = new URL("/api/seed/voyages/get", window.location.origin);
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("limit", "10"); // 10 per page
+
+      const res = await fetch(url.toString());
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+      const data = await res.json();
+      console.log("voyages data", data);
+
+      setVoyages(data.voyages || []);
+      setVoyagePage(data.currentPage || 1);
+      setVoyageTotalPages(data.totalPages || 1);
+    } catch (err) {
+      console.error("Failed to fetch voyages:", err);
+    } finally {
+      setLoadingVoyages(false);
+    }
+  };
+
+  // On mount
+  useEffect(() => {
+    fetchVoyages(1);
+  }, []);
+
+  const prevVoyagePage = () => {
+    if (voyagePage > 1) fetchVoyages(voyagePage - 1);
+  };
+  const nextVoyagePage = () => {
+    if (voyagePage < voyageTotalPages) fetchVoyages(voyagePage + 1);
+  };
+
   // Steps 2–6 state
   const [startLocation, setStartLocation] = useState("");
   const [pickupDate, setPickupDate] = useState("");
@@ -340,7 +427,12 @@ NZ-2022`);
 
   const [containerRows, setContainerRows] = useState<
     { qty: string; type: string }[]
-  >([{ qty: "", type: "" }, { qty: "", type: "" }, { qty: "", type: "" }, { qty: "", type: "" }]);
+  >([
+    { qty: "", type: "" },
+    { qty: "", type: "" },
+    { qty: "", type: "" },
+    { qty: "", type: "" },
+  ]);
 
   const [cargoDescription, setCargoDescription] = useState("");
   const [hsParts, setHsParts] = useState<string[]>(["", "", ""]);
@@ -352,7 +444,13 @@ NZ-2022`);
 
   const [customsRefs, setCustomsRefs] = useState<
     { type: string; ref: string }[]
-  >([{ type: "", ref: "" }, { type: "", ref: "" }, { type: "", ref: "" }, { type: "", ref: "" }, { type: "", ref: "" }]);
+  >([
+    { type: "", ref: "" },
+    { type: "", ref: "" },
+    { type: "", ref: "" },
+    { type: "", ref: "" },
+    { type: "", ref: "" },
+  ]);
   const [wantsBoL, setWantsBoL] = useState(false);
   const [boLCount, setBoLCount] = useState("");
   const [exportFiling, setExportFiling] = useState(false);
@@ -470,6 +568,46 @@ NZ-2022`);
     setHasLookedUp(false);
   };
 
+  const handleSubmit = async () => {
+    try {
+      const payload = {
+        quotationId: quotationNo,
+        customerName: customer,
+        contactReference,
+        contactName,
+        contactPhone: phone,
+        contactEmail: email,
+        startLocation,
+        departureDate: pickupDate ? new Date(pickupDate).toISOString() : null,
+        endLocation,
+        arrivalDate: deliveryDate ? new Date(deliveryDate).toISOString() : null,
+        pickupOption: pickupType === "door" ? "DOOR" : "TERMINAL",
+        deliveryOption: deliveryType === "door" ? "DOOR" : "TERMINAL",
+        exportMOT: exportMoT,
+        importMOT: importMoT,
+        remarks,
+        status: "PENDING",
+      };
+
+      const res = await fetch("/api/booking/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Failed to create booking");
+
+      const booking = await res.json();
+      console.log("Booking created:", booking);
+
+      // move to confirmation step
+      setCurrentStep(6);
+    } catch (err) {
+      console.error("Booking submission error:", err);
+      alert("Error creating booking. Please try again.");
+    }
+  };
+
   const inputStyle =
     "w-full bg-[#0A1A2F] rounded-xl hover:bg-[#1A2A4A] hover:text-[#00FFFF] placeholder-[#faf9f6] text-[#faf9f6] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] placeholder:font-light transition-shadow border-2 border-[#22D3EE] px-4 py-3 font-bold";
   const selectStyle =
@@ -554,11 +692,12 @@ NZ-2022`);
                   <label className="block font-bold text-[#00FFFF] mb-3 text-sm uppercase tracking-wide">
                     Customer
                   </label>
-                  <textarea
-                    readOnly
-                    value={`${customer}\n${customerAddress}`}
-                    rows={6}
-                    className="w-full bg-[#1A2A4A] rounded-xl p-4 text-[#faf9f6] shadow-[8px_8px_0px_rgba(0,0,0,1)] resize-none border-2 border-[#22D3EE] font-bold"
+                  <input
+                    type="text"
+                    value={customer}
+                    onChange={(e) => setCustomer(e.target.value)}
+                    className={inputStyle}
+                    placeholder="Enter customer Name"
                   />
                 </div>
 
@@ -637,474 +776,43 @@ NZ-2022`);
         {/* Step 1 */}
         {currentStep === 1 && (
           <>
-            {/* Page 1 */}
-            {!hasSelectedRouting && !hasLookedUp && (
-              <>
-                <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
-                  <FileText size={28} />
-                  CONTRACT & QUOTATION
-                </h2>
+            <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
+              <FileText size={28} />
+              CONTRACT & QUOTATION
+            </h2>
 
-                <div className="grid md:grid-cols-2 gap-10 mb-8">
-                  <div>
-                    <label className="block font-bold mb-3 text-[#00FFFF] text-sm uppercase tracking-wide">
-                      Quotation / Contract No.*
-                    </label>
-                    <input
-                      value={quotationNo}
-                      onChange={(e) => setQuotationNo(e.target.value)}
-                      className={inputStyle}
-                      placeholder="Enter quotation number"
-                    />
-                    <div className="flex gap-6 mt-6">
-                      <button onClick={handleFindContract} className={primaryButtonStyle}>
-                        Find Contract
-                      </button>
-                      <button onClick={handleClearContract} className={buttonStyle}>
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
-                    <div className="flex justify-between border-b-2 border-[#00FFFF] pb-4 mb-6">
-                      <span className="font-bold text-[#00FFFF] text-lg uppercase tracking-wide">
-                        Base for Freight Charges
-                      </span>
-                      <Info size={20} className="text-[#00FFFF]" />
-                    </div>
-                    <div className="space-y-4 text-[#faf9f6] font-bold">
-                      <p>
-                        The freight basis is either a quotation or a
-                        (service-) contract you hold with Hapag-Lloyd.
-                      </p>
-                      <p>
-                        Formats:{" "}
-                        <span className="text-[#00FFFF]">W1209RTM00001</span>,{" "}
-                        <span className="text-[#00FFFF]">Q1209RTM00001</span>,{" "}
-                        <span className="text-[#00FFFF]">S19ABC001</span>,{" "}
-                        <span className="text-[#00FFFF]">4682727</span>.
-                      </p>
-                      <p>
-                        If neither, use{" "}
-                        <span className="text-[#00FFFF] underline cursor-pointer">
-                          Quick Quote
-                        </span>{" "}
-                        or contact your local{" "}
-                        <span className="text-[#00FFFF] underline cursor-pointer">
-                          Sales Office
-                        </span>
-                        .
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {hasFoundContract && (
-                  <div className="space-y-8">
-                    <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
-                      <div className="font-bold mb-6 text-[#00FFFF] text-xl uppercase tracking-wide">
-                        Validity
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-8">
-                        <div>
-                          <div className="font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                            Quotation / Contract No.*
-                          </div>
-                          <div className="text-[#faf9f6] font-bold text-lg">
-                            {quotationNo}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                            Valid to
-                          </div>
-                          <div className="text-[#faf9f6] font-bold text-lg">
-                            {validTo}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-6">
-                        <div className="font-bold text-[#00FFFF] mb-3 text-sm uppercase tracking-wide">
-                          Contractual Party
-                        </div>
-                        <textarea
-                          readOnly
-                          rows={4}
-                          value={`${contractualParty}\n${contractualAddress}`}
-                          className="w-full bg-transparent text-[#faf9f6] font-bold resize-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="font-bold mb-4 text-[#00FFFF] text-xl uppercase tracking-wide">
-                        Routing as per Quotation
-                      </div>
-                      <div className="overflow-x-auto bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-6 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
-                        <table className="min-w-full">
-                          <thead className="bg-[#00FFFF] text-black">
-                            <tr>
-                              <th className="px-4 py-3 font-bold text-sm">Select</th>
-                              <th className="px-4 py-3 font-bold text-sm">Export haulage</th>
-                              <th className="px-4 py-3 font-bold text-sm">Port of Loading</th>
-                              <th className="px-4 py-3 font-bold text-sm">Service</th>
-                              <th className="px-4 py-3 font-bold text-sm">Port of Discharge</th>
-                              <th className="px-4 py-3 font-bold text-sm">Commodity</th>
-                              <th className="px-4 py-3 font-bold text-sm">Ctr. Type 1</th>
-                              <th className="px-4 py-3 font-bold text-sm">Ctr. Type 2</th>
-                              <th className="px-4 py-3 font-bold text-sm">Ctr. Type 3</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {routingOptions.map((opt) => (
-                              <tr
-                                key={opt.id}
-                                className={clsx(
-                                  "border-b border-[#22D3EE]",
-                                  opt.id === selectedRoutingId
-                                    ? "bg-[#00FFFF] text-black"
-                                    : "text-[#faf9f6]"
-                                )}
-                              >
-                                <td className="px-4 py-3 text-center">
-                                  <input
-                                    type="radio"
-                                    checked={opt.id === selectedRoutingId}
-                                    onChange={() => setSelectedRoutingId(opt.id)}
-                                    className="w-5 h-5 accent-[#00FFFF]"
-                                  />
-                                </td>
-                                <td className="px-4 py-3 font-bold">{opt.mode}</td>
-                                <td className="px-4 py-3 font-bold">{opt.pol}</td>
-                                <td className="px-4 py-3 font-bold">{opt.service}</td>
-                                <td className="px-4 py-3 font-bold">{opt.pod}</td>
-                                <td className="px-4 py-3 font-bold">{opt.commodity}</td>
-                                <td className="px-4 py-3 font-bold">{opt.type1}</td>
-                                <td className="px-4 py-3 font-bold">{opt.type2}</td>
-                                <td className="px-4 py-3 font-bold">{opt.type3}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <button onClick={selectRouting} className={`${primaryButtonStyle} mt-6`}>
-                          Select Routing
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Page 2 */}
-            {hasSelectedRouting && !hasLookedUp && (
+            <div className="grid md:grid-cols-2 gap-10 mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-[#00FFFF] mb-8 flex items-center gap-3">
-                  <Ship size={28} />
-                  LOOK-UP SCHEDULE
-                </h2>
+                <label className="block font-bold mb-3 text-[#00FFFF] text-sm uppercase tracking-wide">
+                  Quotation / Contract No.
+                </label>
+                <input
+                  value={quotationNo}
+                  onChange={(e) => setQuotationNo(e.target.value)}
+                  className={inputStyle}
+                  placeholder="Enter quotation number "
+                />
+              </div>
 
-                <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        Start Location*
-                      </label>
-                      <input
-                        value={scheduleStart}
-                        onChange={(e) => setScheduleStart(e.target.value)}
-                        className={inputStyle}
-                        placeholder="Start location"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        Start Date
-                      </label>
-                      <input
-                        type="date"
-                        value={scheduleDate}
-                        onChange={(e) => setScheduleDate(e.target.value)}
-                        className={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        Plus (weeks)
-                      </label>
-                      <select
-                        value={scheduleWeeks}
-                        onChange={(e) => setScheduleWeeks(e.target.value)}
-                        className={selectStyle}
-                      >
-                        {[...Array(8)].map((_, i) => (
-                          <option key={i} value={String(i + 1)}>
-                            {i + 1}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        Via 1
-                      </label>
-                      <input
-                        value={via1}
-                        onChange={(e) => setVia1(e.target.value)}
-                        className={inputStyle}
-                        placeholder="Via 1"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        Via 2
-                      </label>
-                      <input
-                        value={via2}
-                        onChange={(e) => setVia2(e.target.value)}
-                        className={inputStyle}
-                        placeholder="Via 2"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        End Location*
-                      </label>
-                      <input
-                        value={endLocation}
-                        onChange={(e) => setEndLocation(e.target.value)}
-                        className={inputStyle}
-                        placeholder="End location"
-                      />
-                    </div>
-
-                    <div className="md:col-span-3 flex gap-8 items-center">
-                      <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
-                        <input
-                          type="radio"
-                          checked={pickupType === "door"}
-                          onChange={() => setPickupType("door")}
-                          className="w-5 h-5 accent-[#00FFFF]"
-                        />
-                        Received at your door (CH)
-                      </label>
-                      <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
-                        <input
-                          type="radio"
-                          checked={pickupType === "terminal"}
-                          onChange={() => setPickupType("terminal")}
-                          className="w-5 h-5 accent-[#00FFFF]"
-                        />
-                        Received at container terminal (MH)
-                      </label>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        Export MoT
-                      </label>
-                      <select
-                        value={exportMoT}
-                        onChange={(e) => setExportMoT(e.target.value)}
-                        className={selectStyle}
-                      >
-                        <option value="">—</option>
-                        <option>Road</option>
-                        <option>Rail</option>
-                        <option>Sea</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block font-bold text-[#00FFFF] mb-2 text-sm uppercase tracking-wide">
-                        Import MoT
-                      </label>
-                      <select
-                        value={importMoT}
-                        onChange={(e) => setImportMoT(e.target.value)}
-                        className={selectStyle}
-                      >
-                        <option value="">—</option>
-                        <option>Road</option>
-                        <option>Rail</option>
-                        <option>Sea</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={optimizeReefer}
-                        onChange={(e) => setOptimizeReefer(e.target.checked)}
-                        className="w-6 h-6 accent-[#00FFFF] rounded"
-                      />
-                      <span className="text-[#faf9f6] font-bold">
-                        Optimize routing for reefer equipment
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-6 mt-8">
-                    <button onClick={handleLookupSchedule} className={primaryButtonStyle}>
-                      Find Schedule
-                    </button>
-                    <button onClick={handleClearSchedule} className={buttonStyle}>
-                      Clear
-                    </button>
-                    <button
-                      onClick={() => setHasSelectedRouting(false)}
-                      className="text-[#00FFFF] underline hover:text-white transition-colors font-bold"
-                    >
-                      Previous
-                    </button>
-                  </div>
+              <div className="bg-[#1A2A4A] border-2 border-[#22D3EE] rounded-2xl p-8 shadow-[12px_12px_0px_rgba(0,0,0,1)]">
+                <div className="flex justify-between border-b-2 border-[#00FFFF] pb-4 mb-6">
+                  <span className="font-bold text-[#00FFFF] text-lg uppercase tracking-wide">
+                    Base for Freight Charges
+                  </span>
+                  <Info size={20} className="text-[#00FFFF]" />
+                </div>
+                <div className="space-y-4 text-[#faf9f6] font-bold">
+                  <p>
+                    The freight basis is either a quotation or a (service-)
+                    contract you hold.
+                  </p>
+                  <p>
+                    If you don’t have one, you can continue without entering a
+                    quotation.
+                  </p>
                 </div>
               </div>
-            )}
-
-            {/* Page 3 */}
-            {hasLookedUp && (
-              <>
-                <BookingSummaryHeader
-                  quotationNo={quotationNo}
-                  scheduleStart={scheduleStart}
-                  scheduleDate={scheduleDate}
-                  scheduleWeeks={scheduleWeeks}
-                  pickupType={pickupType}
-                  via1={via1}
-                  via2={via2}
-                  endLocation={endLocation}
-                  exportMoT={exportMoT}
-                  importMoT={importMoT}
-                  optimizeReefer={optimizeReefer}
-                  onDateChange={setScheduleDate}
-                  onWeeksChange={setScheduleWeeks}
-                  onPickupTypeChange={setPickupType}
-                />
-
-                <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#22D3EE] overflow-hidden shadow-[15px_15px_0px_rgba(0,0,0,1)] mb-8">
-                  <table className="min-w-full">
-                    <thead className="bg-[#00FFFF] text-black">
-                      <tr>
-                        <th className="px-4 py-3 font-bold">Port of Loading</th>
-                        <th className="px-4 py-3 font-bold">Transshipments</th>
-                        <th className="px-4 py-3 font-bold">Vessels / Services</th>
-                        <th className="px-4 py-3 font-bold">Port of Discharge</th>
-                        <th className="px-4 py-3 font-bold">Transit Time (days)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scheduleResults.map((opt) => (
-                        <tr
-                          key={opt.id}
-                          className={clsx(
-                            "border-b border-[#22D3EE] cursor-pointer transition-colors",
-                            opt.id === selectedScheduleId
-                              ? "bg-[#00FFFF] text-black"
-                              : "text-[#faf9f6] hover:bg-[#2D4D8B]"
-                          )}
-                        >
-                          <td className="px-4 py-4">
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="radio"
-                                checked={opt.id === selectedScheduleId}
-                                onChange={() => setSelectedScheduleId(opt.id)}
-                                className="w-5 h-5 accent-[#00FFFF]"
-                              />
-                              <div>
-                                <div className="font-bold">{opt.pol}</div>
-                                <div className="text-sm opacity-80">{opt.date}</div>
-                              </div>
-                            </label>
-                          </td>
-                          <td className="px-4 py-4 text-center font-bold">
-                            {opt.vessels.length}
-                          </td>
-                          <td className="px-4 py-4">
-                            {opt.vessels.map((v, i) => (
-                              <div key={i} className="font-bold text-sm mb-1">
-                                {v}
-                              </div>
-                            ))}
-                          </td>
-                          <td className="px-4 py-4 font-bold">{opt.pod}</td>
-                          <td className="px-4 py-4 text-right font-bold">
-                            {opt.transitTime}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex flex-wrap gap-4 mb-8">
-                  {[
-                    "Routing Details",
-                    "Select for Booking",
-                    "Vessel Details",
-                    "Vessel Tracing",
-                    "Closings & Terminal Details",
-                  ].map((label, i) => (
-                    <button
-                      key={label}
-                      disabled={label === "Select for Booking" && !selectedScheduleId}
-                      className={clsx(
-                        "font-bold px-6 py-3 rounded-xl border-2 transition-all shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)]",
-                        i === 1
-                          ? "bg-[#00FFFF] text-black border-black hover:bg-[#22D3EE] disabled:opacity-50 disabled:cursor-not-allowed"
-                          : "bg-[#1A2A4A] text-[#00FFFF] border-[#22D3EE] hover:bg-[#2D4D8B]"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="text-[#00FFFF] underline mb-4 font-bold">
-                  Selected routings not in accordance may incur extra charges
-                </div>
-
-                <div className="bg-[#1A2A4A] rounded-2xl border-2 border-[#22D3EE] overflow-hidden shadow-[15px_15px_0px_rgba(0,0,0,1)]">
-                  <table className="min-w-full">
-                    <thead className="bg-[#00FFFF] text-black">
-                      <tr>
-                        <th className="px-4 py-3 font-bold">Location</th>
-                        <th className="px-4 py-3 font-bold">Arrival</th>
-                        <th className="px-4 py-3 font-bold">Departure</th>
-                        <th className="px-4 py-3 font-bold">Vessel / Mode</th>
-                        <th className="px-4 py-3 font-bold">Voyage</th>
-                        <th className="px-4 py-3 font-bold">Service</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {routeDetails.map((rd) => (
-                        <tr
-                          key={rd.id}
-                          className="even:bg-[#2D4D8B] odd:bg-[#1A2A4A] text-[#faf9f6] border-b border-[#22D3EE]"
-                        >
-                          <td className="px-4 py-3 font-bold">{rd.location}</td>
-                          <td className="px-4 py-3 font-bold">{rd.arrival}</td>
-                          <td className="px-4 py-3 font-bold">{rd.departure}</td>
-                          <td className="px-4 py-3 font-bold">{rd.vessel}</td>
-                          <td className="px-4 py-3 font-bold">{rd.voyage}</td>
-                          <td className="px-4 py-3 font-bold">{rd.service}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setHasLookedUp(false);
-                    setHasSelectedRouting(true);
-                  }}
-                  className="text-[#00FFFF] underline hover:text-white transition-colors mt-6 font-bold"
-                >
-                  Previous
-                </button>
-              </>
-            )}
+            </div>
           </>
         )}
 
@@ -1119,41 +827,141 @@ NZ-2022`);
             {/* Step 1 Overview */}
             <div className="mb-8 bg-[#1A2A4A] p-6 rounded-2xl border-2 border-[#22D3EE] shadow-[12px_12px_0px_rgba(0,0,0,1)]">
               <p className="mb-4 font-bold text-[#00FFFF] text-lg">
-                You have selected the following routing:
+                Available Locations:
               </p>
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-[#00FFFF] text-black">
-                    <tr>
-                      <th className="px-4 py-3 font-bold">Location</th>
-                      <th className="px-4 py-3 font-bold">Arrival</th>
-                      <th className="px-4 py-3 font-bold">Departure</th>
-                      <th className="px-4 py-3 font-bold">Vessel / Mode of transport</th>
-                      <th className="px-4 py-3 font-bold">Voyage No.</th>
-                      <th className="px-4 py-3 font-bold">Service</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {routeDetails.map((rd) => (
-                      <tr
-                        key={rd.id}
-                        className="even:bg-[#2D4D8B] odd:bg-[#1A2A4A] text-[#faf9f6] border-b border-[#22D3EE]"
-                      >
-                        <td className="px-4 py-3 font-bold">{rd.location}</td>
-                        <td className="px-4 py-3 font-bold">{rd.arrival}</td>
-                        <td className="px-4 py-3 font-bold">{rd.departure}</td>
-                        <td className="px-4 py-3 font-bold">{rd.vessel}</td>
-                        <td className="px-4 py-3 font-bold">{rd.voyage}</td>
-                        <td className="px-4 py-3 font-bold">{rd.service}</td>
+              {loading ? (
+                <p className="text-[#faf9f6] font-bold">Loading...</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto border-2 border-[#22D3EE] rounded-xl shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+                    <table className="min-w-full table-auto text-[#faf9f6] font-bold">
+                      <thead className="bg-[#00FFFF] text-black">
+                        <tr>
+                          <th className="px-4 py-2">Name</th>
+                          <th className="px-4 py-2">City</th>
+                          <th className="px-4 py-2">Country</th>
+                          <th className="px-4 py-2">Type</th>
+                          <th className="px-4 py-2">UN/LOCODE</th>
+                          <th className="px-4 py-2">Door Pickup</th>
+                          <th className="px-4 py-2">Door Delivery</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {locations.map((loc, i) => (
+                          <tr
+                            key={loc.id}
+                            className={
+                              i % 2 === 0 ? "bg-[#1A2A4A]" : "bg-[#2D4D8B]"
+                            }
+                          >
+                            <td className="px-4 py-2">{loc.name}</td>
+                            <td className="px-4 py-2">{loc.city}</td>
+                            <td className="px-4 py-2">{loc.country}</td>
+                            <td className="px-4 py-2">{loc.type}</td>
+                            <td className="px-4 py-2">{loc.unlocode}</td>
+                            <td className="px-4 py-2">
+                              {loc.doorPickupAllowed ? "Yes" : "No"}
+                            </td>
+                            <td className="px-4 py-2">
+                              {loc.doorDeliveryAllowed ? "Yes" : "No"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  <div className="flex justify-between mt-4">
+                    <button
+                      onClick={prevPage}
+                      disabled={currentPage === 1}
+                      className="bg-white text-black px-4 py-2 rounded-xl font-bold disabled:opacity-50"
+                    >
+                      <ArrowLeft size={18} /> Previous
+                    </button>
+                    <span className="text-[#faf9f6] font-bold">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={nextPage}
+                      disabled={currentPage === totalPages}
+                      className="bg-white text-black px-4 py-2 rounded-xl font-bold disabled:opacity-50"
+                    >
+                      Next <ArrowRight size={18} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="bg-[#1A2A4A] p-6 rounded-2xl border-2 border-[#22D3EE] shadow-[12px_12px_0px_rgba(0,0,0,1)] mt-8">
+              <h3 className="text-[#00FFFF] font-bold mb-4">
+                Available Voyages
+              </h3>
+              {loadingVoyages ? (
+                <p className="text-[#faf9f6]">Loading...</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-[#faf9f6]">
+                    <thead className="bg-[#00FFFF] text-black">
+                      <tr>
+                        <th className="px-4 py-2 font-bold">Voyage No.</th>
+                        <th className="px-4 py-2 font-bold">Vessel</th>
+                        <th className="px-4 py-2 font-bold">From (POL)</th>
+                        <th className="px-4 py-2 font-bold">To (POD)</th>
+                        <th className="px-4 py-2 font-bold">ETD</th>
+                        <th className="px-4 py-2 font-bold">ETA</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {voyages.map((v) => (
+                        <tr
+                          key={v.id}
+                          className="even:bg-[#2D4D8B] odd:bg-[#1A2A4A]"
+                        >
+                          <td className="px-4 py-2">{v.voyageNumber}</td>
+                          <td className="px-4 py-2">{v.vesselName || "—"}</td>
+                          <td className="px-4 py-2">{v.loadPortUnlocode}</td>
+                          <td className="px-4 py-2">
+                            {v.dischargePortUnlocode}
+                          </td>
+                          <td className="px-4 py-2">
+                            {new Date(v.etdUtc).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-2">
+                            {new Date(v.etaUtc).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Pagination */}
+                  <div className="flex justify-between mt-4">
+                    <button
+                      onClick={prevVoyagePage}
+                      disabled={voyagePage === 1}
+                      className="px-4 py-2 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl text-[#faf9f6] font-bold disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    <span className="text-[#faf9f6] font-bold">
+                      Page {voyagePage} / {voyageTotalPages}
+                    </span>
+                    <button
+                      onClick={nextVoyagePage}
+                      disabled={voyagePage === voyageTotalPages}
+                      className="px-4 py-2 bg-[#0A1A2F] border-2 border-[#22D3EE] rounded-xl text-[#faf9f6] font-bold disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Routing & Schedule Form */}
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-2 gap-8 mt-9">
               <div>
                 <label className="block mb-3 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
                   Start Location*
@@ -1175,6 +983,18 @@ NZ-2022`);
                   value={pickupDate}
                   onChange={(e) => setPickupDate(e.target.value)}
                   className={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="block mb-3 font-bold text-[#00FFFF] text-sm uppercase tracking-wide">
+                  End Location*
+                </label>
+                <input
+                  type="text"
+                  value={endLocation}
+                  onChange={(e) => setEndLocation(e.target.value)}
+                  className={inputStyle}
+                  placeholder="End location"
                 />
               </div>
               <div>
@@ -1238,12 +1058,16 @@ NZ-2022`);
                       type="text"
                       placeholder="Qty*"
                       value={row.qty}
-                      onChange={(e) => updateContainerRow(idx, "qty", e.target.value)}
+                      onChange={(e) =>
+                        updateContainerRow(idx, "qty", e.target.value)
+                      }
                       className="w-24 bg-[#0A1A2F] rounded-xl p-3 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
                     />
                     <select
                       value={row.type}
-                      onChange={(e) => updateContainerRow(idx, "type", e.target.value)}
+                      onChange={(e) =>
+                        updateContainerRow(idx, "type", e.target.value)
+                      }
                       className="flex-1 bg-[#0A1A2F] rounded-xl p-3 text-[#faf9f6] font-bold border-2 border-[#22D3EE] shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
                     >
                       <option value="">-- Select Container Type --</option>
@@ -1325,7 +1149,9 @@ NZ-2022`);
                       ))}
                       <button
                         type="button"
-                        onClick={() => console.log("Lookup HS code", hsParts.join(""))}
+                        onClick={() =>
+                          console.log("Lookup HS code", hsParts.join(""))
+                        }
                         className="bg-[#00FFFF] px-4 rounded-xl font-bold text-black border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-shadow"
                       >
                         🔍
@@ -1363,8 +1189,8 @@ NZ-2022`);
 
                   <div className="space-y-2 text-[#faf9f6] font-bold text-sm">
                     <p>
-                      The depot information will be provided with the final booking
-                      confirmation.
+                      The depot information will be provided with the final
+                      booking confirmation.
                     </p>
                     <p>
                       Please note free time regulations in our{" "}
@@ -1387,7 +1213,10 @@ NZ-2022`);
                 <button onClick={() => prev()} className={buttonStyle}>
                   Previous
                 </button>
-                <button onClick={handleAssignDetails} className={primaryButtonStyle}>
+                <button
+                  onClick={handleAssignDetails}
+                  className={primaryButtonStyle}
+                >
                   Assign Details
                 </button>
               </div>
@@ -1396,27 +1225,46 @@ NZ-2022`);
             {/* Pop-up summary after Assign Details */}
             {hasAssignedDetails && (
               <div className="bg-white border-4 border-black rounded-2xl p-8 shadow-[20px_20px_0px_rgba(0,0,0,1)]">
-                <div className="text-black font-bold mb-6 text-xl">Container 1</div>
+                <div className="text-black font-bold mb-6 text-xl">
+                  Container 1
+                </div>
                 <div className="overflow-x-auto">
                   <table className="table-auto w-full">
                     <thead className="bg-gray-200 text-black">
                       <tr>
-                        <th className="px-4 py-3 text-left font-bold">Container Type</th>
-                        <th className="px-4 py-3 text-left font-bold">Cargo Description *</th>
-                        <th className="px-4 py-3 text-left font-bold">HS Code</th>
-                        <th className="px-4 py-3 text-left font-bold">Cargo Weight *</th>
-                        <th className="px-4 py-3 text-left font-bold">Unit *</th>
-                        <th className="px-4 py-3 text-left font-bold">DG Details</th>
+                        <th className="px-4 py-3 text-left font-bold">
+                          Container Type
+                        </th>
+                        <th className="px-4 py-3 text-left font-bold">
+                          Cargo Description *
+                        </th>
+                        <th className="px-4 py-3 text-left font-bold">
+                          HS Code
+                        </th>
+                        <th className="px-4 py-3 text-left font-bold">
+                          Cargo Weight *
+                        </th>
+                        <th className="px-4 py-3 text-left font-bold">
+                          Unit *
+                        </th>
+                        <th className="px-4 py-3 text-left font-bold">
+                          DG Details
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {containerRows.map((row, i) => (
-                        <tr key={i} className={i % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+                        <tr
+                          key={i}
+                          className={i % 2 === 0 ? "bg-gray-50" : "bg-white"}
+                        >
                           <td className="px-4 py-3">
                             <input
                               type="text"
                               value={row.type}
-                              onChange={(e) => updateContainerRow(i, "type", e.target.value)}
+                              onChange={(e) =>
+                                updateContainerRow(i, "type", e.target.value)
+                              }
                               className="w-full bg-white border-2 border-black rounded-lg p-2 font-bold"
                             />
                           </td>
@@ -1424,7 +1272,9 @@ NZ-2022`);
                             <input
                               type="text"
                               value={cargoDescription}
-                              onChange={(e) => setCargoDescription(e.target.value)}
+                              onChange={(e) =>
+                                setCargoDescription(e.target.value)
+                              }
                               className="w-full bg-white border-2 border-black rounded-lg p-2 font-bold"
                             />
                           </td>
@@ -1446,7 +1296,9 @@ NZ-2022`);
                               ))}
                               <button
                                 type="button"
-                                onClick={() => console.log("Lookup HS", hsParts.join(""))}
+                                onClick={() =>
+                                  console.log("Lookup HS", hsParts.join(""))
+                                }
                                 className="px-2 bg-gray-200 border-2 border-black rounded-lg font-bold"
                               >
                                 🔍
@@ -1474,7 +1326,9 @@ NZ-2022`);
                           <td className="px-4 py-3 text-center">
                             <button
                               type="button"
-                              onClick={() => console.log("Open DG details for row", i)}
+                              onClick={() =>
+                                console.log("Open DG details for row", i)
+                              }
                               className="px-2 bg-gray-200 border-2 border-black rounded-lg font-bold"
                             >
                               🔍
@@ -1588,7 +1442,8 @@ NZ-2022`);
                 Bill of Lading Numbers
               </div>
               <p className="text-[#faf9f6] font-bold mb-6">
-                You may receive the bill of lading numbers with the booking confirmation. How many do you need?
+                You may receive the bill of lading numbers with the booking
+                confirmation. How many do you need?
               </p>
               <div className="flex items-center gap-8">
                 <label className="flex items-center gap-3 text-[#faf9f6] font-bold">
@@ -1708,10 +1563,12 @@ NZ-2022`);
                     {contactReference || "—"}
                   </div>
                   <div>
-                    <span className="text-[#00FFFF]">Contact:</span> {contactName}
+                    <span className="text-[#00FFFF]">Contact:</span>{" "}
+                    {contactName}
                   </div>
                   <div>
-                    <span className="text-[#00FFFF]">Phone:</span> {phone || "—"}
+                    <span className="text-[#00FFFF]">Phone:</span>{" "}
+                    {phone || "—"}
                   </div>
                   <div>
                     <span className="text-[#00FFFF]">Notification E-mail:</span>{" "}
@@ -1737,7 +1594,9 @@ NZ-2022`);
               <div className="grid md:grid-cols-2 gap-8 text-[#faf9f6] font-bold">
                 <div className="space-y-2">
                   <div>
-                    <span className="text-[#00FFFF]">Quotation / Contract No.:</span>{" "}
+                    <span className="text-[#00FFFF]">
+                      Quotation / Contract No.:
+                    </span>{" "}
                     {quotationNo}
                   </div>
                   <div>
@@ -1771,52 +1630,15 @@ NZ-2022`);
                   Edit Schedule
                 </button>
               </div>
-              <div className="text-[#faf9f6] font-bold mb-6 space-y-2">
-                <div>
-                  <span className="text-[#00FFFF]">Pickup:</span>{" "}
-                  {pickupType === "door"
-                    ? "Received at your door (CH)"
-                    : "Received at container terminal (MH)"}
-                </div>
-                <div>
-                  <span className="text-[#00FFFF]">Delivery:</span>{" "}
-                  {deliveryType === "door"
-                    ? "Delivered at your door (CH)"
-                    : "Delivered at container terminal (MH)"}
-                </div>
-              </div>
+              <div className="text-[#faf9f6] font-bold mb-6 space-y-2"></div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-[#00FFFF] text-black">
-                    <tr>
-                      <th className="px-4 py-3 font-bold">Location</th>
-                      <th className="px-4 py-3 font-bold">Arrival</th>
-                      <th className="px-4 py-3 font-bold">Departure</th>
-                      <th className="px-4 py-3 font-bold">Vessel / Mode</th>
-                      <th className="px-4 py-3 font-bold">Voyage No.</th>
-                      <th className="px-4 py-3 font-bold">Service</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {routeDetails.map((rd, i) => (
-                      <tr
-                        key={i}
-                        className={clsx(
-                          "border-b border-[#22D3EE] text-[#faf9f6] font-bold",
-                          i % 2 === 0 ? "bg-[#2D4D8B]" : "bg-[#1A2A4A]"
-                        )}
-                      >
-                        <td className="px-4 py-3">{rd.location}</td>
-                        <td className="px-4 py-3">{rd.arrival}</td>
-                        <td className="px-4 py-3">{rd.departure}</td>
-                        <td className="px-4 py-3">{rd.vessel || "—"}</td>
-                        <td className="px-4 py-3">{rd.voyage || "—"}</td>
-                        <td className="px-4 py-3">{rd.service || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div>
+                <span className="text-[#00FFFF]">From: </span>
+                {startLocation}
+              </div>
+              <div>
+                <span className="text-[#00FFFF]">To: </span>
+                {endLocation}
               </div>
             </div>
 
@@ -1842,8 +1664,8 @@ NZ-2022`);
                       : "Hapag-Lloyd Container"}
                   </div>
                   <div>
-                    <span className="text-[#00FFFF]">Release:</span> {releaseDate}{" "}
-                    {releaseTime}
+                    <span className="text-[#00FFFF]">Release:</span>{" "}
+                    {releaseDate} {releaseTime}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1892,7 +1714,9 @@ NZ-2022`);
               <div className="grid md:grid-cols-2 gap-8 text-[#faf9f6] font-bold mb-6">
                 <div>
                   <div>
-                    <span className="text-[#00FFFF]">Bill of Lading Numbers:</span>{" "}
+                    <span className="text-[#00FFFF]">
+                      Bill of Lading Numbers:
+                    </span>{" "}
                     {wantsBoL ? boLCount || "0" : "Not needed"}
                   </div>
                 </div>
@@ -1911,7 +1735,9 @@ NZ-2022`);
                       </span>
                       {exportFiling && (
                         <div className="mt-2">
-                          <span className="text-[#00FFFF]">Performed by (address):</span>{" "}
+                          <span className="text-[#00FFFF]">
+                            Performed by (address):
+                          </span>{" "}
                           {filingBy}
                         </div>
                       )}
@@ -1939,8 +1765,10 @@ NZ-2022`);
                 Conditions and agree to place a legally binding booking request.
               </p>
               <button
-                onClick={() => alert("Booking Submitted Successfully!")}
-                className="bg-[#00FFFF] text-black px-12 py-4 rounded-2xl font-bold text-xl shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:shadow-[16px_16px_0px_rgba(0,0,0,1)] transition-all border-4 border-black hover:bg-[#22D3EE]"
+                onClick={handleSubmit}
+                className="uppercase bg-[#0A1A2F] hover:bg-[#2D4D8B] text-white 
+             shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[10px_8px_0px_rgba(0,0,0,1)]
+             transition-shadow border-black border-4 px-6 py-2 font-bold rounded-3xl"
               >
                 <Send size={24} className="inline mr-3" />
                 SUBMIT BOOKING

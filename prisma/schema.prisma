@@ -143,7 +143,7 @@ model Quotation {
   status              QuotationStatus      @default(accepted)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
-  booking             Booking?
+  booking             Booking[]
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   quotationContainers QuotationContainer[]
   quotationLines      QuotationLine[]
@@ -269,7 +269,7 @@ model QuotationRouting {
 model Booking {
   id                    String                 @id @default(uuid())
   userId                String
-  quotationId           String                 @unique
+  quotationId           String                 
   customerName          String?
   contactReference      String?
   contactName           String?
